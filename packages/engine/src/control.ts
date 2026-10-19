@@ -46,6 +46,37 @@ export interface FlightControl {
   inFlight: IgcFix[];
   /** Première porte de départ de la manche, ms UTC. */
   firstStartGate: number | null;
+  /** Manche arrêtée : fin de la fenêtre prise en compte pour ce pilote et bonus d'altitude (13.4). */
+  stopped: StoppedFlight | null;
+}
+
+export interface StoppedFlight {
+  /** Heure d'arrêt après score-back, ms UTC. */
+  taskStopTime: number;
+  /** Fin de la fenêtre de vol prise en compte pour ce pilote (13.4.4), ms UTC. */
+  windowEnd: number;
+  /** Le pilote volait encore à la fin de sa fenêtre. */
+  flyingAtStop: boolean;
+  /** Altitude GNSS au-dessus du goal à la fin de la fenêtre, en mètres (0 si posé). */
+  altitudeAboveGoal: number;
+  /** Distance à l'arrêt plus bonus d'altitude, plafonnée à la distance de la manche (13.4.6), en mètres. */
+  bonusDistance: number;
+  /** Distance retenue : max(distance parcourue, bonusDistance), en mètres. */
+  scoredDistance: number;
+}
+
+/** Finesse du bonus d'altitude en parapente (13.4.6). */
+export const BONUS_GLIDE_RATIO = 2.5;
+/** Score-back par défaut en parapente (13.4.1), en secondes. */
+export const DEFAULT_SCORE_BACK_TIME = 300;
+
+export interface ControlOptions {
+  /**
+   * Manche arrêtée avec plusieurs portes ou en time trial (13.4.4) : dernière heure de départ
+   * officielle (dernière porte prise par au moins un pilote), ms UTC. Par défaut, la dernière porte
+   * avant l'arrêt ; en time trial sans porte, le départ du pilote.
+   */
+  lastStartTime?: number;
 }
 
 const alt = (f: IgcFix) => f.gnssAltitude ?? f.pressureAltitude;
@@ -118,7 +149,50 @@ function goalLineCrossings(pts: IgcFix[], centre: LatLon, length: number, incomi
  * Contrôle d'une trace sur une manche (S7F 2026, 9.2 et 9.3) : départ, balises dans l'ordre,
  * ESS, goal et distance parcourue. Seule la partie en vol compte.
  */
-export function controlFlight(task: Task, fixes: IgcFix[]): FlightControl {
+export function controlFlight(task: Task, fixes: IgcFix[], options: ControlOptions = {}): FlightControl {
+  const valid = fixes.filter((f) => f.valid);
+  if (!task.stopAnnouncement || !valid.length) return controlUntil(task, valid, Infinity);
+  const dayStart = Math.floor(valid[0]!.time / 86_400_000) * 86_400_000;
+  const stop = timeOnDay(task.stopAnnouncement, dayStart) - (task.scoreBackTime ?? DEFAULT_SCORE_BACK_TIME) * 1000;
+  const gates = task.startGates.map((g) => timeOnDay(g, dayStart)).sort((a, b) => a - b);
+
+  // Fenêtre de vol (13.4.4) : jusqu'à l'arrêt pour une race à une porte ; sinon, la même durée
+  // pour tous, comptée depuis le départ de chacun.
+  let end = stop;
+  if (task.type === "time-trial" || gates.length > 1) {
+    const first = controlUntil(task, valid, stop);
+    if (first.startTime !== null) {
+      const lastStart = options.lastStartTime ?? [...gates].reverse().find((g) => g <= stop) ?? first.startTime;
+      end = Math.min(stop, first.startTime + (stop - lastStart));
+    }
+  }
+  const c = controlUntil(task, valid, end);
+  const distances = taskDistances(task);
+  const flying = c.inFlight.length > 0 && c.inFlight[0]!.time <= end && (c.landingTime === null || c.landingTime > end);
+  let altitudeAboveGoal = 0;
+  let bonusDistance = 0;
+  if (flying && !c.madeGoal) {
+    // Bonus d'altitude (13.4.6) : depuis la position à l'arrêt, sans tenir compte des meilleures distances d'avant.
+    const p = c.inFlight.at(-1)!;
+    const goalAlt = task.turnpoints.at(-1)!.zone.waypoint.altitude ?? 0;
+    altitudeAboveGoal = Math.max(0, (alt(p) ?? goalAlt) - goalAlt);
+    const sssIdx = task.turnpoints.findIndex((t) => t.role === "sss");
+    const remaining = remainingFrom(task, c.validated, sssIdx)(p);
+    bonusDistance = Math.min(distances.task, distances.task - remaining + altitudeAboveGoal * BONUS_GLIDE_RATIO);
+  }
+  c.stopped = {
+    taskStopTime: stop,
+    windowEnd: end,
+    flyingAtStop: flying,
+    altitudeAboveGoal,
+    bonusDistance,
+    scoredDistance: Math.max(c.flownDistance, bonusDistance),
+  };
+  return c;
+}
+
+/** Contrôle de la trace jusqu'à `end` (ms UTC) : les fixes après cette heure sont ignorés. */
+function controlUntil(task: Task, valid: IgcFix[], end: number): FlightControl {
   const tps = task.turnpoints;
   const sssIdx = tps.findIndex((t) => t.role === "sss");
   const goalIdx = tps.length - 1;
@@ -126,7 +200,6 @@ export function controlFlight(task: Task, fixes: IgcFix[]): FlightControl {
   const ess = essIdx >= 0 ? essIdx : goalIdx;
   const distances = taskDistances(task);
 
-  const valid = fixes.filter((f) => f.valid);
   const dayStart = valid.length ? Math.floor(valid[0]!.time / 86_400_000) * 86_400_000 : 0;
   const gates = task.startGates.map((g) => timeOnDay(g, dayStart)).sort((a, b) => a - b);
   const firstGate = gates[0] ?? -Infinity;
@@ -151,9 +224,10 @@ export function controlFlight(task: Task, fixes: IgcFix[]): FlightControl {
     landingTime: period?.landed ? (valid[period.landingIndex]?.time ?? null) : null,
     inFlight: [],
     firstStartGate: gates[0] ?? null,
+    stopped: null,
   };
   if (!period || sssIdx < 0) return result;
-  const pts = valid.slice(period.takeoffIndex, period.landingIndex + 1);
+  const pts = valid.slice(period.takeoffIndex, period.landingIndex + 1).filter((f) => f.time <= end);
   result.inFlight = pts;
   if (pts.length < 2) return result;
 
@@ -239,25 +313,8 @@ function bestRemaining(
   validated: ZoneValidation[],
   sssIdx: number,
 ): { remaining: number; index: number } {
-  const tps = task.turnpoints;
-  const goalIdx = tps.length - 1;
-  const steps = validated.map((v) => ({ time: v.time, next: v.index + 1 }));
-  const zonesFrom = (next: number): RouteZone[] =>
-    tps.slice(next).map((t, k) => ({
-      centre: { lat: t.zone.waypoint.lat, lon: t.zone.waypoint.lon },
-      radius: next + k === goalIdx || t.zone.kind !== "cylinder" ? 0 : t.zone.radius,
-    }));
-  const cache = new Map<number, RouteZone[]>();
-  const remainingAt = (j: number): number => {
-    const p = pts[j]!;
-    // Prochaine zone à atteindre à l'instant de ce fix.
-    let next = sssIdx;
-    for (const s of steps) if (s.time <= p.time) next = s.next;
-    if (next > goalIdx) return 0;
-    let zones = cache.get(next);
-    if (!zones) cache.set(next, (zones = zonesFrom(next)));
-    return optimizeRoute([{ centre: { lat: p.lat, lon: p.lon }, radius: 0 }, ...zones]).distance;
-  };
+  const remaining = remainingFrom(task, validated, sssIdx);
+  const remainingAt = (j: number): number => remaining(pts[j]!);
 
   // Recherche grossière (un fix sur 10), puis fine autour des meilleurs candidats.
   const coarse: Array<{ j: number; r: number }> = [];
@@ -272,4 +329,26 @@ function bestRemaining(
     }
   }
   return best;
+}
+
+/** Distance restante jusqu'au goal depuis un fix, compte tenu des zones déjà validées à son heure (9.3). */
+function remainingFrom(task: Task, validated: ZoneValidation[], sssIdx: number): (p: IgcFix) => number {
+  const tps = task.turnpoints;
+  const goalIdx = tps.length - 1;
+  const steps = validated.map((v) => ({ time: v.time, next: v.index + 1 }));
+  const zonesFrom = (next: number): RouteZone[] =>
+    tps.slice(next).map((t, k) => ({
+      centre: { lat: t.zone.waypoint.lat, lon: t.zone.waypoint.lon },
+      radius: next + k === goalIdx || t.zone.kind !== "cylinder" ? 0 : t.zone.radius,
+    }));
+  const cache = new Map<number, RouteZone[]>();
+  return (p) => {
+    // Prochaine zone à atteindre à l'instant de ce fix.
+    let next = sssIdx;
+    for (const s of steps) if (s.time <= p.time) next = s.next;
+    if (next > goalIdx) return 0;
+    let zones = cache.get(next);
+    if (!zones) cache.set(next, (zones = zonesFrom(next)));
+    return optimizeRoute([{ centre: { lat: p.lat, lon: p.lon }, radius: 0 }, ...zones]).distance;
+  };
 }

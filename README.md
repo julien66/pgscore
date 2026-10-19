@@ -26,5 +26,6 @@ pnpm test
 - [x] Route optimisée (projection LTM + PathFinder, S7F 7.1)
 - [x] Validation des balises, du départ, de l'ESS et du goal, distance parcourue (S7F 9.2, 9.3)
 - [x] Paramètres de compétition et distance minimale (S7F 5, 9.3)
+- [x] Manches arrêtées : score-back, fenêtre de vol, bonus d'altitude (S7F 13.4)
 - [x] Espaces aériens OpenAir : lecture, infractions, pénalités PWCA
 - [ ] Collecte PureTrack et reconstruction IGC

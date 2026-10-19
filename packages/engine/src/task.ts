@@ -48,6 +48,10 @@ export interface Task {
   takeoffOpen?: string;
   takeoffClose?: string;
   deadline?: string;
+  /** Manche arrêtée (13.4.1) : heure de la première annonce de l'arrêt, en UTC ("HH:MM:SS"). */
+  stopAnnouncement?: string;
+  /** Score-back en secondes (13.4.1) : 300 en parapente (par défaut), 900 en delta. */
+  scoreBackTime?: number;
   /** Indication d'origine (enter/exit) gardée pour l'affichage : le S7F 2026 ne l'utilise plus. */
   startDirection?: "enter" | "exit";
   /** Modèle terrestre déclaré par le fichier source ; le contrôle utilise toujours WGS84. */

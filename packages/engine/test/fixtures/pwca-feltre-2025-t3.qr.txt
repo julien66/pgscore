@@ -1,0 +1,1 @@
+XCTSK:{"version":2,"taskType":"CLASSIC","t":[{"z":"wvdgAgc}wGguA_X","n":"T01140"},{"z":"wvdgAgc}wGguAgmE","n":"T01140","t":2},{"z":"iy}iA_|ixGe_A_g^","n":"W23102"},{"z":"u}nfAw_swGkZgrO","n":"W10040"},{"z":"ischA{h_xGsN_|B","n":"W13025"},{"z":"wgogA_g}wG{Tg{C","n":"L01035","t":3},{"z":"wgogA_g}wG{TgE","n":"L01035"}],"s":{"g":["12:00:00Z"],"d":2,"t":1},"g":{"d":"15:30:00Z","t":1}}
