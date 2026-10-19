@@ -97,6 +97,25 @@ export const MIGRATIONS: Migration[] = [
     }
     db.exec("DROP TABLE tracks; ALTER TABLE tracks_new RENAME TO tracks;");
   },
+  // Historique des traces : une trace remplacée ou retirée y est gardée, avec qui, quand et pourquoi.
+  `ALTER TABLE tracks ADD COLUMN uploaded_by INTEGER REFERENCES users(id);
+   ALTER TABLE tracks ADD COLUMN note TEXT;
+   CREATE TABLE track_history (
+     id INTEGER PRIMARY KEY,
+     task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+     pilot_key TEXT NOT NULL,
+     pilot_name TEXT,
+     filename TEXT NOT NULL,
+     sha256 TEXT NOT NULL,
+     size INTEGER NOT NULL,
+     uploaded_at INTEGER NOT NULL,
+     uploaded_by INTEGER REFERENCES users(id),
+     note TEXT,
+     ended_at INTEGER NOT NULL,
+     ended_by INTEGER REFERENCES users(id),
+     ended_how TEXT NOT NULL CHECK (ended_how IN ('replaced', 'removed'))
+   );
+   CREATE INDEX track_history_task ON track_history (task_id, pilot_key);`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {
@@ -161,6 +180,24 @@ export interface TrackRow {
   sha256: string;
   size: number;
   uploaded_at: number;
+  uploaded_by: number | null;
+  note: string | null;
+}
+
+export interface TrackHistoryRow {
+  id: number;
+  task_id: number;
+  pilot_key: string;
+  pilot_name: string | null;
+  filename: string;
+  sha256: string;
+  size: number;
+  uploaded_at: number;
+  uploaded_by_name: string | null;
+  note: string | null;
+  ended_at: number;
+  ended_by_name: string | null;
+  ended_how: "replaced" | "removed";
 }
 
 export interface RunRow {

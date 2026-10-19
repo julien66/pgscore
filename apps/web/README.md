@@ -27,6 +27,11 @@ empreinte SHA-256 (`tracks/ab/abcdef….igc`). Un fichier n'est jamais modifié 
 remplacée ou supprimée dans une manche reste dans le dossier. La base ne garde que le nom du fichier,
 sa taille et son empreinte. Sauvegarder = copier la base et ce dossier.
 
+Remplacer une trace : renvoyer un fichier qui porte le numéro du pilote, ou « Remplacer » sur la
+ligne du pilote (n'importe quel nom de fichier, raison facultative). L'ancienne version reste
+téléchargeable dans « Anciennes versions », avec qui l'a remplacée et quand ; une trace retirée y
+passe aussi. La page signale quand des traces ont changé depuis le dernier calcul.
+
 Node 22.5 ou plus récent (base SQLite intégrée à Node).
 
 ## Connexion Google

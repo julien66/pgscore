@@ -16,6 +16,7 @@ import type { CompetitionRow, Db, RunRow, TaskRow, TrackRow, User } from "./db.j
 import { collectIgc, decodeQrImage, decodeText, pilotKeyFromFilename } from "./files.js";
 import { isRunning, startRun } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
+import { removeTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
 import { viewerData } from "./viewer-data.js";
@@ -47,6 +48,9 @@ export interface AppConfig {
 type Env = { Variables: { user: User } };
 
 const MAX_UPLOAD = 200 * 1024 * 1024;
+
+/** Nom du pilote dans l'en-tête IGC (HFPLT). */
+const igcPilot = (text: string) => /^HF[A-Z]{0,3}PLT[^:]*:(.*)$/im.exec(text)?.[1]?.trim() || null;
 
 export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   const app = new Hono<Env>();
@@ -345,7 +349,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   const taskPage = (c: Context<Env>, t: TaskRow, comp: CompetitionRow, extra: { error?: string; notice?: string } = {}) => {
     const task = JSON.parse(t.task) as Task;
     const tracks = db
-      .prepare("SELECT id, task_id, pilot_key, pilot_name, filename, uploaded_at FROM tracks WHERE task_id = ? ORDER BY CAST(pilot_key AS INTEGER), pilot_key")
+      .prepare("SELECT * FROM tracks WHERE task_id = ? ORDER BY CAST(pilot_key AS INTEGER), pilot_key")
       .all(t.id) as unknown as TrackRow[];
     const run = (db.prepare("SELECT * FROM runs WHERE task_id = ? ORDER BY id DESC LIMIT 1").get(t.id) as unknown as RunRow | undefined) ?? null;
     return c.html(
@@ -357,6 +361,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         settings={parseSettings(comp.params)}
         distances={taskDistances(task)}
         tracks={tracks}
+        history={trackHistory(db, t.id)}
         run={run}
         running={isRunning(t.id) || run?.status === "running" || run?.status === "queued"}
         error={extra.error ?? null}
@@ -369,8 +374,14 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   app.get("/tasks/:id", (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
-    const n = c.req.query("added");
-    return taskPage(c, x.t, x.comp, n ? { notice: `${n} trace${n === "1" ? "" : "s"} enregistrée${n === "1" ? "" : "s"}.` } : {});
+    const q = (k: string) => Number(c.req.query(k) ?? 0);
+    const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
+    const parts = [
+      q("added") ? plural(q("added"), "trace ajoutée", "traces ajoutées") : "",
+      q("replaced") ? plural(q("replaced"), "trace remplacée", "traces remplacées") : "",
+      q("same") ? plural(q("same"), "fichier identique à la trace en place, ignoré", "fichiers identiques aux traces en place, ignorés") : "",
+    ].filter(Boolean);
+    return taskPage(c, x.t, x.comp, parts.length ? { notice: `${parts.join(", ")}.` } : {});
   });
 
   app.post("/tasks/:id", async (c) => {
@@ -403,26 +414,62 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       return taskPage(c, x.t, x.comp, { error: `Archive illisible : ${(e as Error).message}` });
     }
     if (!igcs.length) return taskPage(c, x.t, x.comp, { error: "Aucun fichier IGC trouvé dans l'envoi." });
-    const put = db.prepare(
-      `INSERT INTO tracks (task_id, pilot_key, pilot_name, filename, sha256, size, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (task_id, pilot_key) DO UPDATE SET pilot_name = excluded.pilot_name, filename = excluded.filename,
-         sha256 = excluded.sha256, size = excluded.size, uploaded_at = excluded.uploaded_at`,
-    );
     // Fichiers écrits sur disque avant la base : une ligne de la base pointe toujours vers un fichier présent.
     const stored = igcs.map((g) => ({ g, sha256: tracks.put(g.bytes) }));
+    const count = { added: 0, replaced: 0, same: 0 };
     db.exec("BEGIN");
     for (const { g, sha256 } of stored) {
-      const pilot = /^HF[A-Z]{0,3}PLT[^:]*:(.*)$/im.exec(g.text)?.[1]?.trim() || null;
-      put.run(x.t.id, pilotKeyFromFilename(g.filename), pilot, g.filename, sha256, g.bytes.length, Date.now());
+      count[saveTrack(db, x.t.id, c.get("user").id, { pilotKey: pilotKeyFromFilename(g.filename), pilotName: igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
     }
     db.exec("COMMIT");
-    return c.redirect(`/tasks/${x.t.id}?added=${igcs.length}`);
+    return c.redirect(`/tasks/${x.t.id}?${new URLSearchParams(Object.entries(count).filter(([, n]) => n).map(([k, n]) => [k, String(n)]))}`);
+  });
+
+  // Remplacer la trace d'un pilote donné, quel que soit le nom du nouveau fichier. Le pilote garde son
+  // nom : l'en-tête du nouveau fichier peut porter un autre nom (instrument prêté).
+  app.post("/tasks/:id/tracks/:trackId/replace", async (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    const tr = db.prepare("SELECT * FROM tracks WHERE id = ? AND task_id = ?").get(Number(c.req.param("trackId")), x.t.id) as unknown as TrackRow | undefined;
+    if (!tr) return notFound(c);
+    if (Number(c.req.header("content-length") ?? 0) > MAX_UPLOAD) return taskPage(c, x.t, x.comp, { error: "Envoi trop gros (200 Mo au plus)." });
+    const f = await c.req.parseBody();
+    const file = f.file instanceof File && f.file.size > 0 ? f.file : null;
+    if (!file) return taskPage(c, x.t, x.comp, { error: "Choisissez le nouveau fichier IGC." });
+    let igcs;
+    try {
+      igcs = collectIgc([{ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) }]);
+    } catch (e) {
+      return taskPage(c, x.t, x.comp, { error: `Archive illisible : ${(e as Error).message}` });
+    }
+    if (igcs.length !== 1) {
+      return taskPage(c, x.t, x.comp, { error: igcs.length ? "L'archive contient plusieurs traces : envoyez un seul fichier IGC." : "Ce fichier n'est pas une trace IGC." });
+    }
+    const g = igcs[0]!;
+    const note = typeof f.note === "string" && f.note.trim() ? f.note.trim().slice(0, 500) : null;
+    const sha256 = tracks.put(g.bytes);
+    const how = saveTrack(db, x.t.id, c.get("user").id, { pilotKey: tr.pilot_key, pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
+    if (how === "same") return taskPage(c, x.t, x.comp, { notice: `Ce fichier est déjà la trace de ${tr.pilot_name ?? tr.pilot_key} : rien n'a changé.` });
+    return c.redirect(`/tasks/${x.t.id}?replaced=1`);
+  });
+
+  // Fichier IGC d'origine (trace en vigueur ou ancienne version), pour l'organisateur.
+  app.get("/tasks/:id/files/:sha", (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    const sha = c.req.param("sha");
+    const f = /^[0-9a-f]{64}$/.test(sha) ? taskHasFile(db, x.t.id, sha) : null;
+    if (!f) return notFound(c);
+    return c.body(new Uint8Array(tracks.bytes(sha)), 200, {
+      "content-type": "application/octet-stream",
+      "content-disposition": `attachment; filename="${f.filename.replace(/[^\w.-]/g, "_")}"`,
+    });
   });
 
   app.post("/tasks/:id/tracks/:trackId/delete", (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
-    db.prepare("DELETE FROM tracks WHERE id = ? AND task_id = ?").run(Number(c.req.param("trackId")), x.t.id);
+    removeTrack(db, x.t.id, Number(c.req.param("trackId")), c.get("user").id);
     return c.redirect(`/tasks/${x.t.id}`);
   });
 

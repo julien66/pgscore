@@ -1,7 +1,7 @@
 import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { PilotResult, Task, TaskScoring } from "@pgscore/engine";
-import type { CompetitionRow, RunRow, TaskRow, TrackRow, User } from "./db.js";
+import type { CompetitionRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
 import { LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings } from "./settings.js";
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
 
@@ -26,7 +26,7 @@ button,.btn{display:inline-block;padding:8px 14px;border-radius:7px;border:1px s
 button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 button.link{border:0;background:none;color:var(--muted);padding:0;font-size:13px}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.mt{margin-top:12px}
-.muted{color:var(--muted)}.small{font-size:13px}
+.muted{color:var(--muted)}.badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;background:var(--accent);color:var(--accent-ink)}details.replace{display:inline-block;margin-right:8px}details.replace summary{cursor:pointer;color:var(--accent);font-size:14px}details.replace form{display:flex;flex-direction:column;gap:6px;margin-top:6px;min-width:260px}.small{font-size:13px}
 .err{background:color-mix(in srgb,var(--bad) 12%,var(--card));border:1px solid var(--bad);color:var(--text);padding:10px 12px;border-radius:8px;margin-bottom:16px}
 .note{background:var(--chip);padding:10px 12px;border-radius:8px;margin-bottom:16px}
 table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
@@ -378,14 +378,22 @@ export const TaskPage: FC<{
   settings: CompetitionSettings;
   distances: { task: number; launchToEss: number; speedSection: number };
   tracks: TrackRow[];
+  history: TrackHistoryRow[];
   run: RunRow | null;
   running: boolean;
   error?: string | null;
   notice?: string | null;
-}> = ({ user, c, t, task, settings, distances, tracks, run, running, error, notice }) => {
+}> = ({ user, c, t, task, settings, distances, tracks, history, run, running, error, notice }) => {
   const tz = settings.timeZone;
   const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, t.date, tz) : "");
   const results = run?.status === "done" && run.results ? (JSON.parse(run.results) as TaskScoring) : null;
+  // Traces modifiées après le lancement du dernier calcul : le classement affiché n'en tient pas compte.
+  const lastChange = Math.max(0, ...tracks.map((x) => x.uploaded_at), ...history.map((h) => h.ended_at));
+  const stale = results !== null && run !== null && lastChange > run.started_at;
+  const versions = new Map<string, number>();
+  for (const h of history) versions.set(h.pilot_key, (versions.get(h.pilot_key) ?? 0) + 1);
+  const when = (ms: number) => `${new Date(ms).toLocaleDateString("fr-FR", { timeZone: tz, day: "2-digit", month: "2-digit" })} ${localTime(ms, tz)}`;
+  const fileUrl = (sha: string) => `/tasks/${t.id}/files/${sha}`;
   return (
     <Layout title={`Manche ${t.number} · ${c.name}`} user={user} {...(running ? { refresh: 3 } : {})}>
       <div class="crumbs">
@@ -452,7 +460,10 @@ export const TaskPage: FC<{
         <form method="post" action={`/tasks/${t.id}/tracks`} enctype="multipart/form-data" class="row">
           <input type="file" name="files" accept=".igc,.zip" multiple required />
           <button>Envoyer</button>
-          <span class="small muted">Fichiers IGC ou archive .zip. Une nouvelle trace remplace celle du même pilote.</span>
+          <span class="small muted">
+            Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro en fin de nom de fichier ; une trace envoyée pour un pilote
+            qui en a déjà une la remplace. Pour un fichier nommé autrement, utilisez « Remplacer » sur la ligne du pilote.
+          </span>
         </form>
         {tracks.length ? (
           <details class="mt">
@@ -464,6 +475,7 @@ export const TaskPage: FC<{
                     <th>Pilote</th>
                     <th>Nom</th>
                     <th>Fichier</th>
+                    <th>Reçu</th>
                     <th />
                   </tr>
                 </thead>
@@ -474,11 +486,66 @@ export const TaskPage: FC<{
                       <td>
                         <a href={`/tasks/${t.id}/pilots/${encodeURIComponent(tr.pilot_key)}`}>{tr.pilot_name ?? tr.pilot_key}</a>
                       </td>
-                      <td class="muted">{tr.filename}</td>
                       <td>
+                        <a class="muted" href={fileUrl(tr.sha256)}>
+                          {tr.filename}
+                        </a>
+                        {versions.get(tr.pilot_key) ? <span class="badge">v{(versions.get(tr.pilot_key) ?? 0) + 1}</span> : null}
+                        {tr.note ? <div class="small muted">{tr.note}</div> : null}
+                      </td>
+                      <td class="small muted">{when(tr.uploaded_at)}</td>
+                      <td>
+                        <details class="replace">
+                          <summary>Remplacer</summary>
+                          <form method="post" action={`/tasks/${t.id}/tracks/${tr.id}/replace`} enctype="multipart/form-data">
+                            <input type="file" name="file" accept=".igc,.zip" required />
+                            <input type="text" name="note" placeholder="Raison (facultatif) : trace reçue après coup, autre instrument…" maxlength={500} />
+                            <button>Remplacer la trace</button>
+                          </form>
+                        </details>
                         <form method="post" action={`/tasks/${t.id}/tracks/${tr.id}/delete`}>
                           <button class="link">Retirer</button>
                         </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        ) : null}
+        {history.length ? (
+          <details class="mt">
+            <summary>Anciennes versions ({history.length})</summary>
+            <div class="scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Pilote</th>
+                    <th>Fichier</th>
+                    <th>Reçu</th>
+                    <th>Fin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((h) => (
+                    <tr>
+                      <td>
+                        {h.pilot_key} {h.pilot_name ? <span class="muted">{h.pilot_name}</span> : null}
+                      </td>
+                      <td>
+                        <a class="muted" href={fileUrl(h.sha256)}>
+                          {h.filename}
+                        </a>
+                        {h.note ? <div class="small muted">{h.note}</div> : null}
+                      </td>
+                      <td class="small muted">
+                        {when(h.uploaded_at)}
+                        {h.uploaded_by_name ? ` · ${h.uploaded_by_name}` : ""}
+                      </td>
+                      <td class="small">
+                        {h.ended_how === "replaced" ? "Remplacée" : "Retirée"} le {when(h.ended_at)}
+                        {h.ended_by_name ? ` · ${h.ended_by_name}` : ""}
                       </td>
                     </tr>
                   ))}
@@ -499,6 +566,9 @@ export const TaskPage: FC<{
           </form>
         </div>
         <RunStatus run={run} tz={tz} />
+        {stale && !running ? (
+          <div class="note">Des traces ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.</div>
+        ) : null}
         {results ? <Results r={results} tz={tz} settings={settings} taskId={t.id} /> : null}
       </div>
     </Layout>
