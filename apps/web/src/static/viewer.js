@@ -377,14 +377,18 @@
     await loadScript(base + "Cesium.js");
     const C = window.Cesium;
     viewer3d = new C.Viewer("v-3d", {
-      // Même fond que la carte 2D (topo par défaut).
-      baseLayer: (() => {
-        const b = pgBasemaps.BASES[pgBasemaps.current()];
-        return new C.ImageryLayer(new C.UrlTemplateImageryProvider({ url: b.url, ...(b.opts.subdomains ? { subdomains: b.opts.subdomains } : {}), maximumLevel: b.opts.maxZoom, credit: b.opts.attribution.replace(/<[^>]+>/g, "") }));
-      })(),
+      baseLayer: false,
       baseLayerPicker: false, geocoder: false, homeButton: false, sceneModePicker: false, navigationHelpButton: false,
       animation: false, timeline: false, fullscreenButton: false, infoBox: true, selectionIndicator: false,
     });
+    // Même fond que la carte 2D : couches superposées, en niveaux de gris si besoin.
+    for (const b of pgBasemaps.BASES[pgBasemaps.current()]) {
+      const layer = viewer3d.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({
+        url: b.url, ...(b.opts.subdomains ? { subdomains: b.opts.subdomains } : {}),
+        maximumLevel: b.opts.maxNativeZoom || b.opts.maxZoom, credit: b.opts.attribution.replace(/<[^>]+>/g, ""),
+      }));
+      if (b.grey) { layer.saturation = 0; layer.brightness = 1.06; layer.contrast = 0.9; }
+    }
     // Sans relief : le sol est l'ellipsoïde, les altitudes sont celles du GPS.
     const top = Math.max(aMax + 500, 3000);
     for (const a of D.airspaces) {
