@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { distance } from "../src/geo.js";
 import type { IgcFix } from "../src/igc.js";
-import { airspaceInfringements, airspacePenalty, limitAmsl, parseAltitude, parseCoordinate, parseOpenAir } from "../src/openair.js";
+import { airspaceInfringements, airspacePenalty, airspacePenaltyFractionS7A, limitAmsl, parseAltitude, parseCoordinate, parseOpenAir } from "../src/openair.js";
 
 const SAMPLE = `
 * commentaire
@@ -85,5 +85,13 @@ describe("pénalité d'espace aérien (règlement PWCA 2026)", () => {
     expect(airspacePenalty(146, 100)).toBe(1000);
     expect(airspacePenalty(50, 50)).toBe(1000);
     expect(airspacePenalty(0, 50)).toBe(0);
+  });
+});
+
+describe("pénalité d'espace aérien (S7A 2026, 6.3.1)", () => {
+  it("est linéaire de 0 à 100 % des points entre 0 et 100 m", () => {
+    expect(airspacePenaltyFractionS7A(0)).toBe(0);
+    expect(airspacePenaltyFractionS7A(18)).toBeCloseTo(0.18, 9);
+    expect(airspacePenaltyFractionS7A(147)).toBe(1);
   });
 });

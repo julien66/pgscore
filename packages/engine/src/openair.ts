@@ -306,3 +306,12 @@ export function airspacePenalty(depth: number, fullPenaltyDepth: number): number
   if (depth <= 0) return 0;
   return 1000 * Math.min(1, (1.05 ** depth - 1) / (1.05 ** fullPenaltyDepth - 1));
 }
+
+/**
+ * Pénalité d'espace aérien du S7A 2026 (6.3.1), épreuves FAI : proportion des points du pilote,
+ * linéaire de 0 à 100 % entre 0 et 100 m de pénétration, verticale ou horizontale. L'espace de
+ * compétition doit déjà inclure une marge d'au moins 100 m autour des zones interdites.
+ */
+export function airspacePenaltyFractionS7A(depth: number): number {
+  return Math.max(0, Math.min(1, depth / 100));
+}
