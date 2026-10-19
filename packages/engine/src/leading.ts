@@ -118,29 +118,51 @@ function timeOfDay(hms: string, sameDay: number): number {
   return Math.floor(sameDay / 86_400_000) * 86_400_000 + ((h ?? 0) * 3600 + (m ?? 0) * 60 + (s ?? 0)) * 1000;
 }
 
-/** maxTime (12.3.1) : fin du dernier vol utile (dernier posé ou dernière arrivée à l'ESS), plafonnée à la deadline. */
-export function leadingMaxTime(tracks: LeadingTrack[], deadlineTaskTime = Infinity): number {
+/**
+ * Variante de calcul du leading.
+ * - "S7F2026" : texte du S7F 2026 (12.3), avec le facteur distance restante et √LCmin.
+ * - "PWCA" : ce que fait SVL (logiciel de la PWCA), retrouvé sur les 6 manches de Baixo Guandu 2026
+ *   à 0,1 point près : pas de facteur distance restante, LC divisé par 1800 seulement,
+ *   et LeadingFactor divisé par LCmin au lieu de √LCmin.
+ */
+export type LeadingProfile = "S7F2026" | "PWCA";
+
+/**
+ * maxTime (12.3.1) : fin du dernier vol utile (dernier posé ou dernière arrivée à l'ESS), plafonnée
+ * à la deadline. Si l'organisation fixe une heure de fin de manche plus tardive, elle la remplace.
+ */
+export function leadingMaxTime(tracks: LeadingTrack[], deadlineTaskTime = Infinity, organizerEndTaskTime?: number): number {
   let m = 0;
   for (const tr of tracks) m = Math.max(m, tr.essTime ?? 0, tr.outlandingTime ?? 0);
+  if (organizerEndTaskTime !== undefined) m = Math.max(m, organizerEndTaskTime);
   return Math.min(m, deadlineTaskTime);
 }
 
 /** Coefficient de leading LC d'un pilote (12.3.1, formule parapente). */
-export function leadingCoefficient(track: LeadingTrack, ssDistanceKm: number, maxTime: number): number {
+export function leadingCoefficient(
+  track: LeadingTrack,
+  ssDistanceKm: number,
+  maxTime: number,
+  profile: LeadingProfile = "S7F2026",
+): number {
   const done = (d: number) => 1 - d / ssDistanceKm;
+  const withDistance = profile === "S7F2026";
   const s = track.samples;
   let area = 0;
   for (let i = 1; i < s.length; i++) {
     const a = s[i - 1]!;
     const b = s[i]!;
-    if (b.minToEss < a.minToEss) area += b.minToEss * b.t * weightIntegral(done(a.minToEss), done(b.minToEss));
+    if (b.minToEss < a.minToEss) {
+      area += (withDistance ? b.minToEss : 1) * b.t * weightIntegral(done(a.minToEss), done(b.minToEss));
+    }
   }
   const bestD = s.at(-1)!.minToEss;
-  const missing = bestD * maxTime * weightIntegral(done(bestD), 1);
-  return (area + missing) / (1800 * ssDistanceKm);
+  const missing = (withDistance ? bestD : 1) * maxTime * weightIntegral(done(bestD), 1);
+  return (area + missing) / (withDistance ? 1800 * ssDistanceKm : 1800);
 }
 
 /** LeadingFactor (12.3) : 1 pour le meilleur LC, décroît avec l'écart au meilleur. */
-export function leadingFactor(lc: number, lcMin: number): number {
-  return Math.max(0, 1 - Math.cbrt((lc - lcMin) ** 2 / Math.sqrt(lcMin)));
+export function leadingFactor(lc: number, lcMin: number, profile: LeadingProfile = "S7F2026"): number {
+  const denominator = profile === "S7F2026" ? Math.sqrt(lcMin) : lcMin;
+  return Math.max(0, 1 - Math.cbrt((lc - lcMin) ** 2 / denominator));
 }
