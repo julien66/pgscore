@@ -60,6 +60,8 @@ function buildTask(
   const turnpoints: TaskTurnpoint[] = raw.map((r, i) => {
     let role: TurnpointRole;
     if (i === lastIndex) role = "goal";
+    // Le QR code ne type pas le décollage : un premier point sans rôle, placé avant le départ, est le décollage.
+    else if (i === 0 && r.type === "none" && raw.slice(1).some((x) => x.type === "sss")) role = "takeoff";
     else if (r.type === "none") role = "turnpoint";
     else role = r.type;
 

@@ -1,4 +1,7 @@
-import { Geodesic } from "geographiclib-geodesic";
+import geographiclib from "geographiclib-geodesic";
+
+// Le paquet est publié en CommonJS : on passe par l'export par défaut pour Node comme pour les bundlers.
+const { Geodesic } = geographiclib;
 
 /** Point WGS84 en degrés décimaux. */
 export interface LatLon {
