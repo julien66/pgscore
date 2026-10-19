@@ -2,7 +2,7 @@ import type { FlightControl } from "./control.js";
 import { taskDistances } from "./distances.js";
 import { distance } from "./geo.js";
 import { findTaskAreaCentre } from "./projection.js";
-import { optimizeRoute, type RouteZone } from "./route.js";
+import { RouteFrom, type RouteZone } from "./route.js";
 import type { Task } from "./task.js";
 
 /**
@@ -74,17 +74,17 @@ export function leadingTrack(task: Task, control: FlightControl): LeadingTrack |
   const essZone = tps[essIdx]!.zone;
   const essRadius = essZone.kind === "cylinder" ? essZone.radius : 0;
 
-  const zonesFrom = new Map<number, RouteZone[]>();
-  const zones = (next: number) => {
-    let z = zonesFrom.get(next);
-    if (!z) {
-      z = tps.slice(next, essIdx + 1).map((t, k) => ({
+  const routes = new Map<number, RouteFrom>();
+  const routeFrom = (next: number) => {
+    let r = routes.get(next);
+    if (!r) {
+      const z: RouteZone[] = tps.slice(next, essIdx + 1).map((t, k) => ({
         centre: { lat: t.zone.waypoint.lat, lon: t.zone.waypoint.lon },
         radius: next + k === essIdx || t.zone.kind !== "cylinder" ? 0 : t.zone.radius,
       }));
-      zonesFrom.set(next, z);
+      routes.set(next, (r = new RouteFrom(z, centre)));
     }
-    return z;
+    return r;
   };
 
   const steps = control.validated.map((v) => ({ time: v.time, next: v.index + 1 }));
@@ -102,8 +102,7 @@ export function leadingTrack(task: Task, control: FlightControl): LeadingTrack |
     if (next > essIdx) d = 0;
     else {
       if (ref && ref.next === next && ref.d - distance(ref, f) / 1000 >= best) continue;
-      const r = optimizeRoute([{ centre: { lat: f.lat, lon: f.lon }, radius: 0 }, ...zones(next)], centre);
-      d = Math.max(0, (r.distance - essRadius) / 1000);
+      d = Math.max(0, (routeFrom(next).distance(f) - essRadius) / 1000);
       ref = { lat: f.lat, lon: f.lon, next, d };
     }
     if (d < best) {

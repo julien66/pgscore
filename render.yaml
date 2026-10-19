@@ -16,6 +16,9 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.22.0
+      # Le plan Starter a 512 Mo : on borne le tas de Node pour qu'il libère la mémoire avant d'y arriver.
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
       - key: DATABASE_PATH
         value: /var/data/pgscore.db
       - key: TRACKS_DIR

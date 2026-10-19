@@ -1,8 +1,9 @@
-import { distance, inverse, type LatLon } from "./geo.js";
+import { distance, inverse, sphericalDistance, SPHERICAL_TOLERANCE, type LatLon } from "./geo.js";
 import type { IgcFix } from "./igc.js";
 import { taskDistances } from "./distances.js";
 import { detectFlights, type FlightPeriod } from "./flight.js";
-import { optimizeRoute, type RouteZone } from "./route.js";
+import { findTaskAreaCentre } from "./projection.js";
+import { RouteFrom, type RouteZone } from "./route.js";
 import type { Task, TaskTurnpoint } from "./task.js";
 
 /** Tolérance absolue des cylindres et des lignes (S7F 2026, 9.1). */
@@ -103,11 +104,19 @@ function cylinderCrossings(pts: IgcFix[], centre: LatLon, radius: number): numbe
   const inner = Math.min(radius * (1 - RELATIVE_TOLERANCE), radius - ABSOLUTE_TOLERANCE);
   const outer = Math.max(radius * (1 + RELATIVE_TOLERANCE), radius + ABSOLUTE_TOLERANCE);
   const out: number[] = [];
-  let prev = distance(centre, pts[0]!);
+  // Position de chaque fix par rapport aux deux bords (dedans, bande, dehors). L'estimation sphérique
+  // suffit quand elle est loin des deux bords ; près d'un bord, distance WGS84 exacte.
+  const zone = (p: IgcFix): number => {
+    const s = sphericalDistance(centre, p);
+    const m = s * SPHERICAL_TOLERANCE + 1;
+    const d = (s < inner - m || s > outer + m || (s > inner + m && s < outer - m)) ? s : distance(centre, p);
+    return d < inner ? 0 : d <= outer ? 1 : 2;
+  };
+  let prev = zone(pts[0]!);
   for (let j = 1; j < pts.length; j++) {
-    const d = distance(centre, pts[j]!);
-    if (prev < inner !== d < inner || prev <= outer !== d <= outer) out.push(j);
-    prev = d;
+    const z = zone(pts[j]!);
+    if (z !== prev) out.push(j);
+    prev = z;
   }
   return out;
 }
@@ -325,15 +334,31 @@ function bestRemaining(
     for (const s of steps) if (s.time <= t) next = s.next;
     return next;
   };
+  // Premier passage : un fix sur STRIDE, calculé. Second passage : un fix n'est calculé que si la
+  // borne tirée des fixes calculés voisins (inégalité triangulaire) peut battre le meilleur.
+  // Le résultat est exact ; seuls les abords du meilleur point sont calculés fix par fix.
+  const STRIDE = 20;
+  const nexts = pts.map((p) => nextAt(p.time));
+  const known = new Map<number, number>();
   let best = { remaining: Infinity, index: -1 };
-  let ref: { lat: number; lon: number; next: number; r: number } | null = null;
-  for (let j = 0; j < pts.length; j++) {
-    const p = pts[j]!;
-    const next = nextAt(p.time);
-    if (ref && ref.next === next && ref.r - distance(ref, p) >= best.remaining) continue;
-    const r = remainingAt(j);
-    ref = { lat: p.lat, lon: p.lon, next, r };
+  const take = (j: number) => {
+    let r = known.get(j);
+    if (r === undefined) known.set(j, (r = remainingAt(j)));
     if (r < best.remaining) best = { remaining: r, index: j };
+    return r;
+  };
+  for (let j = 0; j < pts.length; j += STRIDE) take(j);
+  if (pts.length) take(pts.length - 1);
+  for (let j = 0; j < pts.length; j++) {
+    if (known.has(j)) continue;
+    const p = pts[j]!;
+    let bound = -Infinity;
+    for (const s of [Math.floor(j / STRIDE) * STRIDE, Math.min(pts.length - 1, (Math.floor(j / STRIDE) + 1) * STRIDE)]) {
+      const r = known.get(s);
+      if (r !== undefined && nexts[s] === nexts[j]) bound = Math.max(bound, r - distance(pts[s]!, p));
+    }
+    if (bound >= best.remaining) continue;
+    take(j);
   }
   return best;
 }
@@ -348,15 +373,17 @@ function remainingFrom(task: Task, validated: ZoneValidation[], sssIdx: number):
       centre: { lat: t.zone.waypoint.lat, lon: t.zone.waypoint.lon },
       radius: next + k === goalIdx || t.zone.kind !== "cylinder" ? 0 : t.zone.radius,
     }));
-  const cache = new Map<number, RouteZone[]>();
+  // Une route par jeu de zones restantes, projetée une fois autour du centre de la manche.
+  const centre = findTaskAreaCentre(tps.map((t) => t.zone.waypoint));
+  const cache = new Map<number, RouteFrom>();
   return (p) => {
     // Prochaine zone à atteindre à l'instant de ce fix.
     let next = sssIdx;
     for (const s of steps) if (s.time <= p.time) next = s.next;
     if (next > goalIdx) return 0;
-    let zones = cache.get(next);
-    if (!zones) cache.set(next, (zones = zonesFrom(next)));
-    return optimizeRoute([{ centre: { lat: p.lat, lon: p.lon }, radius: 0 }, ...zones]).distance;
+    let route = cache.get(next);
+    if (!route) cache.set(next, (route = new RouteFrom(zonesFrom(next), centre)));
+    return route.distance(p);
   };
 }
 

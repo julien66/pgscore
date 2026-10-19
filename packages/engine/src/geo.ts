@@ -16,8 +16,29 @@ const wgs84 = Geodesic.WGS84;
  * InverseGeodesic de Karney, via GeographicLib).
  */
 export function distance(a: LatLon, b: LatLon): number {
-  const r = wgs84.Inverse(a.lat, a.lon, b.lat, b.lon);
+  // Seule la distance est demandée : GeographicLib saute azimuts et longueurs réduites.
+  const r = wgs84.Inverse(a.lat, a.lon, b.lat, b.lon, Geodesic.DISTANCE);
   return r.s12 ?? 0;
+}
+
+const RAD = Math.PI / 180;
+/** Rayon moyen de la Terre (m), pour l'estimation sphérique. */
+const MEAN_RADIUS = 6_371_008.8;
+/**
+ * Écart relatif maximal entre la distance sphérique (rayon moyen) et la distance WGS84, avec marge :
+ * l'aplatissement de l'ellipsoïde limite l'écart à environ 0,56 %.
+ */
+export const SPHERICAL_TOLERANCE = 0.007;
+
+/**
+ * Distance approchée sur la sphère (haversine), beaucoup plus rapide que la géodésique.
+ * Ne sert qu'à écarter les cas certains : la distance WGS84 est à moins de SPHERICAL_TOLERANCE près.
+ */
+export function sphericalDistance(a: LatLon, b: LatLon): number {
+  const dLat = (b.lat - a.lat) * RAD;
+  const dLon = (b.lon - a.lon) * RAD;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * RAD) * Math.cos(b.lat * RAD) * Math.sin(dLon / 2) ** 2;
+  return 2 * MEAN_RADIUS * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
 /** Distance et azimuts aller/arrivée (S7F 7.1.4, InverseGeodesic). */

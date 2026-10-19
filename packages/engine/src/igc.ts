@@ -53,7 +53,15 @@ function parseDate(ddmmyy: string): string {
 
 function headerValue(line: string): string {
   const i = line.indexOf(":");
-  return (i >= 0 ? line.slice(i + 1) : line.slice(5)).trim();
+  return ownCopy((i >= 0 ? line.slice(i + 1) : line.slice(5)).trim());
+}
+
+/**
+ * Copie indépendante d'une sous-chaîne. Un slice peut garder en mémoire tout le texte d'origine
+ * (la trace entière) : le nom du pilote suffirait alors à retenir chaque IGC pendant le calcul.
+ */
+function ownCopy(s: string): string {
+  return JSON.parse(JSON.stringify(s)) as string;
 }
 
 /** Lit le texte d'un fichier IGC. */
@@ -71,8 +79,8 @@ export function parseIgc(text: string): IgcFlight {
     if (line.length === 0) return;
     const rec = line[0];
     if (rec === "A") {
-      header.manufacturer = line.slice(1, 4);
-      header.loggerId = line.slice(4, 7);
+      header.manufacturer = ownCopy(line.slice(1, 4));
+      header.loggerId = ownCopy(line.slice(4, 7));
     } else if (rec === "H") {
       const code = line.slice(2, 5).toUpperCase();
       if (code === "DTE") {

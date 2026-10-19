@@ -87,6 +87,7 @@ export interface TaskScoring {
 /** Contrôle d'un pilote, sans les calculs qui dépendent des autres (leading). */
 export interface ControlledPilot {
   result: PilotResult;
+  /** Contrôle du vol, sans les fixes (inFlight vide) : rejouer controlFlight pour les avoir. */
   control: FlightControl | null;
   leading: LeadingTrack | null;
 }
@@ -154,7 +155,10 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
         rule === "s7a" ? { fraction: airspacePenaltyFractionS7A(depth) } : { points: airspacePenalty(depth, rule === "pwca-hard" ? 50 : 100) };
     }
   }
-  return { result: r, control: c, leading: leadingTrack(task, c) };
+  const leading = leadingTrack(task, c);
+  // Les fixes du vol ne servent plus au classement : on les lâche pour ne pas garder toutes les traces
+  // en mémoire pendant le calcul d'une manche (des centaines de Mo pour une centaine de pilotes).
+  return { result: r, control: { ...c, inFlight: [] }, leading };
 }
 
 /** Termine le calcul : leading (qui dépend de tous les pilotes) et classement. */
