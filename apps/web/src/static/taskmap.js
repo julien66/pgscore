@@ -12,10 +12,7 @@
   const map = L.map(el, { scrollWheelZoom: false, zoomSnap: 0.25 });
   // Vue initiale sur les balises : Leaflet en a besoin pour calculer l'emprise des cylindres.
   map.fitBounds(L.latLngBounds(G.zones.map((z) => [z.lat, z.lon])).pad(0.1));
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: '&copy; contributeurs <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
+  pgBasemaps.add(map);
   const bounds = [];
   for (const z of G.zones) {
     const c = color[z.role] || "#2563eb";

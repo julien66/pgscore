@@ -146,10 +146,7 @@
 
   // ---- Carte 2D -----------------------------------------------------------------------------
   const map = L.map("v-map", { preferCanvas: true });
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: '&copy; contributeurs <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
+  pgBasemaps.add(map);
   const color = { takeoff: "#6b7280", sss: "#16a34a", turnpoint: "#2563eb", ess: "#9333ea", goal: "#dc2626" };
   for (const a of D.airspaces) {
     L.polygon(a.polygon.map((p) => [p.lat, p.lon]), { color: "#dc2626", weight: 1, fillOpacity: 0.12 })
@@ -380,7 +377,11 @@
     await loadScript(base + "Cesium.js");
     const C = window.Cesium;
     viewer3d = new C.Viewer("v-3d", {
-      baseLayer: new C.ImageryLayer(new C.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" })),
+      // Même fond que la carte 2D (topo par défaut).
+      baseLayer: (() => {
+        const b = pgBasemaps.BASES[pgBasemaps.current()];
+        return new C.ImageryLayer(new C.UrlTemplateImageryProvider({ url: b.url, ...(b.opts.subdomains ? { subdomains: b.opts.subdomains } : {}), maximumLevel: b.opts.maxZoom, credit: b.opts.attribution.replace(/<[^>]+>/g, "") }));
+      })(),
       baseLayerPicker: false, geocoder: false, homeButton: false, sceneModePicker: false, navigationHelpButton: false,
       animation: false, timeline: false, fullscreenButton: false, infoBox: true, selectionIndicator: false,
     });

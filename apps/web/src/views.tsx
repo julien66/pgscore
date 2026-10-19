@@ -590,6 +590,7 @@ export const TaskPage: FC<{
       <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
       <script type="application/json" id="task-geometry" dangerouslySetInnerHTML={{ __html: geometry.replace(/</g, "\\u003c") }} />
       <script src="/vendor/leaflet/leaflet.js" />
+      <script src="/static/basemaps.js" />
       <script src="/static/taskmap.js" />
       <script src="/static/run.js" />
     </Layout>
@@ -775,6 +776,7 @@ export const ViewerPage: FC<{ user: User; c: CompetitionRow; t: TaskRow; pilotKe
     <div id="viewer" />
     <script type="application/json" id="viewer-data" dangerouslySetInnerHTML={{ __html: data.replace(/</g, "\\u003c") }} />
     <script src="/vendor/leaflet/leaflet.js" />
+    <script src="/static/basemaps.js" />
     <script src="/static/viewer.js" />
   </Layout>
 );

@@ -75,7 +75,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
 
   // Scripts de l'interface, lus au démarrage.
   const scripts = Object.fromEntries(
-    ["viewer.js", "run.js", "taskmap.js"].map((f) => [f, readFileSync(new URL(`./static/${f}`, import.meta.url), "utf8")]),
+    ["viewer.js", "run.js", "taskmap.js", "basemaps.js"].map((f) => [f, readFileSync(new URL(`./static/${f}`, import.meta.url), "utf8")]),
   );
   // Contrôle de santé pour l'hébergeur : le serveur répond et la base est lisible.
   app.get("/healthz", (c) => {
