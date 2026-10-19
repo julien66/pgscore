@@ -35,6 +35,12 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .scroll{overflow-x:auto}
 .gap{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:8px 0 12px}.gap>div{border:1px solid var(--line);border-radius:10px;padding:8px 12px}.gap .big{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+details.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px;margin-top:6px;user-select:none}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:"▸";display:inline-block;transition:transform .15s;color:var(--muted)}
+details.fold[open]>summary::before{transform:rotate(90deg)}
+details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{margin:0}details.card.fold[open]>summary{margin-bottom:8px}
+.chip.t-bonus{background:#dcfce7;color:#166534}.chip.t-pen{background:#fee2e2;color:#991b1b}.chip.t-dec{background:#e0e7ff;color:#3730a3}
 .chip{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
 .s-GOAL{color:var(--ok)}.s-ESS{color:var(--ok)}.s-MIND{color:var(--warn)}.s-ERREUR{color:var(--bad)}
 .pen{color:var(--bad)}
@@ -440,6 +446,12 @@ export const TaskPage: FC<{
           {task.type === "race" ? "Race to goal" : "Time trial"} · portes {task.startGates.map(loc).join(", ") || "aucune"} · deadline{" "}
           {loc(task.deadline) || "aucune"} · heures locales ({tz})
         </p>
+        <p class="small">
+          Manche <strong>{km(distances.task)} km</strong> · décollage → ESS {km(distances.launchToEss)} km · section de vitesse{" "}
+          {km(distances.speedSection)} km
+        </p>
+        <details class="fold" id="task-settings">
+          <summary>Balises et réglages de la manche</summary>
         <div class="scroll">
           <table>
             <thead>
@@ -464,10 +476,6 @@ export const TaskPage: FC<{
             </tbody>
           </table>
         </div>
-        <p class="small">
-          Manche <strong>{km(distances.task)} km</strong> · décollage → ESS {km(distances.launchToEss)} km · section de vitesse{" "}
-          {km(distances.speedSection)} km
-        </p>
         <form method="post" action={`/tasks/${t.id}`} class="grid mt">
           <div>
             <label>Date</label>
@@ -501,6 +509,7 @@ export const TaskPage: FC<{
             <button>Enregistrer</button>
           </div>
         </form>
+        </details>
       </div>
 
       <div class="card">
@@ -605,8 +614,14 @@ export const TaskPage: FC<{
         ) : null}
       </div>
 
-      <div class="card" id="decisions">
-        <h2>Décisions de l'organisateur ({decisions.length})</h2>
+      <div class="card" id="run-card">
+        <RunCard t={t} run={run} running={running} settings={settings} tracks={tracks.length} stale={stale} />
+      </div>
+
+      <details class="card fold" id="decisions">
+        <summary>
+          <h2>Décisions de l'organisateur ({decisions.length})</h2>
+        </summary>
         <p class="small muted">
           Bonus (aide à un pilote accidenté…), pénalités, goal accordé après réclamation, pilotes absents ou restés au sol. Elles
           s'appliquent au prochain calcul ; le motif apparaît dans les résultats.
@@ -680,23 +695,8 @@ export const TaskPage: FC<{
             <button>Ajouter</button>
           </div>
         </form>
-      </div>
+      </details>
 
-      <div class="card">
-        <div class="row" style="justify-content:space-between">
-          <h2>Calcul</h2>
-          <form method="post" action={`/tasks/${t.id}/runs`} id="run-form">
-            <button class="primary" disabled={running || !tracks.length}>
-              {running ? "Calcul en cours…" : "Lancer le calcul"}
-            </button>
-          </form>
-        </div>
-        <RunStatus run={run} tz={tz} taskId={t.id} />
-        {stale && !running ? (
-          <div class="note">Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.</div>
-        ) : null}
-        {results ? <Results r={results} tz={tz} settings={settings} taskId={t.id} /> : null}
-      </div>
       <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
       <script type="application/json" id="task-geometry" dangerouslySetInnerHTML={{ __html: geometry.replace(/</g, "\\u003c") }} />
       <script src="/vendor/leaflet/leaflet.js" />
@@ -704,6 +704,36 @@ export const TaskPage: FC<{
       <script src="/static/taskmap.js" />
       <script src="/static/run.js" />
     </Layout>
+  );
+};
+
+/** Bloc « Calcul » : bouton, avancement ou bilan, classement. Rechargé seul par /static/run.js. */
+export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; settings: CompetitionSettings; tracks: number; stale: boolean }> = ({
+  t,
+  run,
+  running,
+  settings,
+  tracks,
+  stale,
+}) => {
+  const tz = settings.timeZone;
+  const results = run?.status === "done" && run.results ? (JSON.parse(run.results) as TaskScoring) : null;
+  return (
+    <>
+      <div class="row" style="justify-content:space-between">
+        <h2>Calcul</h2>
+        <form method="post" action={`/tasks/${t.id}/runs`} id="run-form">
+          <button class="primary" disabled={running || !tracks}>
+            {running ? "Calcul en cours…" : "Lancer le calcul"}
+          </button>
+        </form>
+      </div>
+      <RunStatus run={run} tz={tz} taskId={t.id} />
+      {stale && !running && results ? (
+        <div class="note">Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.</div>
+      ) : null}
+      {results ? <Results r={results} tz={tz} settings={settings} taskId={t.id} /> : null}
+    </>
   );
 };
 
@@ -736,6 +766,46 @@ const penalty = (p: PilotResult) =>
       : "";
 
 /** Première zone non validée : de combien elle a été manquée (pour répondre au pilote). */
+/** Étiquettes à côté du statut : bonus, pénalité (organisateur ou espace aérien), goal accordé. */
+const StatusTags: FC<{ p: PilotResult }> = ({ p }) => {
+  const d = p.decisions ?? [];
+  const why = (kinds: string[]) =>
+    [
+      ...d.filter((x) => kinds.includes(x.kind)).map((x) => `${decisionLabel(x.kind, x.value)} : ${x.reason}`),
+      ...(kinds.includes("penalty") && p.airspacePenalty ? [`Espace aérien : ${penalty(p)}`] : []),
+    ].join("\n");
+  const bonus = d.some((x) => x.kind === "bonus");
+  const pen = d.some((x) => x.kind === "penalty" || x.kind === "penalty-percent") || Boolean(p.airspacePenalty);
+  return (
+    <>
+      {bonus ? (
+        <>
+          {" "}
+          <span class="chip t-bonus" title={why(["bonus"])}>
+            bonus
+          </span>
+        </>
+      ) : null}
+      {pen ? (
+        <>
+          {" "}
+          <span class="chip t-pen" title={why(["penalty", "penalty-percent"])}>
+            pénalité
+          </span>
+        </>
+      ) : null}
+      {d.some((x) => x.kind === "goal") ? (
+        <>
+          {" "}
+          <span class="chip t-dec" title={why(["goal"])}>
+            accordé
+          </span>
+        </>
+      ) : null}
+    </>
+  );
+};
+
 /** Décision lisible : « Bonus 799 pts », « Pénalité 10 % », « Goal accordé »… */
 export function decisionLabel(kind: DecisionKind, value?: number | null): string {
   const k = DECISION_KINDS[kind];
@@ -861,6 +931,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                   <span class={`chip s-${p.status}`} title={p.error ?? ""}>
                     {p.status}
                   </span>
+                  <StatusTags p={p} />
                 </td>
                 {withPoints ? (
                   <td class="n">

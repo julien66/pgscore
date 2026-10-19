@@ -31,6 +31,7 @@ import {
   NewTaskPage,
   NotFound,
   resultsCsv,
+  RunCard,
   TaskPage,
   ViewerPage,
   type CompetitionFormValues,
@@ -385,6 +386,26 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     );
   };
 
+  /** Bloc « Calcul » seul, pour le mettre à jour sans recharger la page. */
+  const runCard = (c: Context<Env>, t: TaskRow, comp: CompetitionRow) => {
+    const fresh = db.prepare("SELECT * FROM tasks WHERE id = ?").get(t.id) as unknown as TaskRow;
+    const run = (db.prepare("SELECT * FROM runs WHERE task_id = ? ORDER BY id DESC LIMIT 1").get(t.id) as unknown as RunRow | undefined) ?? null;
+    const counts = db
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM tracks WHERE task_id = ?) AS n,
+                MAX(COALESCE((SELECT MAX(uploaded_at) FROM tracks WHERE task_id = ?), 0),
+                    COALESCE((SELECT MAX(ended_at) FROM track_history WHERE task_id = ?), 0)) AS changed`,
+      )
+      .get(t.id, t.id, t.id) as { n: number; changed: number };
+    const lastChange = Math.max(counts.changed, fresh.scoring_changed_at ?? 0);
+    const running = isRunning(t.id) || run?.status === "running" || run?.status === "queued";
+    return c.html(
+      <RunCard t={fresh} run={run} running={running} settings={parseSettings(comp.params)} tracks={counts.n} stale={run !== null && lastChange > run.started_at} />,
+      200,
+      { "cache-control": "no-store" },
+    );
+  };
+
   app.get("/tasks/:id", (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
@@ -518,12 +539,22 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   app.post("/tasks/:id/runs", (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
+    // Depuis la page (fetch), le calcul démarre sans recharger : on renvoie seulement le bloc « Calcul ».
+    const inPlace = c.req.header("x-requested-with") === "fetch";
     try {
       startRun(db, tracks, x.t.id, c.get("user").id);
     } catch (e) {
+      if (inPlace) return c.json({ error: (e as Error).message }, 400);
       return taskPage(c, x.t, x.comp, { error: (e as Error).message });
     }
+    if (inPlace) return runCard(c, x.t, x.comp);
     return c.redirect(`/tasks/${x.t.id}`);
+  });
+
+  app.get("/tasks/:id/run-card", (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    return runCard(c, x.t, x.comp);
   });
 
   app.get("/tasks/:id/pilots/:key", (c) => {

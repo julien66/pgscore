@@ -1,7 +1,7 @@
 // Page de la manche : suivi de l'envoi des traces et du calcul.
 // Envoi : progression de l'envoi, puis du traitement sur le serveur.
-// Calcul : relit l'avancement chaque seconde et l'affiche étape par étape, sans recharger la page ;
-// la page est rechargée une fois le calcul terminé, pour le classement.
+// Calcul : lancé sans recharger la page ; l'avancement est relu chaque seconde et affiché étape par
+// étape, puis seul le bloc « Calcul » est remplacé par le classement.
 (function () {
   "use strict";
   const size = (b) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} Ko` : `${(b / 1024 / 1024).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo`);
@@ -44,15 +44,14 @@
       xhr.send(new FormData(f));
     });
   }
-  const box = document.getElementById("run-live");
-  const form = document.getElementById("run-form");
-  if (form) form.addEventListener("submit", () => {
-    const b = form.querySelector("button");
-    b.disabled = true;
-    b.innerHTML = '<span class="spin"></span> Démarrage du calcul…';
-  });
-  if (!box) return;
-  const url = box.dataset.url;
+  // Bloc replié ciblé par l'adresse (#decisions…) : on l'ouvre.
+  const openHash = () => {
+    const target = location.hash && document.getElementById(location.hash.slice(1));
+    if (target && target.tagName === "DETAILS") target.open = true;
+  };
+  openHash();
+  window.addEventListener("hashchange", openHash);
+
   const STEPS = [
     ["prepare", "Lecture de la manche, des paramètres et des espaces aériens"],
     ["control", "Contrôle des traces"],
@@ -65,6 +64,37 @@
   const dur = (s) => (s < 60 ? `${Math.round(s)} s` : `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, "0")} s`);
   let skew = 0, last = null, failures = 0;
 
+  const card = document.getElementById("run-card");
+  if (!card) return;
+  let box = null, url = null, timer = null;
+  const swap = (html) => {
+    card.innerHTML = html;
+    bind();
+  };
+  function bind() {
+    const form = document.getElementById("run-form");
+    if (form) form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const b = form.querySelector("button");
+      b.disabled = true;
+      b.innerHTML = '<span class="spin"></span> Démarrage du calcul…';
+      try {
+        const res = await fetch(form.action, { method: "POST", headers: { "x-requested-with": "fetch" }, credentials: "same-origin" });
+        if (res.ok) return swap(await res.text());
+        const err = await res.json().catch(() => ({}));
+        b.disabled = false;
+        b.textContent = "Lancer le calcul";
+        card.insertAdjacentHTML("beforeend", `<div class="err">${esc(err.error || "Le calcul n'a pas pu démarrer.")}</div>`);
+      } catch (e) {
+        form.submit();
+      }
+    });
+    box = document.getElementById("run-live");
+    if (box && !timer) {
+      url = box.dataset.url;
+      poll();
+    }
+  }
   function render(r) {
     const now = Date.now() + skew;
     const elapsed = (now - r.startedAt) / 1000;
@@ -105,15 +135,20 @@
       const r = await res.json();
       failures = 0;
       if (r.now) skew = r.now - Date.now();
-      if (r.status === "done" || r.status === "error") return location.reload();
+      if (r.status === "done" || r.status === "error") {
+        timer = null;
+        last = null;
+        const res = await fetch(url.replace(/run\.json$/, "run-card"), { cache: "no-store", credentials: "same-origin" });
+        return res.ok ? swap(await res.text()) : location.reload();
+      }
       if (r.status === "queued" || r.status === "running") { last = r; render(r); }
     } catch (e) {
       // Serveur momentanément injoignable (redémarrage, réseau) : on réessaie, en le signalant.
       if (++failures >= 5) box.insertAdjacentHTML("beforeend", '<p class="small err">Le serveur ne répond pas, nouvel essai…</p>');
     }
-    setTimeout(poll, 1000);
+    timer = setTimeout(poll, 1000);
   }
   // Le temps écoulé avance entre deux relectures.
-  setInterval(() => last && render(last), 1000);
-  poll();
+  setInterval(() => last && box && box.isConnected && render(last), 1000);
+  bind();
 })();
