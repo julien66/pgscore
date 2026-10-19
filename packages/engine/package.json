@@ -18,10 +18,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "geographiclib-geodesic": "^2.2.0"
+    "geographiclib-geodesic": "^2.2.0",
+    "proj4": "^2.22.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "@types/proj4": "^2.19.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   }

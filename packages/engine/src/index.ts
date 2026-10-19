@@ -2,3 +2,6 @@ export * from "./geo.js";
 export * from "./task.js";
 export * from "./xctsk.js";
 export * from "./igc.js";
+export * from "./projection.js";
+export * from "./route.js";
+export * from "./distances.js";
