@@ -32,6 +32,10 @@ ligne du pilote (n'importe quel nom de fichier, raison facultative). L'ancienne 
 téléchargeable dans « Anciennes versions », avec qui l'a remplacée et quand ; une trace retirée y
 passe aussi. La page signale quand des traces ont changé depuis le dernier calcul.
 
+Quand un pilote a plusieurs versions de trace, sa page les liste avec, pour chacune, le résultat,
+l'heure de départ et ce qui est à vérifier (zone manquée, espace aérien). On peut superposer les
+versions sur la carte, le barogramme et la vue 3D, et choisir celle dont le contrôle est détaillé.
+
 Node 22.5 ou plus récent (base SQLite intégrée à Node).
 
 ## Connexion Google

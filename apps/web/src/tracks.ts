@@ -1,4 +1,5 @@
 import type { Db, TrackHistoryRow, TrackRow } from "./db.js";
+import type { VersionMeta } from "./viewer-data.js";
 
 /**
  * Traces d'une manche. Une seule trace en vigueur par pilote ; celle qu'elle remplace (ou une trace
@@ -83,4 +84,28 @@ export function taskHasFile(db: Db, taskId: number, sha256: string): { filename:
       sha256,
     ) as { filename: string } | undefined) ?? null
   );
+}
+
+/** Toutes les versions de la trace d'un pilote : celle en vigueur d'abord, puis les anciennes, de la plus récente à la plus ancienne. */
+export function pilotVersions(db: Db, taskId: number, pilotKey: string): Array<{ meta: VersionMeta; pilotName: string | null }> {
+  const cur = db
+    .prepare("SELECT t.*, u.name AS by_name FROM tracks t LEFT JOIN users u ON u.id = t.uploaded_by WHERE t.task_id = ? AND t.pilot_key = ?")
+    .get(taskId, pilotKey) as (TrackRow & { by_name: string | null }) | undefined;
+  const old = trackHistory(db, taskId).filter((h) => h.pilot_key === pilotKey);
+  const out: Array<{ meta: VersionMeta; pilotName: string | null }> = [];
+  if (cur) {
+    out.push({
+      pilotName: cur.pilot_name,
+      meta: { sha256: cur.sha256, filename: cur.filename, uploadedAt: cur.uploaded_at, uploadedBy: cur.by_name, status: "current", endedAt: null, endedBy: null, note: cur.note },
+    });
+  }
+  for (const h of old) {
+    // Un fichier renvoyé après avoir été remplacé n'apparaît qu'une fois.
+    if (out.some((o) => o.meta.sha256 === h.sha256)) continue;
+    out.push({
+      pilotName: h.pilot_name,
+      meta: { sha256: h.sha256, filename: h.filename, uploadedAt: h.uploaded_at, uploadedBy: h.uploaded_by_name, status: h.ended_how, endedAt: h.ended_at, endedBy: h.ended_by_name, note: h.note },
+    });
+  }
+  return out;
 }

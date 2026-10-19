@@ -536,7 +536,8 @@ export const TaskPage: FC<{
                       <td>
                         <a class="muted" href={fileUrl(h.sha256)}>
                           {h.filename}
-                        </a>
+                        </a>{" "}
+                        · <a href={`/tasks/${t.id}/pilots/${encodeURIComponent(h.pilot_key)}?v=${h.sha256}`}>voir</a>
                         {h.note ? <div class="small muted">{h.note}</div> : null}
                       </td>
                       <td class="small muted">
@@ -731,6 +732,8 @@ main{max-width:none}
 .v-box dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0;font-size:14px}.v-box dt{color:var(--muted)}.v-box dd{margin:0;font-variant-numeric:tabular-nums}
 .v-events{margin:0;padding-left:18px;font-size:14px}.v-events li{margin:4px 0;cursor:pointer}.v-events li:hover{text-decoration:underline}
 .v-events li.miss{color:#c2410c}.v-events li.bad,.bad{color:var(--bad)}.v-events li.later{color:var(--muted)}
+.v-versions{font-size:14px}.v-versions tr.on{background:var(--chip)}.v-versions td{vertical-align:top}
+.v-sw{display:inline-block;width:14px;height:14px;border-radius:3px;margin-top:3px}
 #v-baro{width:100%;height:170px;background:var(--card);border:1px solid var(--line);border-radius:10px;cursor:crosshair}
 `;
 

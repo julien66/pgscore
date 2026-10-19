@@ -39,8 +39,24 @@ export interface ViewerData {
   route: LatLon[];
   gates: number[];
   deadline: number | null;
-  stopTime: number | null;
   airspaces: Array<{ name: string; class: string; lower: number; upper: number; lowerText: string; upperText: string; polygon: LatLon[] }>;
+  /** Versions de la trace du pilote, celle en vigueur d'abord. */
+  versions: VersionData[];
+}
+
+export interface VersionMeta {
+  sha256: string;
+  filename: string;
+  uploadedAt: number;
+  uploadedBy: string | null;
+  status: "current" | "replaced" | "removed";
+  endedAt: number | null;
+  endedBy: string | null;
+  note: string | null;
+}
+
+export interface VersionData extends VersionMeta {
+  stopTime: number | null;
   track: {
     t: number[];
     lat: number[];
@@ -55,7 +71,7 @@ export interface ViewerData {
   validations: Array<{ index: number; name: string; role: string; time: number; altitude: number | null }>;
   approaches: ReturnType<typeof zoneApproaches>;
   infringements: Array<{ name: string; class: string; depth: number; verticalDepth: number; from: number; to: number; worst: number }>;
-  result: { madeGoal: boolean; madeEss: boolean; flownDistance: number; taskDistance: number; startTime: number | null; essTime: number | null };
+  result: { madeGoal: boolean; madeEss: boolean; flownDistance: number; taskDistance: number; startTime: number | null; essTime: number | null; goalTime: number | null };
 }
 
 function goalLine(centre: LatLon, from: LatLon, length: number) {
@@ -79,18 +95,18 @@ const hms = (s: string, day: number) => {
 
 export function viewerData(
   task: Task,
-  igc: string,
+  versions: Array<{ igc: string; meta: VersionMeta }>,
   airspaceText: string | null,
   settings: CompetitionSettings,
   pilot: { key: string; name: string | null },
   date: string | null,
 ): ViewerData {
-  const flight = parseIgc(igc);
-  const fixes = flight.fixes.filter((f) => f.valid);
-  const c = controlFlight(task, flight.fixes);
+  if (!versions.length) throw new Error("Aucune trace pour ce pilote.");
   const dist = taskDistances(task);
   const tps = task.turnpoints;
-  const day = fixes.length ? Math.floor(fixes[0]!.time / 86_400_000) * 86_400_000 : 0;
+  const flights = versions.map((v) => ({ meta: v.meta, flight: parseIgc(v.igc) }));
+  const firstFix = flights.flatMap((f) => f.flight.fixes.slice(0, 1))[0];
+  const day = firstFix ? Math.floor(firstFix.time / 86_400_000) * 86_400_000 : 0;
 
   const zones: ViewerData["zones"] = tps.map((tp, i) => {
     const w = tp.zone.waypoint;
@@ -107,9 +123,9 @@ export function viewerData(
     return z;
   });
 
-  // Espaces aériens à moins de 30 km de la manche ou de la trace.
+  // Espaces aériens à moins de 30 km de la manche ou des traces.
   const box = (() => {
-    const pts: LatLon[] = [...zones, ...fixes.filter((_, i) => i % 30 === 0)];
+    const pts: LatLon[] = [...zones, ...flights.flatMap((f) => f.flight.fixes.filter((x, i) => x.valid && i % 30 === 0))];
     const m = 0.3;
     return {
       s: Math.min(...pts.map((p) => p.lat)) - m,
@@ -129,61 +145,69 @@ export function viewerData(
     airspaces.push({ name: a.name, class: a.class, lower: Math.max(lo, -1000), upper: Math.min(hi, 20000), lowerText: a.lowerText, upperText: a.upperText, polygon: a.polygon });
   }
 
-  // Prochaine zone à valider et distance à son bord, fix par fix.
   const sssIdx = tps.findIndex((t) => t.role === "sss");
-  const steps = c.validated.map((v) => ({ time: v.time, next: v.index + 1 }));
-  const next: number[] = [];
-  const edge: Array<number | null> = [];
-  for (const f of fixes) {
-    let n = sssIdx;
-    for (const s of steps) if (s.time <= f.time) n = s.next;
-    next.push(n);
-    const z = zones[n];
-    edge.push(z ? Math.round((distance(z, f) - z.radius) * 10) / 10 : null);
-  }
-
-  const flightStart = c.inFlight.length ? fixes.indexOf(c.inFlight[0]!) : 0;
-  const flightEnd = c.inFlight.length ? fixes.indexOf(c.inFlight.at(-1)!) : fixes.length - 1;
-  const inf = airspaceInfringements(all, c.inFlight, { roundLimitsToMetre: settings.roundAirspaceLimits });
+  const analyse = (meta: VersionMeta, flight: ReturnType<typeof parseIgc>): VersionData => {
+    const fixes = flight.fixes.filter((f) => f.valid);
+    const c = controlFlight(task, flight.fixes);
+    // Prochaine zone à valider et distance à son bord, fix par fix.
+    const steps = c.validated.map((v) => ({ time: v.time, next: v.index + 1 }));
+    const next: number[] = [];
+    const edge: Array<number | null> = [];
+    for (const f of fixes) {
+      let n = sssIdx;
+      for (const st of steps) if (st.time <= f.time) n = st.next;
+      next.push(n);
+      const z = zones[n];
+      edge.push(z ? Math.round((distance(z, f) - z.radius) * 10) / 10 : null);
+    }
+    const flightStart = c.inFlight.length ? fixes.indexOf(c.inFlight[0]!) : 0;
+    const flightEnd = c.inFlight.length ? fixes.indexOf(c.inFlight.at(-1)!) : fixes.length - 1;
+    const inf = airspaceInfringements(all, c.inFlight, { roundLimitsToMetre: settings.roundAirspaceLimits });
+    return {
+      ...meta,
+      stopTime: c.stopped?.taskStopTime ?? null,
+      track: {
+        t: fixes.map((f) => f.time),
+        lat: fixes.map((f) => Math.round(f.lat * 1e6) / 1e6),
+        lon: fixes.map((f) => Math.round(f.lon * 1e6) / 1e6),
+        alt: fixes.map((f) => f.gnssAltitude ?? f.pressureAltitude),
+        next,
+        edge,
+        flightStart: Math.max(0, flightStart),
+        flightEnd: Math.max(0, flightEnd),
+      },
+      validations: c.validated.map((v) => ({ index: v.index, name: v.name, role: v.role, time: v.time, altitude: v.altitude })),
+      approaches: zoneApproaches(task, c),
+      infringements: inf.map((i) => ({
+        name: i.airspace.name,
+        class: i.airspace.class,
+        depth: i.depth,
+        verticalDepth: i.verticalDepth,
+        from: i.from,
+        to: i.to,
+        worst: i.worst.time,
+      })),
+      result: {
+        madeGoal: c.madeGoal,
+        madeEss: c.madeEss,
+        flownDistance: c.flownDistance,
+        taskDistance: dist.task,
+        startTime: c.startTime,
+        essTime: c.essTime,
+        goalTime: c.goalTime,
+      },
+    };
+  };
 
   return {
-    pilot: { key: pilot.key, name: pilot.name ?? flight.header.pilot ?? pilot.key },
+    pilot: { key: pilot.key, name: pilot.name ?? flights[0]!.flight.header.pilot ?? pilot.key },
     timeZone: settings.timeZone,
     date,
     zones,
     route: dist.route.points,
     gates: task.startGates.map((g) => hms(g, day)),
     deadline: task.deadline ? hms(task.deadline, day) : null,
-    stopTime: c.stopped?.taskStopTime ?? null,
     airspaces,
-    track: {
-      t: fixes.map((f) => f.time),
-      lat: fixes.map((f) => Math.round(f.lat * 1e6) / 1e6),
-      lon: fixes.map((f) => Math.round(f.lon * 1e6) / 1e6),
-      alt: fixes.map((f) => f.gnssAltitude ?? f.pressureAltitude),
-      next,
-      edge,
-      flightStart: Math.max(0, flightStart),
-      flightEnd: Math.max(0, flightEnd),
-    },
-    validations: c.validated.map((v) => ({ index: v.index, name: v.name, role: v.role, time: v.time, altitude: v.altitude })),
-    approaches: zoneApproaches(task, c),
-    infringements: inf.map((i) => ({
-      name: i.airspace.name,
-      class: i.airspace.class,
-      depth: i.depth,
-      verticalDepth: i.verticalDepth,
-      from: i.from,
-      to: i.to,
-      worst: i.worst.time,
-    })),
-    result: {
-      madeGoal: c.madeGoal,
-      madeEss: c.madeEss,
-      flownDistance: c.flownDistance,
-      taskDistance: dist.task,
-      startTime: c.startTime,
-      essTime: c.essTime,
-    },
+    versions: flights.map((f) => analyse(f.meta, f.flight)),
   };
 }

@@ -16,7 +16,7 @@ import type { CompetitionRow, Db, RunRow, TaskRow, TrackRow, User } from "./db.j
 import { collectIgc, decodeQrImage, decodeText, pilotKeyFromFilename } from "./files.js";
 import { isRunning, startRun } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
-import { removeTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
+import { pilotVersions, removeTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
 import { viewerData } from "./viewer-data.js";
@@ -488,11 +488,16 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     const key = c.req.param("key");
-    const tr = db.prepare("SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE task_id = ? AND pilot_key = ?").get(x.t.id, key) as
-      | { pilot_key: string; pilot_name: string | null; sha256: string }
-      | undefined;
-    if (!tr) return notFound(c);
-    const data = viewerData(JSON.parse(x.t.task) as Task, tracks.text(tr.sha256), x.comp.airspace_text, parseSettings(x.comp.params), { key, name: tr.pilot_name }, x.t.date);
+    const versions = pilotVersions(db, x.t.id, key);
+    if (!versions.length) return notFound(c);
+    const data = viewerData(
+      JSON.parse(x.t.task) as Task,
+      versions.map((v) => ({ igc: tracks.text(v.meta.sha256), meta: v.meta })),
+      x.comp.airspace_text,
+      parseSettings(x.comp.params),
+      { key, name: versions.find((v) => v.pilotName)?.pilotName ?? null },
+      x.t.date,
+    );
     return c.html(<ViewerPage user={c.get("user")} c={x.comp} t={x.t} pilotKey={key} pilotName={data.pilot.name} data={JSON.stringify(data)} />);
   });
 

@@ -89,10 +89,20 @@ describe("fichiers IGC hors de la base", () => {
     expect(page).toContain("Anciennes versions (1)");
     expect(page).toContain("Remplacée le");
     expect(page).toContain("v2");
+    // La page du pilote porte les deux versions, celle en vigueur d'abord.
+    const viewer = await (await req(`${url}/pilots/42`)).text();
+    const data = JSON.parse(/<script type="application\/json" id="viewer-data">(.*?)<\/script>/s.exec(viewer)![1]!.replace(/\\u003c/g, "<"));
+    expect(data.versions.map((v: { sha256: string; status: string }) => [v.sha256, v.status])).toEqual([
+      [now[0]!.sha256, "current"],
+      [first.sha256, "replaced"],
+    ]);
     // Retirer : la trace passe aussi dans l'historique.
     await req(`${url}/tracks/${first.id}/delete`, { method: "POST" });
     expect(db.prepare("SELECT COUNT(*) n FROM tracks").get()).toEqual({ n: 0 });
     expect(db.prepare("SELECT ended_how FROM track_history ORDER BY id").all()).toEqual([{ ended_how: "replaced" }, { ended_how: "removed" }]);
+    // Une trace retirée reste consultable.
+    expect((await req(`${url}/pilots/42`)).status).toBe(200);
+    expect((await req(`${url}/pilots/999`)).status).toBe(404);
   });
 
   it("refuse une archive à plusieurs traces pour un remplacement", async () => {
