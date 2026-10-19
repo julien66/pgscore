@@ -1,5 +1,5 @@
 // Fonds de carte communs à la carte de la manche et à la vue des traces. Le choix est retenu dans
-// le navigateur. Par défaut « Topo gris » : courbes et relief d'OpenTopoMap en niveaux de gris,
+// le navigateur. Par défaut « Relief » : ombrage gris et noms de lieux ; « Topo gris » : OpenTopoMap en niveaux de gris,
 // pour que cylindres, routes et traces en couleur ressortent.
 (function () {
   "use strict";
@@ -16,7 +16,7 @@
     "Plan": [{ url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", opts: { maxZoom: 19, attribution: OSM } }],
     "Satellite": [{ url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", opts: { maxZoom: 18, attribution: "Imagerie &copy; Esri, Maxar, Earthstar Geographics" } }],
   };
-  const DEFAULT = "Topo gris";
+  const DEFAULT = "Relief";
   const KEY = "pgscore.basemap";
   const saved = () => { try { return localStorage.getItem(KEY); } catch { return null; } };
   const style = document.createElement("style");
