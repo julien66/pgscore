@@ -38,6 +38,18 @@ versions sur la carte, le barogramme et la vue 3D, et choisir celle dont le cont
 
 Node 22.5 ou plus récent (base SQLite intégrée à Node).
 
+## Hébergement sur Render
+
+Le fichier `render.yaml` à la racine décrit le service (Blueprint) : dans Render, « New » ›
+« Blueprint », choisir le dépôt, puis renseigner `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` et, si
+l'appli a un nom de domaine, `BASE_URL` (sinon l'adresse en onrender.com est prise).
+
+- La base et les traces sont sur un disque Render monté en `/var/data`. Sans disque, tout serait
+  perdu à chaque redéploiement : le plan gratuit ne convient donc pas (plan Starter au minimum).
+- Avec un disque, Render ne fait tourner qu'une instance et coupe le service quelques secondes à
+  chaque déploiement. Un calcul en cours pendant un déploiement est à relancer.
+- Render sauvegarde le disque chaque jour (instantanés gardés 7 jours).
+
 ## Connexion Google
 
 1. Dans la console Google Cloud, « API et services » › « Identifiants » › « Créer des identifiants »

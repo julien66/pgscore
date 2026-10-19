@@ -74,6 +74,11 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   });
 
   const viewerJs = readFileSync(new URL("./static/viewer.js", import.meta.url), "utf8");
+  // Contrôle de santé pour l'hébergeur : le serveur répond et la base est lisible.
+  app.get("/healthz", (c) => {
+    db.prepare("SELECT 1").get();
+    return c.text("ok");
+  });
   app.get("/static/viewer.js", (c) => c.body(viewerJs, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" }));
 
   app.get("/vendor/:lib/*", (c) => {

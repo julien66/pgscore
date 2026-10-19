@@ -11,7 +11,8 @@ import { TrackStore } from "./track-store.js";
  * connexion de test sans fournisseur (jamais en production).
  */
 const port = Number(process.env.PORT ?? 3000);
-const baseUrl = (process.env.BASE_URL ?? `http://localhost:${port}`).replace(/\/$/, "");
+// Sur Render, RENDER_EXTERNAL_URL donne l'adresse publique du service.
+const baseUrl = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`).replace(/\/$/, "");
 const dbPath = process.env.DATABASE_PATH ?? "data/pgscore.db";
 const tracks = new TrackStore(process.env.TRACKS_DIR ?? join(dirname(dbPath), "tracks"));
 const db = openDb(dbPath, tracks);
