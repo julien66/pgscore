@@ -1,16 +1,20 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { openDb } from "../src/db.js";
+import { TrackStore } from "../src/track-store.js";
 
 const engineFixtures = new URL("../../../packages/engine/test/fixtures/", import.meta.url);
 const QR = readFileSync(new URL("pwca-gemona-2026-t3.qr.txt", engineFixtures), "utf8").trim();
 const AIRSPACE = readFileSync(new URL("pwca-gemona-2026-airspace.txt", engineFixtures));
 
 function setup() {
-  const db = openDb(":memory:");
-  const app = createApp(db, { baseUrl: "http://localhost", devLogin: true });
+  const tracks = new TrackStore(mkdtempSync(join(tmpdir(), "pgscore-tracks-")));
+  const db = openDb(":memory:", tracks);
+  const app = createApp(db, tracks, { baseUrl: "http://localhost", devLogin: true });
   let cookie = "";
   const req = async (path: string, init: RequestInit = {}) => {
     const r = await app.request(`http://localhost${path}`, { ...init, headers: { cookie, ...(init.headers ?? {}) } });
@@ -18,7 +22,7 @@ function setup() {
     if (set) cookie = set.split(";")[0]!;
     return r;
   };
-  return { db, req };
+  return { db, tracks, req };
 }
 
 const competitionFields = {

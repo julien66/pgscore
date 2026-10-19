@@ -31,6 +31,8 @@ export function decodeText(bytes: Uint8Array): string {
 
 export interface UploadedIgc {
   filename: string;
+  /** Fichier tel que reçu, gardé à l'identique. */
+  bytes: Uint8Array;
   text: string;
 }
 
@@ -41,11 +43,11 @@ export function collectIgc(files: Array<{ name: string; bytes: Uint8Array }>): U
     const isZip = f.bytes[0] === 0x50 && f.bytes[1] === 0x4b && f.bytes[2] === 0x03 && f.bytes[3] === 0x04;
     if (isZip) {
       const entries = unzipSync(f.bytes, { filter: (e) => /\.igc$/i.test(e.name) && !e.name.startsWith("__MACOSX/") });
-      for (const [name, data] of Object.entries(entries)) out.push({ filename: name.split("/").pop()!, text: decodeText(data) });
+      for (const [name, data] of Object.entries(entries)) out.push({ filename: name.split("/").pop()!, bytes: data, text: decodeText(data) });
     } else if (/\.igc$/i.test(f.name) || /^A[A-Z0-9]{3}/.test(decodeText(f.bytes.subarray(0, 8)))) {
       // Fichier .igc, ou fichier sans extension qui commence comme un IGC (enregistrement A).
       const name = /\.igc$/i.test(f.name) ? f.name : `${f.name}.igc`;
-      out.push({ filename: name, text: decodeText(f.bytes) });
+      out.push({ filename: name, bytes: f.bytes, text: decodeText(f.bytes) });
     }
   }
   return out;

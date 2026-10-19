@@ -1,6 +1,7 @@
 import { controlPilot, finishScoring, parseOpenAir, type ControlledPilot, type Task } from "@pgscore/engine";
 import type { CompetitionRow, Db, TaskRow } from "./db.js";
 import { parseSettings } from "./settings.js";
+import type { TrackStore } from "./track-store.js";
 
 /**
  * Calcul d'une manche, lancé à la main. Il tourne dans le processus du serveur, un pilote à la fois,
@@ -11,7 +12,7 @@ import { parseSettings } from "./settings.js";
 const running = new Set<number>();
 export const isRunning = (taskId: number) => running.has(taskId);
 
-export function startRun(db: Db, taskId: number, userId: number): number {
+export function startRun(db: Db, tracks: TrackStore, taskId: number, userId: number): number {
   if (running.has(taskId)) throw new Error("Un calcul est déjà en cours pour cette manche.");
   const total = (db.prepare("SELECT COUNT(*) n FROM tracks WHERE task_id = ?").get(taskId) as { n: number }).n;
   if (!total) throw new Error("Aucune trace : envoyez les fichiers IGC avant de lancer le calcul.");
@@ -20,13 +21,13 @@ export function startRun(db: Db, taskId: number, userId: number): number {
     .run(taskId, total, userId, Date.now());
   const runId = Number(r.lastInsertRowid);
   running.add(taskId);
-  void execute(db, taskId, runId).finally(() => running.delete(taskId));
+  void execute(db, tracks, taskId, runId).finally(() => running.delete(taskId));
   return runId;
 }
 
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
-async function execute(db: Db, taskId: number, runId: number): Promise<void> {
+async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number): Promise<void> {
   const setStatus = db.prepare("UPDATE runs SET status = ?, done = ? WHERE id = ?");
   try {
     const t = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as unknown as TaskRow;
@@ -41,13 +42,14 @@ async function execute(db: Db, taskId: number, runId: number): Promise<void> {
       leadingProfile: s.leadingProfile,
     };
     const ids = db.prepare("SELECT id FROM tracks WHERE task_id = ? ORDER BY pilot_key").all(taskId) as Array<{ id: number }>;
-    const getTrack = db.prepare("SELECT pilot_key, pilot_name, igc FROM tracks WHERE id = ?");
+    const getTrack = db.prepare("SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE id = ?");
     setStatus.run("running", 0, runId);
     const controlled: ControlledPilot[] = [];
     for (const [i, { id }] of ids.entries()) {
       await tick();
-      const tr = getTrack.get(id) as { pilot_key: string; pilot_name: string | null; igc: string };
-      const input = tr.pilot_name ? { id: tr.pilot_key, name: tr.pilot_name, igc: tr.igc } : { id: tr.pilot_key, igc: tr.igc };
+      const tr = getTrack.get(id) as { pilot_key: string; pilot_name: string | null; sha256: string };
+      const igc = tracks.text(tr.sha256);
+      const input = tr.pilot_name ? { id: tr.pilot_key, name: tr.pilot_name, igc } : { id: tr.pilot_key, igc };
       controlled.push(controlPilot(task, input, options));
       setStatus.run("running", i + 1, runId);
     }

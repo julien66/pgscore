@@ -15,6 +15,7 @@ import {
 import type { CompetitionRow, Db, RunRow, TaskRow, TrackRow, User } from "./db.js";
 import { collectIgc, decodeQrImage, decodeText, pilotKeyFromFilename } from "./files.js";
 import { isRunning, startRun } from "./runner.js";
+import type { TrackStore } from "./track-store.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
 import { viewerData } from "./viewer-data.js";
@@ -47,7 +48,7 @@ type Env = { Variables: { user: User } };
 
 const MAX_UPLOAD = 200 * 1024 * 1024;
 
-export function createApp(db: Db, cfg: AppConfig) {
+export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   const app = new Hono<Env>();
   const oidc: OidcConfig | null = cfg.google
     ? { provider: "google", issuer: GOOGLE_ISSUER, clientId: cfg.google.clientId, clientSecret: cfg.google.clientSecret, baseUrl: cfg.baseUrl }
@@ -403,14 +404,16 @@ export function createApp(db: Db, cfg: AppConfig) {
     }
     if (!igcs.length) return taskPage(c, x.t, x.comp, { error: "Aucun fichier IGC trouvé dans l'envoi." });
     const put = db.prepare(
-      `INSERT INTO tracks (task_id, pilot_key, pilot_name, filename, igc, uploaded_at) VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO tracks (task_id, pilot_key, pilot_name, filename, sha256, size, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (task_id, pilot_key) DO UPDATE SET pilot_name = excluded.pilot_name, filename = excluded.filename,
-         igc = excluded.igc, uploaded_at = excluded.uploaded_at`,
+         sha256 = excluded.sha256, size = excluded.size, uploaded_at = excluded.uploaded_at`,
     );
+    // Fichiers écrits sur disque avant la base : une ligne de la base pointe toujours vers un fichier présent.
+    const stored = igcs.map((g) => ({ g, sha256: tracks.put(g.bytes) }));
     db.exec("BEGIN");
-    for (const g of igcs) {
+    for (const { g, sha256 } of stored) {
       const pilot = /^HF[A-Z]{0,3}PLT[^:]*:(.*)$/im.exec(g.text)?.[1]?.trim() || null;
-      put.run(x.t.id, pilotKeyFromFilename(g.filename), pilot, g.filename, g.text, Date.now());
+      put.run(x.t.id, pilotKeyFromFilename(g.filename), pilot, g.filename, sha256, g.bytes.length, Date.now());
     }
     db.exec("COMMIT");
     return c.redirect(`/tasks/${x.t.id}?added=${igcs.length}`);
@@ -427,7 +430,7 @@ export function createApp(db: Db, cfg: AppConfig) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     try {
-      startRun(db, x.t.id, c.get("user").id);
+      startRun(db, tracks, x.t.id, c.get("user").id);
     } catch (e) {
       return taskPage(c, x.t, x.comp, { error: (e as Error).message });
     }
@@ -438,11 +441,11 @@ export function createApp(db: Db, cfg: AppConfig) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     const key = c.req.param("key");
-    const tr = db.prepare("SELECT pilot_key, pilot_name, igc FROM tracks WHERE task_id = ? AND pilot_key = ?").get(x.t.id, key) as
-      | { pilot_key: string; pilot_name: string | null; igc: string }
+    const tr = db.prepare("SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE task_id = ? AND pilot_key = ?").get(x.t.id, key) as
+      | { pilot_key: string; pilot_name: string | null; sha256: string }
       | undefined;
     if (!tr) return notFound(c);
-    const data = viewerData(JSON.parse(x.t.task) as Task, tr.igc, x.comp.airspace_text, parseSettings(x.comp.params), { key, name: tr.pilot_name }, x.t.date);
+    const data = viewerData(JSON.parse(x.t.task) as Task, tracks.text(tr.sha256), x.comp.airspace_text, parseSettings(x.comp.params), { key, name: tr.pilot_name }, x.t.date);
     return c.html(<ViewerPage user={c.get("user")} c={x.comp} t={x.t} pilotKey={key} pilotName={data.pilot.name} data={JSON.stringify(data)} />);
   });
 

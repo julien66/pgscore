@@ -18,8 +18,14 @@ Variables :
 | `PORT` | port HTTP | 3000 |
 | `BASE_URL` | adresse publique, sans « / » final | `http://localhost:PORT` |
 | `DATABASE_PATH` | fichier SQLite | `data/pgscore.db` |
+| `TRACKS_DIR` | dossier des fichiers IGC | `tracks` à côté de la base |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | connexion Google | aucune |
 | `DEV_LOGIN` | `1` : connexion de test sans fournisseur, **jamais en production** | désactivée |
+
+Les fichiers IGC sont gardés tels que reçus, hors de la base, dans `TRACKS_DIR`, rangés sous leur
+empreinte SHA-256 (`tracks/ab/abcdef….igc`). Un fichier n'est jamais modifié ni écrasé ; une trace
+remplacée ou supprimée dans une manche reste dans le dossier. La base ne garde que le nom du fichier,
+sa taille et son empreinte. Sauvegarder = copier la base et ce dossier.
 
 Node 22.5 ou plus récent (base SQLite intégrée à Node).
 

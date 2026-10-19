@@ -1,11 +1,14 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { TrackStore } from "./track-store.js";
 
 /** Base SQLite de l'appli. Un seul fichier, migrations appliquées à l'ouverture. */
 export type Db = DatabaseSync;
 
-const MIGRATIONS: string[] = [
+type Migration = string | ((db: Db, tracks: TrackStore) => void);
+
+export const MIGRATIONS: Migration[] = [
   `CREATE TABLE users (
      id INTEGER PRIMARY KEY,
      provider TEXT NOT NULL,
@@ -70,9 +73,33 @@ const MIGRATIONS: string[] = [
      started_at INTEGER NOT NULL,
      finished_at INTEGER
    );`,
+  // Les fichiers IGC quittent la base : ils sont rangés par empreinte dans le dossier des traces.
+  (db, tracks) => {
+    db.exec(`CREATE TABLE tracks_new (
+       id INTEGER PRIMARY KEY,
+       task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+       pilot_key TEXT NOT NULL,
+       pilot_name TEXT,
+       filename TEXT NOT NULL,
+       sha256 TEXT NOT NULL,
+       size INTEGER NOT NULL,
+       uploaded_at INTEGER NOT NULL,
+       UNIQUE (task_id, pilot_key)
+     )`);
+    const rows = db.prepare("SELECT id, task_id, pilot_key, pilot_name, filename, igc, uploaded_at FROM tracks").all() as Array<{
+      id: number; task_id: number; pilot_key: string; pilot_name: string | null; filename: string; igc: string; uploaded_at: number;
+    }>;
+    const put = db.prepare("INSERT INTO tracks_new (id, task_id, pilot_key, pilot_name, filename, sha256, size, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    for (const r of rows) {
+      // Seul le texte décodé était gardé : les octets d'origine sont reconstitués (identiques pour un IGC en ASCII).
+      const bytes = /^[\u0000-\u00ff]*$/.test(r.igc) ? Buffer.from(r.igc, "latin1") : Buffer.from(r.igc, "utf8");
+      put.run(r.id, r.task_id, r.pilot_key, r.pilot_name, r.filename, tracks.put(bytes), bytes.length, r.uploaded_at);
+    }
+    db.exec("DROP TABLE tracks; ALTER TABLE tracks_new RENAME TO tracks;");
+  },
 ];
 
-export function openDb(path: string): Db {
+export function openDb(path: string, tracks: TrackStore): Db {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
@@ -82,7 +109,9 @@ export function openDb(path: string): Db {
   if (!row) db.prepare("INSERT INTO schema_version (version) VALUES (0)").run();
   for (; version < MIGRATIONS.length; version++) {
     db.exec("BEGIN");
-    db.exec(MIGRATIONS[version]!);
+    const m = MIGRATIONS[version]!;
+    if (typeof m === "string") db.exec(m);
+    else m(db, tracks);
     db.prepare("UPDATE schema_version SET version = ?").run(version + 1);
     db.exec("COMMIT");
   }
@@ -129,6 +158,8 @@ export interface TrackRow {
   pilot_key: string;
   pilot_name: string | null;
   filename: string;
+  sha256: string;
+  size: number;
   uploaded_at: number;
 }
 
