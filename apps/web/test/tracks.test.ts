@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -22,6 +23,13 @@ describe("fichiers IGC hors de la base", () => {
     expect(Buffer.compare(store.bytes(a), IGC)).toBe(0);
     expect(store.text(a)).toContain("René Test");
     expect(() => store.bytes("../../etc/passwd")).toThrow();
+    // Un fichier rangé non compressé (ancienne version du stockage) se relit aussi.
+    const plain = new TrackStore(tmp("pgscore-store-"));
+    const sha = createHash("sha256").update(IGC).digest("hex");
+    mkdirSync(join(plain.dir, sha.slice(0, 2)));
+    writeFileSync(join(plain.dir, sha.slice(0, 2), `${sha}.igc`), IGC);
+    expect(Buffer.compare(plain.bytes(sha), IGC)).toBe(0);
+    expect(plain.put(IGC)).toBe(sha);
   });
 
   async function minimalTask() {
@@ -131,7 +139,7 @@ describe("fichiers IGC hors de la base", () => {
     const row = db.prepare("SELECT * FROM tracks").get() as { sha256: string; size: number; uploaded_at: number };
     expect(row.uploaded_at).toBe(5);
     expect(Buffer.compare(store.bytes(row.sha256), IGC)).toBe(0);
-    expect(existsSync(join(dir, "tracks", row.sha256.slice(0, 2), `${row.sha256}.igc`))).toBe(true);
+    expect(existsSync(join(dir, "tracks", row.sha256.slice(0, 2), `${row.sha256}.igc.gz`))).toBe(true);
     expect(readFileSync(path).length).toBeGreaterThan(0);
   });
 });

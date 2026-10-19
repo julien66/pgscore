@@ -23,7 +23,7 @@ Variables :
 | `DEV_LOGIN` | `1` : connexion de test sans fournisseur, **jamais en production** | désactivée |
 
 Les fichiers IGC sont gardés tels que reçus, hors de la base, dans `TRACKS_DIR`, rangés sous leur
-empreinte SHA-256 (`tracks/ab/abcdef….igc`). Un fichier n'est jamais modifié ni écrasé ; une trace
+empreinte SHA-256 (`tracks/ab/abcdef….igc.gz`, compressés : environ 0,12 Mo par trace). Un fichier n'est jamais modifié ni écrasé ; une trace
 remplacée ou supprimée dans une manche reste dans le dossier. La base ne garde que le nom du fichier,
 sa taille et son empreinte. Sauvegarder = copier la base et ce dossier.
 
