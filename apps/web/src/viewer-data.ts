@@ -93,6 +93,27 @@ const hms = (s: string, day: number) => {
   return day + ((h ?? 0) * 3600 + (m ?? 0) * 60 + (x ?? 0)) * 1000;
 };
 
+/** Dessin de la manche : zones (avec la ligne de goal) et route optimisée, avec la longueur de chaque branche. */
+export function taskGeometry(task: Task): { zones: ViewerData["zones"]; route: LatLon[]; legs: number[]; distance: number } {
+  const dist = taskDistances(task);
+  const zones: ViewerData["zones"] = task.turnpoints.map((tp, i) => {
+    const w = tp.zone.waypoint;
+    const z: ViewerData["zones"][number] = {
+      index: i,
+      name: w.name,
+      role: tp.role,
+      lat: w.lat,
+      lon: w.lon,
+      altitude: w.altitude ?? null,
+      radius: tp.zone.kind === "cylinder" ? tp.zone.radius : tp.zone.length / 2,
+    };
+    if (tp.zone.kind === "goal-line") z.line = goalLine(w, dist.route.points[i - 1] ?? w, tp.zone.length);
+    return z;
+  });
+  const legs = dist.route.points.slice(1).map((p, i) => distance(dist.route.points[i]!, p));
+  return { zones, route: dist.route.points, legs, distance: dist.task };
+}
+
 export function viewerData(
   task: Task,
   versions: Array<{ igc: string; meta: VersionMeta }>,
@@ -108,20 +129,7 @@ export function viewerData(
   const firstFix = flights.flatMap((f) => f.flight.fixes.slice(0, 1))[0];
   const day = firstFix ? Math.floor(firstFix.time / 86_400_000) * 86_400_000 : 0;
 
-  const zones: ViewerData["zones"] = tps.map((tp, i) => {
-    const w = tp.zone.waypoint;
-    const z: ViewerData["zones"][number] = {
-      index: i,
-      name: w.name,
-      role: tp.role,
-      lat: w.lat,
-      lon: w.lon,
-      altitude: w.altitude ?? null,
-      radius: tp.zone.kind === "cylinder" ? tp.zone.radius : tp.zone.length / 2,
-    };
-    if (tp.zone.kind === "goal-line") z.line = goalLine(w, dist.route.points[i - 1] ?? w, tp.zone.length);
-    return z;
-  });
+  const { zones } = taskGeometry(task);
 
   // Espaces aériens à moins de 30 km de la manche ou des traces.
   const box = (() => {

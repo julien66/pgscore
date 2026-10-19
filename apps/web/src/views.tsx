@@ -37,7 +37,15 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .s-GOAL{color:var(--ok)}.s-ESS{color:var(--ok)}.s-MIND{color:var(--warn)}.s-ERREUR{color:var(--bad)}
 .pen{color:var(--bad)}
 .list{list-style:none;margin:0;padding:0}.list li{padding:10px 0;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:baseline}.list li:last-child{border:0}
-.bar{height:8px;background:var(--chip);border-radius:99px;overflow:hidden}.bar>div{height:100%;background:var(--accent)}
+.bar{height:8px;background:var(--chip);border-radius:99px;overflow:hidden}.bar>div{height:100%;background:var(--accent);transition:width .4s}
+.bar.busy>div{width:30%;animation:busy 1.2s ease-in-out infinite alternate}@keyframes busy{from{margin-left:0}to{margin-left:70%}}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-1px}@keyframes spin{to{transform:rotate(360deg)}}
+.steps{list-style:none;margin:0 0 10px;padding:0}.steps li{padding:3px 0;display:flex;gap:8px;align-items:center}.steps .ic{width:16px;text-align:center}.steps li.done .ic{color:var(--ok)}.steps li.todo{color:var(--muted)}.steps li.now{font-weight:600}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.recent{list-style:none;margin:4px 0 0;padding:0;font-size:14px}.recent li{padding:2px 0}
+.task-map{height:380px;border-radius:10px;border:1px solid var(--line);margin:4px 0 6px;z-index:0}
+.tm-num span{display:flex;min-width:22px;padding:0 4px;box-sizing:border-box;width:max-content;height:22px;border-radius:50%;color:#fff;font:600 12px/22px system-ui;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.tm-leg span{display:inline-block;background:rgba(17,24,39,.85);color:#fff;font:600 11px/16px system-ui;padding:1px 6px;border-radius:8px;white-space:nowrap}
+.upl{margin-top:8px}.upl p{margin:4px 0}
 .center{max-width:420px;margin:60px auto;text-align:center}
 `;
 
@@ -379,11 +387,13 @@ export const TaskPage: FC<{
   distances: { task: number; launchToEss: number; speedSection: number };
   tracks: TrackRow[];
   history: TrackHistoryRow[];
+  /** Dessin de la manche (JSON de taskGeometry). */
+  geometry: string;
   run: RunRow | null;
   running: boolean;
   error?: string | null;
   notice?: string | null;
-}> = ({ user, c, t, task, settings, distances, tracks, history, run, running, error, notice }) => {
+}> = ({ user, c, t, task, settings, distances, tracks, history, geometry, run, running, error, notice }) => {
   const tz = settings.timeZone;
   const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, t.date, tz) : "");
   const results = run?.status === "done" && run.results ? (JSON.parse(run.results) as TaskScoring) : null;
@@ -395,7 +405,7 @@ export const TaskPage: FC<{
   const when = (ms: number) => `${new Date(ms).toLocaleDateString("fr-FR", { timeZone: tz, day: "2-digit", month: "2-digit" })} ${localTime(ms, tz)}`;
   const fileUrl = (sha: string) => `/tasks/${t.id}/files/${sha}`;
   return (
-    <Layout title={`Manche ${t.number} · ${c.name}`} user={user} {...(running ? { refresh: 3 } : {})}>
+    <Layout title={`Manche ${t.number} · ${c.name}`} user={user}>
       <div class="crumbs">
         <a href="/">Mes compétitions</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
       </div>
@@ -408,6 +418,11 @@ export const TaskPage: FC<{
 
       <div class="card">
         <h2>Définition</h2>
+        <div id="task-map" class="task-map" />
+        <p class="small muted legend">
+          <span style="color:#16a34a">● départ</span> <span style="color:#2563eb">● balise</span> <span style="color:#9333ea">● ESS</span>{" "}
+          <span style="color:#dc2626">● goal</span> · trait noir : route optimisée (distance de la manche), longueur de chaque branche
+        </p>
         <p class="small muted">
           {task.type === "race" ? "Race to goal" : "Time trial"} · portes {task.startGates.map(loc).join(", ") || "aucune"} · deadline{" "}
           {loc(task.deadline) || "aucune"} · heures locales ({tz})
@@ -457,7 +472,7 @@ export const TaskPage: FC<{
 
       <div class="card">
         <h2>Traces ({tracks.length})</h2>
-        <form method="post" action={`/tasks/${t.id}/tracks`} enctype="multipart/form-data" class="row">
+        <form method="post" action={`/tasks/${t.id}/tracks`} enctype="multipart/form-data" class="row upload">
           <input type="file" name="files" accept=".igc,.zip" multiple required />
           <button>Envoyer</button>
           <span class="small muted">
@@ -497,7 +512,7 @@ export const TaskPage: FC<{
                       <td>
                         <details class="replace">
                           <summary>Remplacer</summary>
-                          <form method="post" action={`/tasks/${t.id}/tracks/${tr.id}/replace`} enctype="multipart/form-data">
+                          <form method="post" action={`/tasks/${t.id}/tracks/${tr.id}/replace`} enctype="multipart/form-data" class="upload">
                             <input type="file" name="file" accept=".igc,.zip" required />
                             <input type="text" name="note" placeholder="Raison (facultatif) : trace reçue après coup, autre instrument…" maxlength={500} />
                             <button>Remplacer la trace</button>
@@ -560,34 +575,37 @@ export const TaskPage: FC<{
       <div class="card">
         <div class="row" style="justify-content:space-between">
           <h2>Calcul</h2>
-          <form method="post" action={`/tasks/${t.id}/runs`}>
+          <form method="post" action={`/tasks/${t.id}/runs`} id="run-form">
             <button class="primary" disabled={running || !tracks.length}>
               {running ? "Calcul en cours…" : "Lancer le calcul"}
             </button>
           </form>
         </div>
-        <RunStatus run={run} tz={tz} />
+        <RunStatus run={run} tz={tz} taskId={t.id} />
         {stale && !running ? (
           <div class="note">Des traces ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.</div>
         ) : null}
         {results ? <Results r={results} tz={tz} settings={settings} taskId={t.id} /> : null}
       </div>
+      <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+      <script type="application/json" id="task-geometry" dangerouslySetInnerHTML={{ __html: geometry.replace(/</g, "\\u003c") }} />
+      <script src="/vendor/leaflet/leaflet.js" />
+      <script src="/static/taskmap.js" />
+      <script src="/static/run.js" />
     </Layout>
   );
 };
 
-const RunStatus: FC<{ run: RunRow | null; tz: string }> = ({ run, tz }) => {
+const RunStatus: FC<{ run: RunRow | null; tz: string; taskId: number }> = ({ run, tz, taskId }) => {
   if (!run) return <p class="muted">Aucun calcul pour l'instant.</p>;
   const when = new Date(run.started_at).toLocaleString("fr-FR", { timeZone: tz, dateStyle: "short", timeStyle: "short" });
   if (run.status === "queued" || run.status === "running")
+    // Rempli et mis à jour par /static/run.js.
     return (
-      <div>
+      <div id="run-live" data-url={`/tasks/${taskId}/run.json`}>
         <p>
-          Contrôle des traces : {run.done} / {run.total}
+          <span class="spin" /> Calcul en cours… {run.done} / {run.total} traces
         </p>
-        <div class="bar">
-          <div style={`width:${run.total ? Math.round((100 * run.done) / run.total) : 0}%`} />
-        </div>
       </div>
     );
   if (run.status === "error") return <div class="err">Le calcul a échoué : {run.error}</div>;

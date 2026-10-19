@@ -116,6 +116,9 @@ export const MIGRATIONS: Migration[] = [
      ended_how TEXT NOT NULL CHECK (ended_how IN ('replaced', 'removed'))
    );
    CREATE INDEX track_history_task ON track_history (task_id, pilot_key);`,
+  // Suivi du calcul : étape en cours et détail (pilote en cours, compteurs), relus par la page.
+  `ALTER TABLE runs ADD COLUMN step TEXT;
+   ALTER TABLE runs ADD COLUMN detail TEXT;`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {
@@ -210,4 +213,19 @@ export interface RunRow {
   results: string | null;
   started_at: number;
   finished_at: number | null;
+  step: RunStep | null;
+  detail: string | null;
+}
+
+/** Étapes d'un calcul, dans l'ordre. */
+export const RUN_STEPS = ["prepare", "control", "leading", "save"] as const;
+export type RunStep = (typeof RUN_STEPS)[number];
+
+/** Détail de l'avancement, en JSON dans runs.detail. */
+export interface RunDetail {
+  airspaces?: number;
+  pilot?: string;
+  counts?: Record<string, number>;
+  airspaceInfringements?: number;
+  recent?: Array<{ name: string; status: string; distance: number; note?: string }>;
 }

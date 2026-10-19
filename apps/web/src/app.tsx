@@ -19,7 +19,7 @@ import type { TrackStore } from "./track-store.js";
 import { pilotVersions, removeTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
-import { viewerData } from "./viewer-data.js";
+import { taskGeometry, viewerData } from "./viewer-data.js";
 import { vendorFile } from "./vendor.js";
 import { readFileSync } from "node:fs";
 import {
@@ -73,13 +73,19 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     await next();
   });
 
-  const viewerJs = readFileSync(new URL("./static/viewer.js", import.meta.url), "utf8");
+  // Scripts de l'interface, lus au démarrage.
+  const scripts = Object.fromEntries(
+    ["viewer.js", "run.js", "taskmap.js"].map((f) => [f, readFileSync(new URL(`./static/${f}`, import.meta.url), "utf8")]),
+  );
   // Contrôle de santé pour l'hébergeur : le serveur répond et la base est lisible.
   app.get("/healthz", (c) => {
     db.prepare("SELECT 1").get();
     return c.text("ok");
   });
-  app.get("/static/viewer.js", (c) => c.body(viewerJs, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" }));
+  app.get("/static/:file", (c) => {
+    const js = scripts[c.req.param("file")];
+    return js ? c.body(js, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" }) : c.notFound();
+  });
 
   app.get("/vendor/:lib/*", (c) => {
     const lib = c.req.param("lib");
@@ -344,7 +350,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       const r = db
         .prepare("INSERT INTO tasks (competition_id, number, date, source, source_text, task, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
         .run(comp.id, number, date, source, text, JSON.stringify(task), Date.now());
-      return c.redirect(`/tasks/${r.lastInsertRowid}`);
+      return c.redirect(`/tasks/${r.lastInsertRowid}?created=1`);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
       return c.html(<NewTaskPage user={c.get("user")} c={comp} number={number} error={e.message} {...(date ? { date } : {})} />, 400);
@@ -367,6 +373,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         distances={taskDistances(task)}
         tracks={tracks}
         history={trackHistory(db, t.id)}
+        geometry={JSON.stringify(taskGeometry(task))}
         run={run}
         running={isRunning(t.id) || run?.status === "running" || run?.status === "queued"}
         error={extra.error ?? null}
@@ -386,6 +393,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       q("replaced") ? plural(q("replaced"), "trace remplacée", "traces remplacées") : "",
       q("same") ? plural(q("same"), "fichier identique à la trace en place, ignoré", "fichiers identiques aux traces en place, ignorés") : "",
     ].filter(Boolean);
+    if (c.req.query("created")) parts.unshift("Manche créée : vérifiez le parcours sur la carte avant d'envoyer les traces");
     return taskPage(c, x.t, x.comp, parts.length ? { notice: `${parts.join(", ")}.` } : {});
   });
 
@@ -504,6 +512,28 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       x.t.date,
     );
     return c.html(<ViewerPage user={c.get("user")} c={x.comp} t={x.t} pilotKey={key} pilotName={data.pilot.name} data={JSON.stringify(data)} />);
+  });
+
+  // Avancement du dernier calcul, relu chaque seconde par la page de la manche.
+  app.get("/tasks/:id/run.json", (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    const run = db.prepare("SELECT id, status, step, done, total, detail, error, started_at, finished_at FROM runs WHERE task_id = ? ORDER BY id DESC LIMIT 1").get(x.t.id) as
+      | (Omit<RunRow, "results" | "task_id">)
+      | undefined;
+    if (!run) return c.json({ status: "none" });
+    return c.json({
+      id: run.id,
+      status: run.status,
+      step: run.step,
+      done: run.done,
+      total: run.total,
+      detail: run.detail ? JSON.parse(run.detail) : {},
+      error: run.error,
+      startedAt: run.started_at,
+      finishedAt: run.finished_at,
+      now: Date.now(),
+    }, 200, { "cache-control": "no-store" });
   });
 
   app.get("/tasks/:id/results.csv", (c) => {

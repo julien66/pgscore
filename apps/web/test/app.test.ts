@@ -54,7 +54,7 @@ async function createCompetitionAndTask(req: ReturnType<typeof setup>["req"]) {
   ft.append("text", QR);
   const rt = await req(`${compUrl}/tasks`, { method: "POST", body: ft });
   expect(rt.status).toBe(302);
-  return { compUrl, taskUrl: rt.headers.get("location")! };
+  return { compUrl, taskUrl: rt.headers.get("location")!.split("?")[0]! };
 }
 
 describe("interface web", () => {
@@ -73,6 +73,11 @@ describe("interface web", () => {
     const task = await (await req(taskUrl)).text();
     expect(task).toContain("84,05 km");
     expect(task).toContain("13:25:00"); // porte 11:25Z affichée en heure de Gemona
+    // Dessin de la manche pour la carte : une zone par balise, une branche de moins.
+    const geo = JSON.parse(/<script type="application\/json" id="task-geometry">(.*?)<\/script>/s.exec(task)![1]!);
+    expect(geo.legs).toHaveLength(geo.route.length - 1);
+    expect(geo.zones.length).toBe(geo.route.length);
+    expect((await (await req(`${taskUrl}/run.json`)).json()).status).toBe("none");
   });
 
   it("enregistre l'heure d'arrêt saisie en heure locale", async () => {
@@ -120,6 +125,10 @@ describe("interface web", () => {
     const ru = await req(`${taskUrl}/tracks`, { method: "POST", body: fu });
     expect(ru.headers.get("location")).toContain("added=4");
     await req(`${taskUrl}/runs`, { method: "POST" });
+    // Avancement lisible pendant le calcul : étape, compteurs.
+    const live = await (await req(`${taskUrl}/run.json`)).json();
+    expect(["queued", "running", "done"]).toContain(live.status);
+    expect(live.total).toBe(4);
     let html = "";
     for (let i = 0; i < 100; i++) {
       html = await (await req(taskUrl)).text();
@@ -131,5 +140,8 @@ describe("interface web", () => {
     expect(html).toContain("MIND");
     const csv = await (await req(`${taskUrl}/results.csv`)).text();
     expect(csv.split("\n")[1]).toContain("GOAL");
+    const end = await (await req(`${taskUrl}/run.json`)).json();
+    expect(end).toMatchObject({ status: "done", step: "save", done: 4 });
+    expect(end.detail.counts.GOAL).toBeGreaterThan(0);
   });
 });
