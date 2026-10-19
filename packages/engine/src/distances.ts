@@ -17,16 +17,24 @@ function radiusOf(tp: TaskTurnpoint): number {
   return tp.zone.kind === "cylinder" ? tp.zone.radius : 0;
 }
 
-function toZone(tp: TaskTurnpoint, asPoint: boolean): RouteZone {
-  const { lat, lon } = tp.zone.waypoint;
-  return { centre: { lat, lon }, radius: asPoint ? 0 : radiusOf(tp) };
+export interface TaskDistanceOptions {
+  /**
+   * Agrandissement relatif des cylindres pour le calcul de la route (0 par défaut, S7F 2026 9.1).
+   * 0,001 reproduit à ~10 m près les distances publiées par la PWCA en 2026.
+   */
+  relativeTolerance?: number;
 }
 
 /** Le décollage est un point de départ, pas une zone à atteindre. */
 const isPointRole = (tp: TaskTurnpoint) => tp.role === "takeoff";
 
 /** Distances officielles de la manche (S7F 2026, 7.1), sur l'ellipsoïde WGS84. */
-export function taskDistances(task: Task): TaskDistances {
+export function taskDistances(task: Task, options: TaskDistanceOptions = {}): TaskDistances {
+  const k = 1 + (options.relativeTolerance ?? 0);
+  const toZone = (tp: TaskTurnpoint, asPoint: boolean): RouteZone => {
+    const { lat, lon } = tp.zone.waypoint;
+    return { centre: { lat, lon }, radius: asPoint ? 0 : radiusOf(tp) * k };
+  };
   const tps = task.turnpoints;
   const goalIdx = tps.length - 1;
   const essIdx = tps.findIndex((t) => t.role === "ess");
@@ -40,13 +48,13 @@ export function taskDistances(task: Task): TaskDistances {
     centre,
   );
   const goal = tps[goalIdx]!;
-  const task_ = full.distance - (goal.zone.kind === "cylinder" ? goal.zone.radius : 0);
+  const task_ = full.distance - (goal.zone.kind === "cylinder" ? goal.zone.radius * k : 0);
 
   const toEss = optimizeRoute(
     tps.slice(0, ess + 1).map((t, i) => toZone(t, isPointRole(t) || i === ess)),
     centre,
   );
-  const launchToEss = toEss.distance - radiusOf(tps[ess]!);
+  const launchToEss = toEss.distance - radiusOf(tps[ess]!) * k;
   const preStart = toEss.legs.slice(0, sssIdx).reduce((s, v) => s + v, 0);
 
   return { task: task_, launchToEss, speedSection: launchToEss - preStart, route: full };
