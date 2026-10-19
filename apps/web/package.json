@@ -1,0 +1,29 @@
+{
+  "name": "@pgscore/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Interface web de pgscore : compétitions, manches, traces et calcul",
+  "scripts": {
+    "dev": "pnpm --filter @pgscore/engine build && tsx watch src/main.tsx",
+    "start": "pnpm --filter @pgscore/engine build && tsx src/main.tsx",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm --filter @pgscore/engine build && vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@pgscore/engine": "workspace:*",
+    "fflate": "^0.8.3",
+    "hono": "^4.13.13",
+    "jpeg-js": "^0.4.4",
+    "jsqr": "^1.4.0",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/pngjs": "^6.0.5",
+    "tsx": "^4.20.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

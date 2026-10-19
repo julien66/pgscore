@@ -316,17 +316,24 @@ function bestRemaining(
   const remaining = remainingFrom(task, validated, sssIdx);
   const remainingAt = (j: number): number => remaining(pts[j]!);
 
-  // Recherche grossière (un fix sur 10), puis fine autour des meilleurs candidats.
-  const coarse: Array<{ j: number; r: number }> = [];
-  for (let j = 0; j < pts.length; j += 10) coarse.push({ j, r: remainingAt(j) });
-  coarse.push({ j: pts.length - 1, r: remainingAt(pts.length - 1) });
-  coarse.sort((a, b) => a.r - b.r);
+  // Recherche exacte sur tous les fixes. La distance restante ne peut pas baisser plus vite que le
+  // déplacement depuis le dernier fix calculé (inégalité triangulaire) : on saute les fixes qui ne
+  // peuvent pas battre le meilleur, sans route optimisée.
+  const steps = validated.map((v) => ({ time: v.time, next: v.index + 1 }));
+  const nextAt = (t: number) => {
+    let next = sssIdx;
+    for (const s of steps) if (s.time <= t) next = s.next;
+    return next;
+  };
   let best = { remaining: Infinity, index: -1 };
-  for (const c of coarse.slice(0, 5)) {
-    for (let j = Math.max(0, c.j - 10); j <= Math.min(pts.length - 1, c.j + 10); j++) {
-      const r = remainingAt(j);
-      if (r < best.remaining) best = { remaining: r, index: j };
-    }
+  let ref: { lat: number; lon: number; next: number; r: number } | null = null;
+  for (let j = 0; j < pts.length; j++) {
+    const p = pts[j]!;
+    const next = nextAt(p.time);
+    if (ref && ref.next === next && ref.r - distance(ref, p) >= best.remaining) continue;
+    const r = remainingAt(j);
+    ref = { lat: p.lat, lon: p.lon, next, r };
+    if (r < best.remaining) best = { remaining: r, index: j };
   }
   return best;
 }

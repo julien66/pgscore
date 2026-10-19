@@ -7,13 +7,14 @@ Application web de contrôle et de scoring des compétitions de parapente cross-
 | Dossier | Rôle |
 | --- | --- |
 | `packages/engine` | Moteur de contrôle pur (sans base ni interface) : formats (.xctsk, IGC), géodésie WGS84, validation des manches |
-| `apps/` | Application web et API (à venir) |
+| `apps/web` | Interface web : connexion Google, compétitions, manches, traces, calcul (voir son README) |
 
 ## Démarrer
 
 ```sh
 pnpm install
 pnpm test
+cd apps/web && DEV_LOGIN=1 pnpm dev   # http://localhost:3000
 ```
 
 ## État
@@ -29,3 +30,12 @@ pnpm test
 - [x] Manches arrêtées : score-back, fenêtre de vol, bonus d'altitude (S7F 13.4)
 - [x] Espaces aériens OpenAir : lecture, infractions, pénalités PWCA
 - [ ] Collecte PureTrack et reconstruction IGC
+
+Interface, début :
+
+- [x] Connexion Google (OpenID Connect)
+- [x] Compétition : paramètres, règlement, espace aérien
+- [x] Manche depuis un QR code (image ou texte) ou un fichier .xctsk
+- [x] Envoi des traces (IGC ou zip) et calcul lancé à la main, export CSV
+- [ ] Points GAP
+- [ ] Plusieurs organisateurs par compétition, résultats publics
