@@ -2,7 +2,7 @@ import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { PilotResult, Task, TaskScoring } from "@pgscore/engine";
 import type { CompetitionRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
-import { LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings } from "./settings.js";
+import { GAP_PROFILES, LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
 
 const CSS = `
@@ -33,6 +33,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;b
 th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.02em}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .scroll{overflow-x:auto}
+.gap{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:8px 0 12px}.gap>div{border:1px solid var(--line);border-radius:10px;padding:8px 12px}.gap .big{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
 .chip{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
 .s-GOAL{color:var(--ok)}.s-ESS{color:var(--ok)}.s-MIND{color:var(--warn)}.s-ERREUR{color:var(--bad)}
 .pen{color:var(--bad)}
@@ -204,6 +205,16 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
         <div>
           <label>Facteur FTV (%)</label>
           <input type="number" step="1" min="0" max="100" name="ftvFactor" value={String(Math.round(s.ftvFactor * 100))} />
+        </div>
+        <div>
+          <label>Formule de points</label>
+          <select name="gapProfile">
+            {Object.entries(GAP_PROFILES).map(([k, l]) => (
+              <option value={k} selected={s.gapProfile === k}>
+                {l}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label>Leading</label>
@@ -382,7 +393,7 @@ export const TaskPage: FC<{
   user: User;
   c: CompetitionRow;
   t: TaskRow;
-  task: Task;
+  task: StoredTask;
   settings: CompetitionSettings;
   distances: { task: number; launchToEss: number; speedSection: number };
   tracks: TrackRow[];
@@ -463,6 +474,26 @@ export const TaskPage: FC<{
           <div>
             <label>Manche arrêtée : heure d'annonce (locale)</label>
             <input type="text" name="stop" placeholder="HH:MM" value={loc(task.stopAnnouncement)} />
+          </div>
+          <div>
+            <label>Leading Time Ratio (%)</label>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              max="26"
+              name="leadingTimeRatio"
+              placeholder={settings.gapProfile === "PWCA" ? "26,3158 (PWCA)" : "26 (S7F)"}
+              value={task.leadingTimeRatio !== undefined ? String(+(task.leadingTimeRatio * 100).toFixed(4)) : ""}
+            />
+          </div>
+          <div>
+            <label>Pilotes présents (sauf ABS)</label>
+            <input type="number" step="1" min="0" name="pilotsPresent" placeholder="pilotes qui ont volé" value={task.pilotsPresent ?? ""} />
+          </div>
+          <div>
+            <label>Fin de manche pour le leading (locale)</label>
+            <input type="text" name="taskEndTime" placeholder="dernier posé" value={loc(task.taskEndTime)} />
           </div>
           <div style="align-self:end">
             <button>Enregistrer</button>
@@ -613,8 +644,7 @@ const RunStatus: FC<{ run: RunRow | null; tz: string; taskId: number }> = ({ run
   const secs = run.finished_at ? Math.round((run.finished_at - run.started_at) / 1000) : null;
   return (
     <p class="small muted">
-      Calcul du {when}, {run.total} traces{secs !== null ? `, en ${secs} s` : ""}. Classement provisoire : contrôle et leading, sans les points GAP
-      (à venir).
+      Calcul du {when}, {run.total} traces{secs !== null ? `, en ${secs} s` : ""}.
     </p>
   );
 };
@@ -637,11 +667,58 @@ function remark(p: PilotResult, tz: string): string {
   return `${what} de ${Math.abs(d).toFixed(0)} m (${d >= 0 ? "dehors" : "dedans"}) à ${localTime(a.closest.time, tz)}`;
 }
 
+const fr = (v: number, digits: number) => v.toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const pts = (v: number | null | undefined) => (v === null || v === undefined ? "" : fr(v, 1));
+
+/** Validité de la manche et répartition des points (S7F 10 et 11). */
+const GapSummary: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r, settings }) => {
+  const g = r.gap;
+  const v = g.validity;
+  return (
+    <div class="gap">
+      <div>
+        <div class="muted small">Validité de la manche</div>
+        <div class="big">{fr(v.task, 4)}</div>
+        <div class="small">
+          décollage {fr(v.launch, 3)} × distance {fr(v.distance, 3)} × temps {fr(v.time, 3)}
+          {v.stopped !== null ? ` × arrêt ${fr(v.stopped, 3)}` : ""}
+        </div>
+      </div>
+      <div>
+        <div class="muted small">Points disponibles</div>
+        <div class="big">{fr(g.available.distance + g.available.time + g.available.leading + g.available.arrival, 1)}</div>
+        <div class="small">
+          distance {pts(g.available.distance)} · temps {pts(g.available.time)} · leading {pts(g.available.leading)}
+          {g.timePointsReduction ? ` (dont ${pts(g.timePointsReduction)} repris au temps, manche arrêtée)` : ""}
+        </div>
+      </div>
+      <div>
+        <div class="muted small">Pilotes</div>
+        <div class="big">{g.pilotsFlying}</div>
+        <div class="small">
+          volants sur {g.pilotsPresent} présents · {g.pilotsEss} à l'ESS · {g.pilotsGoal} au goal (ratio {fr(g.goalRatio, 3)})
+        </div>
+      </div>
+      <div>
+        <div class="muted small">Formule</div>
+        <div class="big">{GAP_PROFILES[settings.gapProfile].split(" (")[0]}</div>
+        <div class="small">
+          LTR {fr(g.leadingTimeRatio * 100, g.leadingTimeRatio * 100 % 1 ? 2 : 0)} % · meilleur temps {duration(g.bestTime)} · meilleure distance{" "}
+          {km(g.bestDistance)} km
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; taskId: number }> = ({ r, tz, settings, taskId }) => {
   const stopped = r.pilots.some((p) => p.stop);
   const counts = (s: string) => r.pilots.filter((p) => p.status === s).length;
+  // Calcul fait avant l'arrivée des points GAP : il faut le relancer.
+  const withPoints = Boolean(r.gap);
   return (
     <>
+      {withPoints ? <GapSummary r={r} settings={settings} /> : <div class="note">Ce calcul date d'avant les points GAP : relancez-le pour les obtenir.</div>}
       <p class="small">
         {counts("GOAL")} au goal · {counts("ESS")} à l'ESS sans goal · {counts("DF")} posés · {counts("MIND")} à la distance minimale
         {counts("ERREUR") ? ` · ${counts("ERREUR")} traces en erreur` : ""} · leading {LEADING_PROFILES[settings.leadingProfile]} ·{" "}
@@ -655,13 +732,23 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
               <th>Pilote</th>
               <th>Nom</th>
               <th>Statut</th>
+              {withPoints ? <th class="n">Total</th> : null}
               <th>Départ</th>
               <th>ESS</th>
               <th class="n">Temps</th>
               <th class="n">Distance</th>
               {stopped ? <th class="n">Alt. à l'arrêt</th> : null}
               <th class="n">LC</th>
-              <th class="n">Leading</th>
+              {withPoints ? (
+                <>
+                  <th class="n">Pts distance</th>
+                  <th class="n">Pts temps</th>
+                  <th class="n">Pts leading</th>
+                  <th class="n">Pénalité</th>
+                </>
+              ) : (
+                <th class="n">Leading</th>
+              )}
               <th>Espace aérien</th>
               <th>Remarque</th>
             </tr>
@@ -679,13 +766,27 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                     {p.status}
                   </span>
                 </td>
+                {withPoints ? (
+                  <td class="n">
+                    <strong>{pts(p.total)}</strong>
+                  </td>
+                ) : null}
                 <td>{localTime(p.startTime, tz)}</td>
                 <td>{localTime(p.essTime, tz)}</td>
                 <td class="n">{duration(p.speedSectionTime)}</td>
                 <td class="n">{km(p.distance)} km</td>
                 {stopped ? <td class="n">{p.stop?.flying ? `${Math.round(p.stop.altitudeAboveGoal)} m` : ""}</td> : null}
                 <td class="n">{p.leadingCoefficient !== null ? p.leadingCoefficient.toFixed(4) : ""}</td>
-                <td class="n">{p.leadingFactor !== null ? p.leadingFactor.toFixed(3) : ""}</td>
+                {withPoints ? (
+                  <>
+                    <td class="n">{pts(p.points?.distance)}</td>
+                    <td class="n">{pts(p.points?.time)}</td>
+                    <td class="n">{pts(p.points?.leading)}</td>
+                    <td class="n pen">{p.penaltyPoints ? `${p.penaltyPoints > 0 ? "−" : "+"}${pts(Math.abs(p.penaltyPoints))}` : ""}</td>
+                  </>
+                ) : (
+                  <td class="n">{p.leadingFactor !== null ? p.leadingFactor.toFixed(3) : ""}</td>
+                )}
                 <td class="pen" title={p.airspace.map((a) => `${a.name} : ${a.depth.toFixed(0)} m`).join("\n")}>
                   {p.airspace.length ? `${p.airspace[0]!.name}${p.airspace.length > 1 ? ` +${p.airspace.length - 1}` : ""}, ${Math.max(...p.airspace.map((a) => a.depth)).toFixed(0)} m, ${penalty(p)}` : ""}
                 </td>
@@ -711,7 +812,10 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
 };
 
 export function resultsCsv(r: TaskScoring, tz: string): string {
-  const head = ["rang", "pilote", "nom", "statut", "depart", "ess", "temps_s", "distance_km", "alt_arret_m", "lc", "leading", "espace_aerien", "profondeur_m", "penalite"];
+  const head = [
+    "rang", "pilote", "nom", "statut", "depart", "ess", "temps_s", "distance_km", "alt_arret_m", "lc", "leading",
+    "pts_distance", "pts_temps", "pts_leading", "penalite_pts", "total", "espace_aerien", "profondeur_m", "penalite",
+  ];
   const q = (v: unknown) => {
     const s = v === null || v === undefined ? "" : String(v);
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -728,6 +832,11 @@ export function resultsCsv(r: TaskScoring, tz: string): string {
     p.stop?.flying ? Math.round(p.stop.altitudeAboveGoal) : "",
     p.leadingCoefficient?.toFixed(5) ?? "",
     p.leadingFactor?.toFixed(4) ?? "",
+    p.points?.distance.toFixed(1) ?? "",
+    p.points?.time.toFixed(1) ?? "",
+    p.points?.leading.toFixed(1) ?? "",
+    p.penaltyPoints ? p.penaltyPoints.toFixed(1) : "",
+    p.total?.toFixed(1) ?? "",
     p.airspace.map((a) => a.name).join(" | "),
     p.airspace.length ? Math.max(...p.airspace.map((a) => a.depth)).toFixed(1) : "",
     penalty(p),

@@ -1,6 +1,6 @@
 import { controlPilot, finishScoring, parseOpenAir, type ControlledPilot, type Task } from "@pgscore/engine";
 import type { CompetitionRow, Db, RunDetail, RunStep, TaskRow } from "./db.js";
-import { parseSettings } from "./settings.js";
+import { parseSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
 
 /**
@@ -36,7 +36,7 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
     await tick();
     const t = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as unknown as TaskRow;
     const comp = db.prepare("SELECT * FROM competitions WHERE id = ?").get(t.competition_id) as unknown as CompetitionRow;
-    const task = JSON.parse(t.task) as Task;
+    const task = JSON.parse(t.task) as StoredTask;
     const s = parseSettings(comp.params);
     const options = {
       params: s,
@@ -44,6 +44,10 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
       airspacePenaltyRule: s.airspacePenaltyRule,
       roundAirspaceLimits: s.roundAirspaceLimits,
       leadingProfile: s.leadingProfile,
+      gapProfile: s.gapProfile,
+      ...(task.leadingTimeRatio !== undefined ? { leadingTimeRatio: task.leadingTimeRatio } : {}),
+      ...(task.pilotsPresent !== undefined ? { pilotsPresent: task.pilotsPresent } : {}),
+      ...(task.taskEndTime ? { taskEndTime: task.taskEndTime } : {}),
     };
     const ids = db.prepare("SELECT id FROM tracks WHERE task_id = ? ORDER BY pilot_key").all(taskId) as Array<{ id: number }>;
     const getTrack = db.prepare("SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE id = ?");

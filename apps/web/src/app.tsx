@@ -17,7 +17,7 @@ import { collectIgc, decodeQrImage, decodeText, pilotKeyFromFilename } from "./f
 import { isRunning, startRun } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
 import { pilotVersions, removeTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
-import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm } from "./settings.js";
+import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
 import { vendorFile } from "./vendor.js";
@@ -401,12 +401,19 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     const f = await c.req.parseBody();
-    const task = JSON.parse(x.t.task) as Task;
+    const task = JSON.parse(x.t.task) as StoredTask;
     const date = String(f.date ?? "") || null;
     const stop = String(f.stop ?? "").trim();
+    const end = String(f.taskEndTime ?? "").trim();
     try {
-      if (stop) task.stopAnnouncement = localHmsToUtc(stop, date, parseSettings(x.comp.params).timeZone);
+      const tz = parseSettings(x.comp.params).timeZone;
+      if (stop) task.stopAnnouncement = localHmsToUtc(stop, date, tz);
       else delete task.stopAnnouncement;
+      delete task.leadingTimeRatio;
+      delete task.pilotsPresent;
+      delete task.taskEndTime;
+      Object.assign(task, taskScoringFromForm(f));
+      if (end) task.taskEndTime = localHmsToUtc(end, date, tz);
     } catch (e) {
       return taskPage(c, x.t, x.comp, { error: (e as Error).message });
     }

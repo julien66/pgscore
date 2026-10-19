@@ -138,8 +138,14 @@ describe("interface web", () => {
     expect(html).toContain("Baptiste Lambert");
     expect(html).toContain("RISERVA CORNINO");
     expect(html).toContain("MIND");
+    expect(html).toContain("Validité de la manche");
+    expect(html).toContain("Points disponibles");
     const csv = await (await req(`${taskUrl}/results.csv`)).text();
-    expect(csv.split("\n")[1]).toContain("GOAL");
+    const [head, first] = csv.split("\n");
+    expect(first).toContain("GOAL");
+    // Premier du classement : le pilote au goal, avec ses points.
+    const total = head!.split(",").indexOf("total");
+    expect(Number(first!.split(",")[total])).toBeGreaterThan(500);
     const end = await (await req(`${taskUrl}/run.json`)).json();
     expect(end).toMatchObject({ status: "done", step: "save", done: 4 });
     expect(end.detail.counts.GOAL).toBeGreaterThan(0);

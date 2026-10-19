@@ -37,5 +37,7 @@ Interface, début :
 - [x] Compétition : paramètres, règlement, espace aérien
 - [x] Manche depuis un QR code (image ou texte) ou un fichier .xctsk
 - [x] Envoi des traces (IGC ou zip) et calcul lancé à la main, export CSV
-- [ ] Points GAP
+- [x] Points GAP de la manche : validités, répartition, points distance/temps/leading, pénalités, manches arrêtées (S7F 10 à 13), formule S7F 2026 ou PWCA 2026 (vérifiée sur 7 manches PWCA, ~480 pilotes au dixième de point)
+- [ ] Classement général (FTV)
+- [ ] Décisions manuelles de l'organisateur (goal validé après réclamation, bonus, pénalités)
 - [ ] Plusieurs organisateurs par compétition, résultats publics

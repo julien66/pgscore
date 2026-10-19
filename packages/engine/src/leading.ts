@@ -88,7 +88,8 @@ export function leadingTrack(task: Task, control: FlightControl): LeadingTrack |
   };
 
   const steps = control.validated.map((v) => ({ time: v.time, next: v.index + 1 }));
-  const endTime = control.essTime ?? Infinity;
+  // Manche arrêtée : rien après l'heure d'arrêt ne compte (13.4.5).
+  const endTime = Math.min(control.essTime ?? Infinity, control.stopped?.taskStopTime ?? Infinity);
   const samples: LeadingSample[] = [{ t: taskTime(control.sssTime), minToEss: ssKm }];
   let best = ssKm;
   // Dernier fix calculé : la distance restante ne peut pas baisser plus vite que le déplacement
@@ -115,7 +116,8 @@ export function leadingTrack(task: Task, control: FlightControl): LeadingTrack |
     samples,
     madeEss: control.madeEss,
     essTime: control.essTime !== null ? taskTime(control.essTime) : null,
-    outlandingTime: !control.madeEss && last ? taskTime(control.landingTime ?? last.time) : null,
+    outlandingTime:
+      !control.madeEss && last ? taskTime(Math.min(control.landingTime ?? last.time, control.stopped?.taskStopTime ?? Infinity)) : null,
   };
 }
 

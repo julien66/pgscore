@@ -66,10 +66,17 @@ pourront s'ajouter de la même façon.
 
 Pour chaque trace : contrôle du vol (départ, balises, ESS, goal, distance), manche arrêtée,
 distance minimale, espaces aériens et pénalité, puis coefficient de leading sur l'ensemble des
-pilotes. Le classement est provisoire : les points GAP ne sont pas encore calculés.
+pilotes, et enfin les points GAP : validité de la manche, points disponibles, points distance,
+temps et leading de chaque pilote, pénalités. La formule se choisit dans les réglages de la
+compétition : S7F 2026 (texte FAI) ou PWCA 2026 (comme SVL : coefficients arrondis, LTR 26,3158 %,
+points disponibles au dixième, meilleur temps parmi tous les pilotes à l'ESS).
+
+Réglages de la manche utiles aux points : Leading Time Ratio (26 % par défaut en S7F), nombre de
+pilotes présents pour la validité de décollage (par défaut, ceux qui ont volé), et heure de fin de
+manche pour le leading si l'organisation en fixe une plus tardive que le dernier posé.
 
 Le calcul tourne dans le serveur, un pilote après l'autre ; la page de la manche affiche
-l'avancement. Compter environ une seconde par trace.
+l'avancement. Compter un quart de seconde à une seconde par trace.
 
 ## Vue d'une trace
 
