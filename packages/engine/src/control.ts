@@ -359,3 +359,47 @@ function remainingFrom(task: Task, validated: ZoneValidation[], sssIdx: number):
     return optimizeRoute([{ centre: { lat: p.lat, lon: p.lon }, radius: 0 }, ...zones]).distance;
   };
 }
+
+export interface ZoneApproach {
+  /** Index de la balise dans task.turnpoints. */
+  index: number;
+  name: string;
+  role: TaskTurnpoint["role"];
+  reached: boolean;
+  /**
+   * Passage le plus proche du bord de la zone dans la fenêtre où elle restait à valider
+   * (après la porte pour le départ, après la validation précédente pour les autres).
+   * distance : écart au bord en mètres, positif dehors, négatif dedans.
+   */
+  closest: { distance: number; time: number; lat: number; lon: number; altitude: number | null } | null;
+}
+
+/**
+ * Passages au plus près des zones non validées, pour expliquer un contrôle au pilote
+ * (« le départ a été manqué de 230 m à 13:42 »). Les zones validées sont rendues avec leur heure.
+ */
+export function zoneApproaches(task: Task, control: FlightControl): ZoneApproach[] {
+  const tps = task.turnpoints;
+  const sssIdx = tps.findIndex((t) => t.role === "sss");
+  if (sssIdx < 0) return [];
+  const out: ZoneApproach[] = [];
+  let after = control.firstStartGate ?? -Infinity;
+  for (let i = sssIdx; i < tps.length; i++) {
+    const tp = tps[i]!;
+    const v = control.validated.find((x) => x.index === i);
+    if (v) {
+      out.push({ index: i, name: tp.zone.waypoint.name, role: tp.role, reached: true, closest: null });
+      after = v.time;
+      continue;
+    }
+    const radius = tp.zone.kind === "cylinder" ? tp.zone.radius : tp.zone.length / 2;
+    let best: ZoneApproach["closest"] = null;
+    for (const f of control.inFlight) {
+      if (f.time < after) continue;
+      const d = distance(tp.zone.waypoint, f) - radius;
+      if (!best || Math.abs(d) < Math.abs(best.distance)) best = { distance: d, time: f.time, lat: f.lat, lon: f.lon, altitude: alt(f) };
+    }
+    out.push({ index: i, name: tp.zone.waypoint.name, role: tp.role, reached: false, closest: best });
+  }
+  return out;
+}

@@ -1,4 +1,4 @@
-import { controlFlight, type FlightControl } from "./control.js";
+import { controlFlight, zoneApproaches, type FlightControl, type ZoneApproach } from "./control.js";
 import { taskDistances, type TaskDistances } from "./distances.js";
 import { parseIgc } from "./igc.js";
 import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingTrack, type LeadingProfile, type LeadingTrack } from "./leading.js";
@@ -69,6 +69,8 @@ export interface PilotResult {
   airspace: AirspaceResult[];
   /** Pénalité d'espace aérien : en points (PWCA) ou en part des points du pilote (S7A, entre 0 et 1). */
   airspacePenalty: { points?: number; fraction?: number } | null;
+  /** Passage au plus près des zones non validées (pour expliquer un départ ou une balise manqués). */
+  approaches: ZoneApproach[];
   /** Nombre de fixes lus, et lignes illisibles. */
   fixes: number;
   warnings: number;
@@ -105,6 +107,7 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
     leadingFactor: null,
     airspace: [],
     airspacePenalty: null,
+    approaches: [],
     fixes: 0,
     warnings: 0,
   };
@@ -134,6 +137,7 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
       : null,
   };
   if (!c.flight) r.error = "Pas de vol détecté dans la trace.";
+  r.approaches = zoneApproaches(task, c);
 
   const kept = c.stopped ? c.stopped.scoredDistance : c.flownDistance;
   const sd = scoredDistance(c.flight ? kept : null, options.params);

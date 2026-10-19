@@ -13,10 +13,12 @@
   "dependencies": {
     "@hono/node-server": "^2.1.5",
     "@pgscore/engine": "workspace:*",
+    "cesium": "1.122.0",
     "fflate": "^0.8.3",
     "hono": "^4.13.13",
     "jpeg-js": "^0.4.4",
     "jsqr": "^1.4.0",
+    "leaflet": "1.9.4",
     "pngjs": "^7.0.0"
   },
   "devDependencies": {

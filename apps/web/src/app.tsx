@@ -17,6 +17,9 @@ import { collectIgc, decodeQrImage, decodeText, pilotKeyFromFilename } from "./f
 import { isRunning, startRun } from "./runner.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
+import { viewerData } from "./viewer-data.js";
+import { vendorFile } from "./vendor.js";
+import { readFileSync } from "node:fs";
 import {
   CompetitionPage,
   HomePage,
@@ -26,6 +29,7 @@ import {
   NotFound,
   resultsCsv,
   TaskPage,
+  ViewerPage,
   type CompetitionFormValues,
 } from "./views.js";
 import type { TaskScoring } from "@pgscore/engine";
@@ -62,6 +66,16 @@ export function createApp(db: Db, cfg: AppConfig) {
       if (origin && origin !== new URL(cfg.baseUrl).origin && origin !== new URL(c.req.url).origin) return c.text("Origine refusée", 403);
     }
     await next();
+  });
+
+  const viewerJs = readFileSync(new URL("./static/viewer.js", import.meta.url), "utf8");
+  app.get("/static/viewer.js", (c) => c.body(viewerJs, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" }));
+
+  app.get("/vendor/:lib/*", (c) => {
+    const lib = c.req.param("lib");
+    const f = vendorFile(lib, c.req.path.slice(`/vendor/${lib}/`.length));
+    if (!f) return c.notFound();
+    return c.body(new Uint8Array(f.body), 200, { "content-type": f.type, "cache-control": "public, max-age=86400" });
   });
 
   // --- Connexion ---------------------------------------------------------------------------
@@ -418,6 +432,18 @@ export function createApp(db: Db, cfg: AppConfig) {
       return taskPage(c, x.t, x.comp, { error: (e as Error).message });
     }
     return c.redirect(`/tasks/${x.t.id}`);
+  });
+
+  app.get("/tasks/:id/pilots/:key", (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    const key = c.req.param("key");
+    const tr = db.prepare("SELECT pilot_key, pilot_name, igc FROM tracks WHERE task_id = ? AND pilot_key = ?").get(x.t.id, key) as
+      | { pilot_key: string; pilot_name: string | null; igc: string }
+      | undefined;
+    if (!tr) return notFound(c);
+    const data = viewerData(JSON.parse(x.t.task) as Task, tr.igc, x.comp.airspace_text, parseSettings(x.comp.params), { key, name: tr.pilot_name }, x.t.date);
+    return c.html(<ViewerPage user={c.get("user")} c={x.comp} t={x.t} pilotKey={key} pilotName={data.pilot.name} data={JSON.stringify(data)} />);
   });
 
   app.get("/tasks/:id/results.csv", (c) => {

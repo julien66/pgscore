@@ -12,7 +12,7 @@ describe.skipIf(!dir || !existsSync(dir))("espaces aériens PWCA Gemona 2026, ma
   // Pénalités publiées par la PWCA (formule soft, f = 100).
   const published: Record<string, number> = { "260": 1.8, "261": 432, "269": 10.8, "219": 1000, "775": 1000 };
   const results = new Map<string, number>();
-  for (const f of readdirSync(dir!).filter((f) => f.endsWith(".igc"))) {
+  if (dir && existsSync(dir)) for (const f of readdirSync(dir!).filter((f) => f.endsWith(".igc"))) {
     const id = f.replace(/^alt_\d+\./, "").replace(/\.igc$/, "");
     const c = controlFlight(task, parseIgc(readFileSync(`${dir}/${f}`, "latin1")).fixes);
     const inf = airspaceInfringements(airspaces, c.inFlight, { roundLimitsToMetre: true });

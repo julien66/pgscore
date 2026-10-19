@@ -44,4 +44,13 @@ pilotes. Le classement est provisoire : les points GAP ne sont pas encore calcul
 Le calcul tourne dans le serveur, un pilote après l'autre ; la page de la manche affiche
 l'avancement. Compter environ une seconde par trace.
 
+## Vue d'une trace
+
+Dans les résultats, le nom du pilote ouvre sa trace : carte 2D (fond OpenStreetMap, il faut
+Internet) et vue 3D (Cesium, sans relief : altitudes sur l'ellipsoïde). Lecture, avance pas à pas
+(flèches, espace), barogramme avec les planchers et plafonds des espaces aériens traversés, et la
+liste du contrôle : balises validées, zone manquée avec la distance au bord du cylindre au plus
+près (calculée sur l'ellipsoïde WGS84, comme le contrôle), infractions d'espace aérien. La colonne
+« Remarque » des résultats signale une zone manquée de moins de 500 m.
+
 Chaque compétition n'est visible que par son créateur pour l'instant.

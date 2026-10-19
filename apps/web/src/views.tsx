@@ -471,7 +471,9 @@ export const TaskPage: FC<{
                   {tracks.map((tr) => (
                     <tr>
                       <td>{tr.pilot_key}</td>
-                      <td>{tr.pilot_name}</td>
+                      <td>
+                        <a href={`/tasks/${t.id}/pilots/${encodeURIComponent(tr.pilot_key)}`}>{tr.pilot_name ?? tr.pilot_key}</a>
+                      </td>
                       <td class="muted">{tr.filename}</td>
                       <td>
                         <form method="post" action={`/tasks/${t.id}/tracks/${tr.id}/delete`}>
@@ -534,6 +536,17 @@ const penalty = (p: PilotResult) =>
       ? `−${Math.round(p.airspacePenalty.fraction * 100)} %`
       : "";
 
+/** Première zone non validée : de combien elle a été manquée (pour répondre au pilote). */
+function remark(p: PilotResult, tz: string): string {
+  if (p.status === "GOAL" || p.error) return p.error ?? "";
+  const a = (p.approaches ?? []).find((x) => !x.reached);
+  // Au-delà de 500 m, c'est un posé normal, pas une zone frôlée.
+  if (!a?.closest || Math.abs(a.closest.distance) > 500) return "";
+  const d = a.closest.distance;
+  const what = a.role === "sss" ? "Départ manqué" : `${a.name} manquée`;
+  return `${what} de ${Math.abs(d).toFixed(0)} m (${d >= 0 ? "dehors" : "dedans"}) à ${localTime(a.closest.time, tz)}`;
+}
+
 const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; taskId: number }> = ({ r, tz, settings, taskId }) => {
   const stopped = r.pilots.some((p) => p.stop);
   const counts = (s: string) => r.pilots.filter((p) => p.status === s).length;
@@ -560,6 +573,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
               <th class="n">LC</th>
               <th class="n">Leading</th>
               <th>Espace aérien</th>
+              <th>Remarque</th>
             </tr>
           </thead>
           <tbody>
@@ -567,7 +581,9 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
               <tr>
                 <td class="n">{i + 1}</td>
                 <td>{p.id}</td>
-                <td>{p.name}</td>
+                <td>
+                  <a href={`/tasks/${taskId}/pilots/${encodeURIComponent(p.id)}`}>{p.name}</a>
+                </td>
                 <td>
                   <span class={`chip s-${p.status}`} title={p.error ?? ""}>
                     {p.status}
@@ -583,6 +599,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                 <td class="pen" title={p.airspace.map((a) => `${a.name} : ${a.depth.toFixed(0)} m`).join("\n")}>
                   {p.airspace.length ? `${p.airspace[0]!.name}${p.airspace.length > 1 ? ` +${p.airspace.length - 1}` : ""}, ${Math.max(...p.airspace.map((a) => a.depth)).toFixed(0)} m, ${penalty(p)}` : ""}
                 </td>
+                <td class="small">{remark(p, tz)}</td>
               </tr>
             ))}
           </tbody>
@@ -627,6 +644,49 @@ export function resultsCsv(r: TaskScoring, tz: string): string {
   ]);
   return [head, ...rows].map((r) => r.map(q).join(",")).join("\n") + "\n";
 }
+
+const VIEWER_CSS = `
+main{max-width:none}
+#viewer{display:flex;flex-direction:column;gap:10px}
+.v-top{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.v-tabs button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.v-play{display:flex;gap:6px;align-items:center;flex:1;min-width:280px}.v-play input{flex:1}
+.v-main{display:grid;grid-template-columns:1fr 340px;gap:10px;height:62vh;min-height:420px}
+@media (max-width:900px){.v-main{grid-template-columns:1fr;height:auto}.v-maps{height:55vh}}
+.v-maps,#v-map,#v-3d{height:100%;border-radius:10px;overflow:hidden}
+.v-maps{border:1px solid var(--line)}
+.v-side{overflow:auto;display:flex;flex-direction:column;gap:10px}
+.v-box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.v-box h3{margin:0 0 6px;font-size:15px}
+.v-box dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0;font-size:14px}.v-box dt{color:var(--muted)}.v-box dd{margin:0;font-variant-numeric:tabular-nums}
+.v-events{margin:0;padding-left:18px;font-size:14px}.v-events li{margin:4px 0;cursor:pointer}.v-events li:hover{text-decoration:underline}
+.v-events li.miss{color:#c2410c}.v-events li.bad,.bad{color:var(--bad)}.v-events li.later{color:var(--muted)}
+#v-baro{width:100%;height:170px;background:var(--card);border:1px solid var(--line);border-radius:10px;cursor:crosshair}
+`;
+
+export const ViewerPage: FC<{ user: User; c: CompetitionRow; t: TaskRow; pilotKey: string; pilotName: string; data: string }> = ({
+  user,
+  c,
+  t,
+  pilotKey,
+  pilotName,
+  data,
+}) => (
+  <Layout title={`${pilotName} · manche ${t.number}`} user={user}>
+    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+    <style dangerouslySetInnerHTML={{ __html: VIEWER_CSS }} />
+    <div class="crumbs">
+      <a href="/">Mes compétitions</a> › <a href={`/competitions/${c.id}`}>{c.name}</a> › <a href={`/tasks/${t.id}`}>Manche {t.number}</a>
+    </div>
+    <h1>
+      {pilotName} <span class="muted">· {pilotKey}</span>
+    </h1>
+    <div id="viewer" />
+    <script type="application/json" id="viewer-data" dangerouslySetInnerHTML={{ __html: data.replace(/</g, "\\u003c") }} />
+    <script src="/vendor/leaflet/leaflet.js" />
+    <script src="/static/viewer.js" />
+  </Layout>
+);
 
 export const NotFound: FC<{ user?: User | null }> = ({ user }) => (
   <Layout title="Introuvable" user={user ?? null}>
