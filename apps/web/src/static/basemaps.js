@@ -11,7 +11,8 @@
     "Topo": [TOPO],
     "Relief": [
       { url: "https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}", opts: { maxZoom: 16, maxNativeZoom: 16, attribution: "Relief &copy; Esri, USGS" } },
-      { url: "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png", opts: { maxZoom: 18, subdomains: "abcd", attribution: `${OSM} · &copy; <a href="https://carto.com/attributions">CARTO</a>` } },
+      // Noms de lieux Esri (le fond « labels » de CARTO exige désormais une clé).
+      { url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}", opts: { maxZoom: 18, maxNativeZoom: 16, attribution: "Noms &copy; Esri, HERE, Garmin" } },
     ],
     "Plan": [{ url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", opts: { maxZoom: 19, attribution: OSM } }],
     "Satellite": [{ url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", opts: { maxZoom: 18, attribution: "Imagerie &copy; Esri, Maxar, Earthstar Geographics" } }],
