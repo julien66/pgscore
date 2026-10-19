@@ -5,3 +5,5 @@ export * from "./igc.js";
 export * from "./projection.js";
 export * from "./route.js";
 export * from "./distances.js";
+export * from "./control.js";
+export * from "./flight.js";

@@ -23,7 +23,7 @@ pnpm test
 - [x] Lecture des manches XCTrack (.xctsk v1 et QR code v2)
 - [x] Lecture et réécriture des fichiers IGC
 - [x] Distances sur l'ellipsoïde WGS84 (GeographicLib)
-- [ ] Route optimisée (projection LTM + PathFinder, S7F 7.1)
-- [ ] Validation des balises, du départ, de l'ESS et du goal
+- [x] Route optimisée (projection LTM + PathFinder, S7F 7.1)
+- [x] Validation des balises, du départ, de l'ESS et du goal, distance parcourue (S7F 9.2, 9.3)
 - [ ] Espaces aériens OpenAir
 - [ ] Collecte PureTrack et reconstruction IGC
