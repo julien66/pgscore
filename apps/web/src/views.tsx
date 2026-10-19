@@ -1,7 +1,8 @@
 import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
-import type { PilotResult, Task, TaskScoring } from "@pgscore/engine";
-import type { CompetitionRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
+import type { DecisionKind, PilotResult, Task, TaskScoring } from "@pgscore/engine";
+import type { CompetitionRow, DecisionRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
+import { DECISION_KINDS } from "./decisions.js";
 import { GAP_PROFILES, LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
 
@@ -398,18 +399,19 @@ export const TaskPage: FC<{
   distances: { task: number; launchToEss: number; speedSection: number };
   tracks: TrackRow[];
   history: TrackHistoryRow[];
+  decisions: DecisionRow[];
   /** Dessin de la manche (JSON de taskGeometry). */
   geometry: string;
   run: RunRow | null;
   running: boolean;
   error?: string | null;
   notice?: string | null;
-}> = ({ user, c, t, task, settings, distances, tracks, history, geometry, run, running, error, notice }) => {
+}> = ({ user, c, t, task, settings, distances, tracks, history, decisions, geometry, run, running, error, notice }) => {
   const tz = settings.timeZone;
   const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, t.date, tz) : "");
   const results = run?.status === "done" && run.results ? (JSON.parse(run.results) as TaskScoring) : null;
   // Traces modifiées après le lancement du dernier calcul : le classement affiché n'en tient pas compte.
-  const lastChange = Math.max(0, ...tracks.map((x) => x.uploaded_at), ...history.map((h) => h.ended_at));
+  const lastChange = Math.max(0, ...tracks.map((x) => x.uploaded_at), ...history.map((h) => h.ended_at), t.scoring_changed_at ?? 0);
   const stale = results !== null && run !== null && lastChange > run.started_at;
   const versions = new Map<string, number>();
   for (const h of history) versions.set(h.pilot_key, (versions.get(h.pilot_key) ?? 0) + 1);
@@ -603,6 +605,83 @@ export const TaskPage: FC<{
         ) : null}
       </div>
 
+      <div class="card" id="decisions">
+        <h2>Décisions de l'organisateur ({decisions.length})</h2>
+        <p class="small muted">
+          Bonus (aide à un pilote accidenté…), pénalités, goal accordé après réclamation, pilotes absents ou restés au sol. Elles
+          s'appliquent au prochain calcul ; le motif apparaît dans les résultats.
+        </p>
+        {decisions.length ? (
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Pilote</th>
+                  <th>Nom</th>
+                  <th>Décision</th>
+                  <th>Motif</th>
+                  <th>Saisie</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {decisions.map((d) => (
+                  <tr>
+                    <td>{d.pilot_key}</td>
+                    <td>{d.pilot_name ?? tracks.find((x) => x.pilot_key === d.pilot_key)?.pilot_name ?? ""}</td>
+                    <td>{decisionLabel(d.kind, d.value)}</td>
+                    <td>{d.reason}</td>
+                    <td class="small muted">
+                      {when(d.created_at)}
+                      {d.created_by_name ? `, ${d.created_by_name}` : ""}
+                    </td>
+                    <td>
+                      <form method="post" action={`/tasks/${t.id}/decisions/${d.id}/delete`}>
+                        <button class="link" onclick="return confirm('Supprimer cette décision ?')">Supprimer</button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        <form method="post" action={`/tasks/${t.id}/decisions`} class="grid mt">
+          <div>
+            <label>Pilote (numéro)</label>
+            <input type="text" name="pilot" list="pilot-keys" required />
+            <datalist id="pilot-keys">
+              {tracks.map((x) => (
+                <option value={x.pilot_key}>{x.pilot_name ?? ""}</option>
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label>Nom (pilote sans trace)</label>
+            <input type="text" name="name" />
+          </div>
+          <div>
+            <label>Décision</label>
+            <select name="kind">
+              {Object.entries(DECISION_KINDS).map(([k, v]) => (
+                <option value={k}>{v.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Valeur (points ou %)</label>
+            <input type="number" step="any" min="0" name="value" placeholder="bonus, pénalité" />
+          </div>
+          <div style="grid-column:span 2">
+            <label>Motif</label>
+            <input type="text" name="reason" required placeholder="Aide à un pilote accidenté" />
+          </div>
+          <div style="align-self:end">
+            <button>Ajouter</button>
+          </div>
+        </form>
+      </div>
+
       <div class="card">
         <div class="row" style="justify-content:space-between">
           <h2>Calcul</h2>
@@ -614,7 +693,7 @@ export const TaskPage: FC<{
         </div>
         <RunStatus run={run} tz={tz} taskId={t.id} />
         {stale && !running ? (
-          <div class="note">Des traces ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.</div>
+          <div class="note">Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.</div>
         ) : null}
         {results ? <Results r={results} tz={tz} settings={settings} taskId={t.id} /> : null}
       </div>
@@ -657,8 +736,25 @@ const penalty = (p: PilotResult) =>
       : "";
 
 /** Première zone non validée : de combien elle a été manquée (pour répondre au pilote). */
+/** Décision lisible : « Bonus 799 pts », « Pénalité 10 % », « Goal accordé »… */
+export function decisionLabel(kind: DecisionKind, value?: number | null): string {
+  const k = DECISION_KINDS[kind];
+  if (!k) return kind;
+  const v = value ?? 0;
+  if (kind === "bonus") return `Bonus ${v.toLocaleString("fr-FR")} pts`;
+  if (kind === "penalty") return `Pénalité ${v.toLocaleString("fr-FR")} pts`;
+  if (kind === "penalty-percent") return `Pénalité ${v.toLocaleString("fr-FR")} %`;
+  return k.label;
+}
+
 function remark(p: PilotResult, tz: string): string {
-  if (p.status === "GOAL" || p.error) return p.error ?? "";
+  const decided = (p.decisions ?? []).map((d) => `${decisionLabel(d.kind, d.value)} : ${d.reason}`);
+  const control = controlRemark(p, tz);
+  return [...decided, control].filter(Boolean).join(" · ");
+}
+
+function controlRemark(p: PilotResult, tz: string): string {
+  if (p.status === "GOAL" || p.status === "ABS" || p.status === "DNF" || p.error) return p.error ?? "";
   const a = (p.approaches ?? []).find((x) => !x.reached);
   // Au-delà de 500 m, c'est un posé normal, pas une zone frôlée.
   if (!a?.closest || Math.abs(a.closest.distance) > 500) return "";
@@ -721,7 +817,9 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
       {withPoints ? <GapSummary r={r} settings={settings} /> : <div class="note">Ce calcul date d'avant les points GAP : relancez-le pour les obtenir.</div>}
       <p class="small">
         {counts("GOAL")} au goal · {counts("ESS")} à l'ESS sans goal · {counts("DF")} posés · {counts("MIND")} à la distance minimale
-        {counts("ERREUR") ? ` · ${counts("ERREUR")} traces en erreur` : ""} · leading {LEADING_PROFILES[settings.leadingProfile]} ·{" "}
+        {counts("ERREUR") ? ` · ${counts("ERREUR")} traces en erreur` : ""}
+        {counts("DNF") ? ` · ${counts("DNF")} restés au sol` : ""}
+        {counts("ABS") ? ` · ${counts("ABS")} absents` : ""} · leading {LEADING_PROFILES[settings.leadingProfile]} ·{" "}
         <a href={`/tasks/${taskId}/results.csv`}>exporter en CSV</a>
       </p>
       <div class="scroll">
@@ -758,9 +856,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
               <tr>
                 <td class="n">{i + 1}</td>
                 <td>{p.id}</td>
-                <td>
-                  <a href={`/tasks/${taskId}/pilots/${encodeURIComponent(p.id)}`}>{p.name}</a>
-                </td>
+                <td>{p.fixes ? <a href={`/tasks/${taskId}/pilots/${encodeURIComponent(p.id)}`}>{p.name}</a> : p.name}</td>
                 <td>
                   <span class={`chip s-${p.status}`} title={p.error ?? ""}>
                     {p.status}
@@ -814,7 +910,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
 export function resultsCsv(r: TaskScoring, tz: string): string {
   const head = [
     "rang", "pilote", "nom", "statut", "depart", "ess", "temps_s", "distance_km", "alt_arret_m", "lc", "leading",
-    "pts_distance", "pts_temps", "pts_leading", "penalite_pts", "total", "espace_aerien", "profondeur_m", "penalite",
+    "pts_distance", "pts_temps", "pts_leading", "penalite_pts", "total", "espace_aerien", "profondeur_m", "penalite", "decisions",
   ];
   const q = (v: unknown) => {
     const s = v === null || v === undefined ? "" : String(v);
@@ -840,6 +936,7 @@ export function resultsCsv(r: TaskScoring, tz: string): string {
     p.airspace.map((a) => a.name).join(" | "),
     p.airspace.length ? Math.max(...p.airspace.map((a) => a.depth)).toFixed(1) : "",
     penalty(p),
+    (p.decisions ?? []).map((d) => `${decisionLabel(d.kind, d.value)} : ${d.reason}`).join(" | "),
   ]);
   return [head, ...rows].map((r) => r.map(q).join(",")).join("\n") + "\n";
 }

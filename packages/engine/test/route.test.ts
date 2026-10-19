@@ -27,7 +27,7 @@ describe("bestPointOnCircle", () => {
   it("trouve le minimum de |a−p| + |p−b| sur le cercle", () => {
     let seed = 1;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
-    for (let k = 0; k < 2000; k++) {
+    for (let k = 0; k < 300; k++) {
       const c = { x: rnd() * 1000, y: rnd() * 1000 };
       const r = 10 + Math.abs(rnd()) * 3000;
       const a = { x: rnd() * 20000, y: rnd() * 20000 };

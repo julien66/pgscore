@@ -38,6 +38,8 @@ export interface ScoringOptions {
    * si elle est plus tardive (maxTime, 12.3.1), comme le « Maximum task time » de SVL.
    */
   taskEndTime?: string;
+  /** Décisions de l'organisateur, appliquées avant les points. */
+  decisions?: PilotDecision[];
 }
 
 export interface TrackInput {
@@ -48,7 +50,25 @@ export interface TrackInput {
   igc: string;
 }
 
-export type PilotStatus = "GOAL" | "ESS" | "DF" | "MIND" | "ERREUR";
+export type PilotStatus = "GOAL" | "ESS" | "DF" | "MIND" | "ERREUR" | "DNF" | "ABS";
+
+/**
+ * Décision de l'organisateur pour un pilote dans une manche.
+ * - bonus / penalty : points ajoutés ou retirés (13.5) ; penalty-percent : part des points retirée (0 à 100) ;
+ * - goal : goal accordé (réclamation, ligne physique franchie…) ;
+ * - abs : absent, ne compte pas parmi les présents ; dnf : présent au décollage mais n'a pas volé ;
+ * - launched : a décollé sans trace exploitable, reçoit la distance minimale (9.3).
+ */
+export type DecisionKind = "bonus" | "penalty" | "penalty-percent" | "goal" | "abs" | "dnf" | "launched";
+
+export interface PilotDecision {
+  pilot: string;
+  /** Nom à afficher pour un pilote sans trace. */
+  name?: string;
+  kind: DecisionKind;
+  value?: number;
+  reason: string;
+}
 
 export interface AirspaceResult {
   name: string;
@@ -83,6 +103,8 @@ export interface PilotResult {
   airspacePenalty: { points?: number; fraction?: number } | null;
   /** Passage au plus près des zones non validées (pour expliquer un départ ou une balise manqués). */
   approaches: ZoneApproach[];
+  /** Décisions de l'organisateur appliquées à ce pilote. */
+  decisions?: Array<{ kind: DecisionKind; value?: number; reason: string }>;
   /** Points GAP (au dixième), null avant le classement. */
   points: GapPoints | null;
   /** Score avant pénalités, points retirés (négatif = bonus) et score final. */
@@ -112,10 +134,10 @@ export interface ControlledPilot {
   leading: LeadingTrack | null;
 }
 
-export function controlPilot(task: Task, input: TrackInput, options: ScoringOptions): ControlledPilot {
-  const base: PilotResult = {
-    id: input.id,
-    name: input.name ?? input.id,
+function emptyResult(id: string, name: string): PilotResult {
+  return {
+    id,
+    name,
     status: "ERREUR",
     startTime: null,
     essTime: null,
@@ -136,6 +158,10 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
     fixes: 0,
     warnings: 0,
   };
+}
+
+export function controlPilot(task: Task, input: TrackInput, options: ScoringOptions): ControlledPilot {
+  const base = emptyResult(input.id, input.name ?? input.id);
   let flight;
   try {
     flight = parseIgc(input.igc);
@@ -186,11 +212,13 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
 }
 
 /** Termine le calcul : leading (qui dépend de tous les pilotes) et classement. */
-export function finishScoring(task: Task, pilots: ControlledPilot[], options: ScoringOptions): TaskScoring {
+export function finishScoring(task: Task, controlled: ControlledPilot[], options: ScoringOptions): TaskScoring {
   const distances = taskDistances(task);
+  const pilots = applyDecisions(controlled, options.decisions ?? [], distances.task, options.params.minimumDistance);
   const ssKm = distances.speedSection / 1000;
   const profile = options.leadingProfile ?? "S7F2026";
-  const withLeading = pilots.filter((p) => p.leading && p.control);
+  const absent = (r: PilotResult) => r.status === "ABS" || r.status === "DNF";
+  const withLeading = pilots.filter((p) => p.leading && p.control && !absent(p.result));
   let lcMin: number | null = null;
   let maxTime: number | null = null;
   if (withLeading.length) {
@@ -217,14 +245,15 @@ export function finishScoring(task: Task, pilots: ControlledPilot[], options: Sc
     params: options.params,
     rules: GAP_RULES[options.gapProfile ?? "S7F2026"],
     ...(options.leadingTimeRatio !== undefined ? { leadingTimeRatio: options.leadingTimeRatio } : {}),
-    ...(options.pilotsPresent !== undefined ? { pilotsPresent: options.pilotsPresent } : {}),
+    // Présents : ceux qui ont volé et ceux déclarés DNF ; les absents (ABS) ne comptent pas.
+    pilotsPresent: options.pilotsPresent ?? pilots.filter((p) => !p.result.error && p.result.status !== "ABS").length,
     launchToEss: distances.launchToEss,
     stopped: c0?.stopped
       ? { stopTime: c0.stopped.taskStopTime, singleGateRace: task.type === "race" && task.startGates.length <= 1, firstStartGate: c0.firstStartGate }
       : null,
     pilots: pilots.map(({ result: r }) => ({
       id: r.id,
-      flying: !r.error,
+      flying: !r.error && !absent(r),
       madeEss: r.status === "GOAL" || r.status === "ESS",
       madeGoal: r.status === "GOAL",
       distance: r.distance,
@@ -233,7 +262,7 @@ export function finishScoring(task: Task, pilots: ControlledPilot[], options: Sc
       startTime: r.startTime,
       leadingFactor: r.leadingFactor,
       flyingAtStop: r.stop?.flying ?? false,
-      ...(r.airspacePenalty ? { penalty: r.airspacePenalty } : {}),
+      penalty: penaltyOf(r),
     })),
   });
   pilots.forEach(({ result: r }, i) => {
@@ -244,7 +273,7 @@ export function finishScoring(task: Task, pilots: ControlledPilot[], options: Sc
     r.total = g.total;
   });
 
-  const rank = (s: PilotStatus) => ({ GOAL: 0, ESS: 1, DF: 2, MIND: 3, ERREUR: 4 })[s];
+  const rank = (s: PilotStatus) => ({ GOAL: 0, ESS: 1, DF: 2, MIND: 3, ERREUR: 4, DNF: 5, ABS: 6 })[s];
   const results = pilots.map((p) => p.result);
   results.sort(
     (a, b) =>
@@ -255,6 +284,49 @@ export function finishScoring(task: Task, pilots: ControlledPilot[], options: Sc
       a.name.localeCompare(b.name),
   );
   return { distances, pilots: results, lcMin, leadingMaxTime: maxTime, gap };
+}
+
+/** Pénalités d'espace aérien et de l'organisateur, cumulées (13.5 : pourcentage puis points). */
+function penaltyOf(r: PilotResult): { fraction?: number; points?: number } {
+  let fraction = r.airspacePenalty?.fraction ?? 0;
+  let points = r.airspacePenalty?.points ?? 0;
+  for (const d of r.decisions ?? []) {
+    if (d.kind === "penalty") points += d.value ?? 0;
+    else if (d.kind === "bonus") points -= d.value ?? 0;
+    else if (d.kind === "penalty-percent") fraction += (d.value ?? 0) / 100;
+  }
+  return { ...(fraction ? { fraction: Math.min(1, fraction) } : {}), ...(points ? { points } : {}) };
+}
+
+/** Applique les décisions de l'organisateur ; ajoute les pilotes sans trace (ABS, DNF, décollé sans trace). */
+function applyDecisions(pilots: ControlledPilot[], decisions: PilotDecision[], taskDistance: number, minimumDistance: number): ControlledPilot[] {
+  const out = [...pilots];
+  const byId = new Map(out.map((p) => [p.result.id, p]));
+  for (const d of decisions) {
+    let p = byId.get(d.pilot);
+    if (!p) {
+      p = { result: emptyResult(d.pilot, d.name ?? d.pilot), control: null, leading: null };
+      p.result.error = "Pas de trace.";
+      out.push(p);
+      byId.set(d.pilot, p);
+    }
+    const r = p.result;
+    (r.decisions ??= []).push({ kind: d.kind, ...(d.value !== undefined ? { value: d.value } : {}), reason: d.reason });
+    if (d.kind === "abs" || d.kind === "dnf") {
+      r.status = d.kind === "abs" ? "ABS" : "DNF";
+      r.distance = 0;
+      delete r.error;
+    } else if (d.kind === "launched" && (r.error || r.status === "ERREUR")) {
+      delete r.error;
+      r.status = "MIND";
+      r.distance = minimumDistance;
+    } else if (d.kind === "goal" && !r.error) {
+      // Goal accordé : distance de la manche ; le temps de la section de vitesse reste celui mesuré à l'ESS.
+      r.status = "GOAL";
+      r.flownDistance = r.distance = taskDistance;
+    }
+  }
+  return out;
 }
 
 /** Calcul complet en une fois (pratique pour les scripts et les tests). */

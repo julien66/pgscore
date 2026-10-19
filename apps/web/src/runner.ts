@@ -1,5 +1,6 @@
 import { controlPilot, finishScoring, parseOpenAir, type ControlledPilot, type Task } from "@pgscore/engine";
 import type { CompetitionRow, Db, RunDetail, RunStep, TaskRow } from "./db.js";
+import { engineDecisions, listDecisions } from "./decisions.js";
 import { parseSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
 
@@ -48,6 +49,7 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
       ...(task.leadingTimeRatio !== undefined ? { leadingTimeRatio: task.leadingTimeRatio } : {}),
       ...(task.pilotsPresent !== undefined ? { pilotsPresent: task.pilotsPresent } : {}),
       ...(task.taskEndTime ? { taskEndTime: task.taskEndTime } : {}),
+      decisions: engineDecisions(listDecisions(db, taskId)),
     };
     const ids = db.prepare("SELECT id FROM tracks WHERE task_id = ? ORDER BY pilot_key").all(taskId) as Array<{ id: number }>;
     const getTrack = db.prepare("SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE id = ?");

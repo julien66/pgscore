@@ -39,5 +39,5 @@ Interface, début :
 - [x] Envoi des traces (IGC ou zip) et calcul lancé à la main, export CSV
 - [x] Points GAP de la manche : validités, répartition, points distance/temps/leading, pénalités, manches arrêtées (S7F 10 à 13), formule S7F 2026 ou PWCA 2026 (vérifiée sur 7 manches PWCA, ~480 pilotes au dixième de point)
 - [ ] Classement général (FTV)
-- [ ] Décisions manuelles de l'organisateur (goal validé après réclamation, bonus, pénalités)
+- [x] Décisions de l'organisateur : bonus, pénalités, goal accordé, ABS, DNF, décollé sans trace
 - [ ] Plusieurs organisateurs par compétition, résultats publics

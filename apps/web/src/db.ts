@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { DecisionKind } from "@pgscore/engine";
 import type { TrackStore } from "./track-store.js";
 
 /** Base SQLite de l'appli. Un seul fichier, migrations appliquées à l'ouverture. */
@@ -119,6 +120,21 @@ export const MIGRATIONS: Migration[] = [
   // Suivi du calcul : étape en cours et détail (pilote en cours, compteurs), relus par la page.
   `ALTER TABLE runs ADD COLUMN step TEXT;
    ALTER TABLE runs ADD COLUMN detail TEXT;`,
+  // Décisions de l'organisateur (bonus, pénalités, goal accordé, ABS/DNF…) et date du dernier changement
+  // de ce qui entre dans les points, pour signaler un classement à relancer.
+  `CREATE TABLE task_decisions (
+     id INTEGER PRIMARY KEY,
+     task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+     pilot_key TEXT NOT NULL,
+     pilot_name TEXT,
+     kind TEXT NOT NULL,
+     value REAL,
+     reason TEXT NOT NULL,
+     created_by INTEGER REFERENCES users(id),
+     created_at INTEGER NOT NULL
+   );
+   CREATE INDEX task_decisions_task ON task_decisions(task_id);
+   ALTER TABLE tasks ADD COLUMN scoring_changed_at INTEGER;`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {
@@ -171,6 +187,21 @@ export interface TaskRow {
   source: string;
   source_text: string;
   task: string;
+  created_at: number;
+  /** Dernier changement des réglages ou décisions qui entrent dans les points. */
+  scoring_changed_at: number | null;
+}
+
+export interface DecisionRow {
+  id: number;
+  task_id: number;
+  pilot_key: string;
+  pilot_name: string | null;
+  kind: DecisionKind;
+  value: number | null;
+  reason: string;
+  created_by: number | null;
+  created_by_name?: string | null;
   created_at: number;
 }
 

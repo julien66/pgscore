@@ -88,6 +88,25 @@ describe("interface web", () => {
     expect(JSON.parse(row.task).stopAnnouncement).toBe("13:47:00");
   });
 
+  it("enregistre et supprime les décisions de l'organisateur", async () => {
+    const { req, db } = setup();
+    const { taskUrl } = await createCompetitionAndTask(req);
+    const post = (f: Record<string, string>) => req(`${taskUrl}/decisions`, { method: "POST", body: new URLSearchParams(f) });
+    expect((await post({ pilot: "613", kind: "bonus", value: "799", reason: "" })).status).toBe(400);
+    expect((await post({ pilot: "613", kind: "bonus", value: "", reason: "Aide" })).status).toBe(400);
+    expect((await post({ pilot: "613", kind: "bonus", value: "799", reason: "Aide à un pilote accidenté" })).status).toBe(302);
+    expect((await post({ pilot: "999", name: "Resté au sol", kind: "dnf", reason: "Conditions" })).status).toBe(302);
+    const html = await (await req(taskUrl)).text();
+    expect(html).toContain("Bonus 799 pts");
+    expect(html).toContain("Aide à un pilote accidenté");
+    expect(html).toContain("Resté au sol");
+    const rows = db.prepare("SELECT id, kind, value FROM task_decisions ORDER BY id").all() as Array<{ id: number; kind: string; value: number | null }>;
+    expect(rows.map((r) => [r.kind, r.value])).toEqual([["bonus", 799], ["dnf", null]]);
+    expect((db.prepare("SELECT scoring_changed_at FROM tasks").get() as { scoring_changed_at: number }).scoring_changed_at).toBeGreaterThan(0);
+    await req(`${taskUrl}/decisions/${rows[0]!.id}/delete`, { method: "POST" });
+    expect((await (await req(taskUrl)).text()).includes("Bonus 799 pts")).toBe(false);
+  });
+
   it("refuse une manche illisible et l'accès aux compétitions des autres", async () => {
     const { req } = setup();
     const { compUrl } = await createCompetitionAndTask(req);
@@ -124,6 +143,7 @@ describe("interface web", () => {
     fu.append("files", new Blob([zip]), "T3.zip");
     const ru = await req(`${taskUrl}/tracks`, { method: "POST", body: fu });
     expect(ru.headers.get("location")).toContain("added=4");
+    await req(`${taskUrl}/decisions`, { method: "POST", body: new URLSearchParams({ pilot: "260", kind: "bonus", value: "100", reason: "Aide" }) });
     await req(`${taskUrl}/runs`, { method: "POST" });
     // Avancement lisible pendant le calcul : étape, compteurs.
     const live = await (await req(`${taskUrl}/run.json`)).json();
@@ -146,6 +166,7 @@ describe("interface web", () => {
     // Premier du classement : le pilote au goal, avec ses points.
     const total = head!.split(",").indexOf("total");
     expect(Number(first!.split(",")[total])).toBeGreaterThan(500);
+    expect(csv).toContain("Bonus 100 pts : Aide");
     const end = await (await req(`${taskUrl}/run.json`)).json();
     expect(end).toMatchObject({ status: "done", step: "save", done: 4 });
     expect(end.detail.counts.GOAL).toBeGreaterThan(0);

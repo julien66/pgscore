@@ -17,6 +17,7 @@ import { collectIgc, decodeQrImage, decodeText, pilotKeyFromFilename } from "./f
 import { isRunning, startRun } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
 import { pilotVersions, removeTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
+import { addDecision, deleteDecision, listDecisions, touchScoring } from "./decisions.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
@@ -373,6 +374,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         distances={taskDistances(task)}
         tracks={tracks}
         history={trackHistory(db, t.id)}
+        decisions={listDecisions(db, t.id)}
         geometry={JSON.stringify(taskGeometry(task))}
         run={run}
         running={isRunning(t.id) || run?.status === "running" || run?.status === "queued"}
@@ -418,7 +420,27 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       return taskPage(c, x.t, x.comp, { error: (e as Error).message });
     }
     db.prepare("UPDATE tasks SET date = ?, task = ? WHERE id = ?").run(date, JSON.stringify(task), x.t.id);
+    if (JSON.stringify(task) !== x.t.task) touchScoring(db, x.t.id);
     return c.redirect(`/tasks/${x.t.id}`);
+  });
+
+  app.post("/tasks/:id/decisions", async (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    try {
+      addDecision(db, x.t.id, c.get("user").id, await c.req.parseBody());
+    } catch (e) {
+      if (e instanceof FormError) return taskPage(c, x.t, x.comp, { error: e.message });
+      throw e;
+    }
+    return c.redirect(`/tasks/${x.t.id}#decisions`);
+  });
+
+  app.post("/tasks/:id/decisions/:did/delete", (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    deleteDecision(db, x.t.id, Number(c.req.param("did")));
+    return c.redirect(`/tasks/${x.t.id}#decisions`);
   });
 
   app.post("/tasks/:id/tracks", async (c) => {

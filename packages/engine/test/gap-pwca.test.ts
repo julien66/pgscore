@@ -35,10 +35,10 @@ const cases: Case[] = [
       roundAirspaceLimits: true,
       pilotsPresent: 123,
       taskEndTime: "14:53:53",
+      decisions: [{ pilot: "613", kind: "bonus", value: 799, reason: "Helping of injured pilot" }],
     },
     available: [353.2, 476.6, 170.2],
     skip: {
-      "613": "bonus de 799 points saisi à la main par la PWCA",
       "260": "pénétration d'espace aérien de 3 m pour la PWCA, 4 m chez nous",
     },
     tolerance: 0.6,
