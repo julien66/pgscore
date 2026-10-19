@@ -20,6 +20,7 @@ import { pilotVersions, removeTrack, saveTrack, taskHasFile, trackHistory } from
 import { addDecision, deleteDecision, listDecisions, touchScoring } from "./decisions.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
+import { competitionStandings, lastScoringChange, standingsCsv } from "./standings.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
 import { vendorFile } from "./vendor.js";
 import { readFileSync } from "node:fs";
@@ -32,6 +33,7 @@ import {
   NotFound,
   resultsCsv,
   RunCard,
+  StandingsPage,
   TaskPage,
   ViewerPage,
   type CompetitionFormValues,
@@ -256,6 +258,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         c={comp}
         v={extra.v ?? rowValues(comp)}
         tasks={tasks}
+        standings={competitionStandings(db, comp)}
         airspaceCount={count}
         error={extra.error ?? null}
         notice={extra.notice ?? null}
@@ -291,6 +294,21 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       if (!(e instanceof FormError)) throw e;
       return competitionPage(c, comp, { error: e.message, v: formValues(f, parseSettings(comp.params)) });
     }
+  });
+
+  app.get("/competitions/:id/standings", (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    return c.html(<StandingsPage user={c.get("user")} c={comp} s={competitionStandings(db, comp)} />);
+  });
+
+  app.get("/competitions/:id/standings.csv", (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    return c.body(standingsCsv(competitionStandings(db, comp)), 200, {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="classement-general.csv"`,
+    });
   });
 
   app.post("/competitions/:id/airspace", async (c) => {
@@ -390,17 +408,11 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   const runCard = (c: Context<Env>, t: TaskRow, comp: CompetitionRow) => {
     const fresh = db.prepare("SELECT * FROM tasks WHERE id = ?").get(t.id) as unknown as TaskRow;
     const run = (db.prepare("SELECT * FROM runs WHERE task_id = ? ORDER BY id DESC LIMIT 1").get(t.id) as unknown as RunRow | undefined) ?? null;
-    const counts = db
-      .prepare(
-        `SELECT (SELECT COUNT(*) FROM tracks WHERE task_id = ?) AS n,
-                MAX(COALESCE((SELECT MAX(uploaded_at) FROM tracks WHERE task_id = ?), 0),
-                    COALESCE((SELECT MAX(ended_at) FROM track_history WHERE task_id = ?), 0)) AS changed`,
-      )
-      .get(t.id, t.id, t.id) as { n: number; changed: number };
-    const lastChange = Math.max(counts.changed, fresh.scoring_changed_at ?? 0);
+    const counts = lastScoringChange(db, fresh);
+    const lastChange = counts.changed;
     const running = isRunning(t.id) || run?.status === "running" || run?.status === "queued";
     return c.html(
-      <RunCard t={fresh} run={run} running={running} settings={parseSettings(comp.params)} tracks={counts.n} stale={run !== null && lastChange > run.started_at} />,
+      <RunCard t={fresh} run={run} running={running} settings={parseSettings(comp.params)} tracks={counts.tracks} stale={run !== null && lastChange > run.started_at} />,
       200,
       { "cache-control": "no-store" },
     );
@@ -549,6 +561,15 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     }
     if (inPlace) return runCard(c, x.t, x.comp);
     return c.redirect(`/tasks/${x.t.id}`);
+  });
+
+  // Manche officielle ou non : ses résultats comptent au classement général.
+  app.post("/tasks/:id/official", async (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    const f = await c.req.parseBody();
+    db.prepare("UPDATE tasks SET official = ? WHERE id = ?").run(f.official === "1" ? 1 : 0, x.t.id);
+    return c.redirect(`/tasks/${x.t.id}#run-card`);
   });
 
   app.get("/tasks/:id/run-card", (c) => {

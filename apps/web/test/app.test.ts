@@ -107,6 +107,38 @@ describe("interface web", () => {
     expect((await (await req(taskUrl)).text()).includes("Bonus 799 pts")).toBe(false);
   });
 
+  it("classe la compétition avec les manches officielles", async () => {
+    const { req, db } = setup();
+    const { compUrl, taskUrl } = await createCompetitionAndTask(req);
+    const taskId = Number(taskUrl.split("/").pop());
+    // Résultats déjà calculés (sans traces) : seuls les totaux et la validité servent au classement.
+    const results = {
+      pilots: [
+        { id: "12", name: "Ana Vainqueur", total: 1000 },
+        { id: "7", name: "Bruno Second", total: 640.5 },
+      ],
+      gap: { validity: { task: 1 }, available: { distance: 400, time: 350, leading: 250, arrival: 0 } },
+    };
+    db.prepare("INSERT INTO runs (task_id, status, results, started_at, finished_at) VALUES (?, 'done', ?, ?, ?)").run(
+      taskId,
+      JSON.stringify(results),
+      Date.now() + 1000,
+      Date.now() + 2000,
+    );
+    let comp = await (await req(compUrl)).text();
+    expect(comp).toContain("Classement général");
+    expect(comp).toContain("Aucune manche officielle calculée");
+    expect((await req(`${taskUrl}/official`, { method: "POST", body: new URLSearchParams({ official: "1" }) })).status).toBe(302);
+    comp = await (await req(compUrl)).text();
+    expect(comp).toContain("Ana Vainqueur");
+    expect(comp).toContain("640,5");
+    const csv = await (await req(`${compUrl}/standings.csv`)).text();
+    expect(csv.split("\n")[1]).toBe("1,12,Ana Vainqueur,1000.0,1000.0,1000.0,1000.0");
+    expect(await (await req(`${compUrl}/standings`)).text()).toContain("Bruno Second");
+    await req(`${taskUrl}/official`, { method: "POST", body: new URLSearchParams({ official: "0" }) });
+    expect(await (await req(compUrl)).text()).toContain("Aucune manche officielle calculée");
+  });
+
   it("refuse une manche illisible et l'accès aux compétitions des autres", async () => {
     const { req } = setup();
     const { compUrl } = await createCompetitionAndTask(req);

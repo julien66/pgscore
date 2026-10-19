@@ -135,6 +135,8 @@ export const MIGRATIONS: Migration[] = [
    );
    CREATE INDEX task_decisions_task ON task_decisions(task_id);
    ALTER TABLE tasks ADD COLUMN scoring_changed_at INTEGER;`,
+  // Manche officielle : ses derniers résultats comptent au classement général.
+  `ALTER TABLE tasks ADD COLUMN official INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {
@@ -190,6 +192,8 @@ export interface TaskRow {
   created_at: number;
   /** Dernier changement des réglages ou décisions qui entrent dans les points. */
   scoring_changed_at: number | null;
+  /** 1 si la manche compte au classement général. */
+  official: number;
 }
 
 export interface DecisionRow {

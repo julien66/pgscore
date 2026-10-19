@@ -5,6 +5,7 @@ import type { CompetitionRow, DecisionRow, RunRow, TaskRow, TrackHistoryRow, Tra
 import { DECISION_KINDS } from "./decisions.js";
 import { GAP_PROFILES, LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
+import type { Standings } from "./standings.js";
 
 const CSS = `
 :root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5d6678;--line:#dde1e8;--accent:#1f6feb;--accent-ink:#fff;--ok:#1a7f37;--warn:#9a6700;--bad:#cf222e;--chip:#eef1f5}
@@ -54,6 +55,8 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 .tm-num span{display:flex;min-width:22px;padding:0 4px;box-sizing:border-box;width:max-content;height:22px;border-radius:50%;color:#fff;font:600 12px/22px system-ui;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .tm-leg span{display:inline-block;background:rgba(17,24,39,.85);color:#fff;font:600 11px/16px system-ui;padding:1px 6px;border-radius:8px;white-space:nowrap}
 .upl{margin-top:8px}.upl p{margin:4px 0}
+.ftv-part{font-weight:600}.ftv-raw{color:var(--muted);font-size:12px;margin-left:4px}.ftv-out{color:var(--muted)}
+th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
 .center{max-width:420px;margin:60px auto;text-align:center}
 `;
 
@@ -281,10 +284,11 @@ export const CompetitionPage: FC<{
   c: CompetitionRow;
   v: CompetitionFormValues;
   tasks: TaskRow[];
+  standings: Standings;
   airspaceCount: number | null;
   error?: string | null;
   notice?: string | null;
-}> = ({ user, c, v, tasks, airspaceCount, error, notice }) => (
+}> = ({ user, c, v, tasks, standings, airspaceCount, error, notice }) => (
   <Layout title={c.name} user={user}>
     <div class="crumbs">
       <a href="/">Mes compétitions</a>
@@ -314,6 +318,7 @@ export const CompetitionPage: FC<{
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
+                {t.official ? <span class="chip t-dec">officielle</span> : null}
               </li>
             );
           })}
@@ -321,6 +326,11 @@ export const CompetitionPage: FC<{
       ) : (
         <p class="muted">Pas encore de manche.</p>
       )}
+    </div>
+
+    <div class="card" id="standings">
+      <h2>Classement général</h2>
+      <StandingsTable c={c} s={standings} limit={10} />
     </div>
 
     <div class="card">
@@ -346,6 +356,120 @@ export const CompetitionPage: FC<{
         <button class="primary">Enregistrer</button>
       </p>
     </form>
+  </Layout>
+);
+
+/** Ce qui compte au classement général, en une ligne. */
+const StandingsInfo: FC<{ s: Standings }> = ({ s }) => {
+  const r = s.ranking;
+  const notOfficial = s.tasks.filter((x) => !x.official).map((x) => x.t.number);
+  const notCalculated = s.tasks.filter((x) => x.official && x.calculatedAt === null).map((x) => x.t.number);
+  const stale = s.ranked.filter((x) => x.stale).map((x) => x.t.number);
+  const list = (n: number[]) => n.map((x) => `M${x}`).join(", ");
+  return (
+    <>
+      <p class="small muted">
+        {r.ftvFactor > 0
+          ? `FTV ${fr(r.ftvFactor * 100, 0)} % : chaque pilote garde ses meilleures performances jusqu'à une validité totale de ${fr(r.fixedTotalValidity, 3)} (${fr(r.fixedTotalValidity * 1000, 1)} points possibles).`
+          : `Sans FTV (facteur 0 %) : somme des points de chaque manche, sur ${fr(r.fixedTotalValidity * 1000, 1)} points possibles.`}
+        {notOfficial.length ? ` Pas encore officielles, donc non comptées : ${list(notOfficial)}.` : ""}
+        {notCalculated.length ? ` Officielles mais pas encore calculées : ${list(notCalculated)}.` : ""}
+      </p>
+      {stale.length ? <div class="note">Des changements ne sont pas encore calculés pour {list(stale)} : relancez le calcul de ces manches.</div> : null}
+    </>
+  );
+};
+
+const FtvCell: FC<{ ts: { score: number; fraction: number; counted: number } | undefined; included: boolean }> = ({ ts, included }) => {
+  if (!ts) return <td class="n ftv-out">{included ? "0,0" : ""}</td>;
+  if (!included) return <td class="n ftv-out">{pts(ts.score)}</td>;
+  if (ts.fraction >= 1) return <td class="n">{pts(ts.score)}</td>;
+  if (ts.fraction <= 0) return <td class="n ftv-out" title="Non retenue (FTV)">({pts(ts.score)})</td>;
+  return (
+    <td class="n" title={`Retenue à ${fr(ts.fraction * 100, 1)} % (FTV)`}>
+      <span class="ftv-part">{pts(ts.counted)}</span>
+      <span class="ftv-raw">({pts(ts.score)})</span>
+    </td>
+  );
+};
+
+export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: number }> = ({ c, s, limit }) => {
+  const r = s.ranking;
+  if (!s.ranked.length)
+    return (
+      <>
+        <p class="muted">
+          {s.tasks.length
+            ? "Aucune manche officielle calculée : cochez « Manche officielle » dans le bloc Calcul d'une manche pour qu'elle compte."
+            : "Pas encore de manche."}
+        </p>
+      </>
+    );
+  const pilots = limit ? r.pilots.slice(0, limit) : r.pilots;
+  const info = new Map(r.tasks.map((t) => [t.key, t]));
+  return (
+    <>
+      <StandingsInfo s={s} />
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="n">#</th>
+              <th>Pilote</th>
+              <th>Nom</th>
+              {s.ranked.map((x) => {
+                const t = info.get(String(x.t.id))!;
+                return (
+                  <th class="n" title={t.excluded ? `Non comptée : ${t.excluded}` : undefined}>
+                    <a href={`/tasks/${x.t.id}`}>M{x.t.number}</a>
+                    <span class="sub">
+                      {t.included ? `val. ${fr(x.validity ?? 0, 3)} · ${fr(x.available ?? 0, 0)} pts` : "non comptée"}
+                    </span>
+                  </th>
+                );
+              })}
+              <th class="n">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pilots.map((p) => (
+              <tr>
+                <td class="n">{p.rank}</td>
+                <td>{p.pilot}</td>
+                <td>{p.name}</td>
+                {s.ranked.map((x) => (
+                  <FtvCell ts={p.tasks[String(x.t.id)]} included={info.get(String(x.t.id))!.included} />
+                ))}
+                <td class="n">
+                  <strong>{pts(p.total)}</strong>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="small mt">
+        {limit && r.pilots.length > limit ? (
+          <>
+            <a href={`/competitions/${c.id}/standings`}>Voir les {r.pilots.length} pilotes</a> ·{" "}
+          </>
+        ) : null}
+        <a href={`/competitions/${c.id}/standings.csv`}>Exporter en CSV</a>
+        {r.ftvFactor > 0 ? " · en gras, la part retenue d'une manche comptée en partie ; entre parenthèses et en gris, le score de la manche non retenu" : ""}
+      </p>
+    </>
+  );
+};
+
+export const StandingsPage: FC<{ user: User; c: CompetitionRow; s: Standings }> = ({ user, c, s }) => (
+  <Layout title={`Classement général · ${c.name}`} user={user}>
+    <div class="crumbs">
+      <a href="/">Mes compétitions</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
+    </div>
+    <h1>Classement général</h1>
+    <div class="card">
+      <StandingsTable c={c} s={s} />
+    </div>
   </Layout>
 );
 
@@ -731,6 +855,20 @@ export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; set
       <RunStatus run={run} tz={tz} taskId={t.id} />
       {stale && !running && results ? (
         <div class="note">Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.</div>
+      ) : null}
+      {results ? (
+        <form method="post" action={`/tasks/${t.id}/official`} class="row note">
+          <input type="hidden" name="official" value={t.official ? "0" : "1"} />
+          {t.official ? (
+            <span>
+              <span class="chip t-dec">officielle</span> Le dernier calcul de cette manche compte au{" "}
+              <a href={`/competitions/${t.competition_id}#standings`}>classement général</a>.
+            </span>
+          ) : (
+            <span>Cette manche ne compte pas encore au classement général.</span>
+          )}
+          <button class={t.official ? "" : "primary"}>{t.official ? "Retirer du classement général" : "Manche officielle"}</button>
+        </form>
       ) : null}
       {results ? <Results r={results} tz={tz} settings={settings} taskId={t.id} /> : null}
     </>
