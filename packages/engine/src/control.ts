@@ -42,6 +42,10 @@ export interface FlightControl {
   flight: FlightPeriod | null;
   /** Heure d'atterrissage, ms UTC, si le pilote s'est posé avant la fin de la trace. */
   landingTime: number | null;
+  /** Fixes du vol retenu (du décollage à l'atterrissage). */
+  inFlight: IgcFix[];
+  /** Première porte de départ de la manche, ms UTC. */
+  firstStartGate: number | null;
 }
 
 const alt = (f: IgcFix) => f.gnssAltitude ?? f.pressureAltitude;
@@ -145,9 +149,12 @@ export function controlFlight(task: Task, fixes: IgcFix[]): FlightControl {
     bestPoint: null,
     flight: period,
     landingTime: period?.landed ? (valid[period.landingIndex]?.time ?? null) : null,
+    inFlight: [],
+    firstStartGate: gates[0] ?? null,
   };
   if (!period || sssIdx < 0) return result;
   const pts = valid.slice(period.takeoffIndex, period.landingIndex + 1);
+  result.inFlight = pts;
   if (pts.length < 2) return result;
 
   // Orientation de la ligne de goal : perpendiculaire à la route optimisée qui y arrive (6.2.3.1).
