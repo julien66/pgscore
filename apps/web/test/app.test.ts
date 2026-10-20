@@ -249,13 +249,19 @@ describe("interface web", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM competition_rankings").get() as { n: number }).n).toBe(1);
   });
 
-  it("propose l'import civlcomps et refuse une adresse d'un autre site", async () => {
-    const { req } = setup();
-    await req("/auth/dev", { method: "POST", body: new URLSearchParams({ email: "orga@example.org", name: "Orga" }) });
-    expect(await (await req("/competitions/new")).text()).toContain('name="civl_url"');
-    const r = await req("/competitions/import", { method: "POST", body: new URLSearchParams({ civl_url: "https://example.org/event/x/results" }) });
+  it("réserve l'import civlcomps aux administrateurs et refuse une adresse d'un autre site", async () => {
+    const post = (req: ReturnType<typeof setup>["req"]) =>
+      req("/competitions/import", { method: "POST", body: new URLSearchParams({ civl_url: "https://example.org/event/x/results" }) });
+    const user = setup();
+    await user.req("/auth/dev", { method: "POST", body: new URLSearchParams({ email: "orga@example.org", name: "Orga" }) });
+    expect(await (await user.req("/competitions/new")).text()).not.toContain('name="civl_url"');
+    expect(decodeURIComponent((await post(user.req)).headers.get("location")!)).toContain("administrateurs");
+    const admin = setup(["admin@example.org"]);
+    await admin.req("/auth/dev", { method: "POST", body: new URLSearchParams({ email: "admin@example.org", name: "Admin" }) });
+    expect(await (await admin.req("/competitions/new")).text()).toContain('name="civl_url"');
+    const r = await post(admin.req);
     expect(r.status).toBe(302);
-    expect(decodeURIComponent(r.headers.get("location")!)).toContain("civlcomps.org");
+    expect(decodeURIComponent(r.headers.get("location")!)).toContain("civlcomps.org/event/german-open-2026");
   });
 
   it("refuse une manche illisible", async () => {

@@ -355,7 +355,9 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     }
   });
   /** Import depuis civlcomps.org : manches, pilotes, pénalités et traces lus sur la page de résultats. */
-  const importCivl = async (userId: number, url: string) => {
+  const importCivl = async (user: User, url: string) => {
+    if (!isAdmin(user)) throw new FormError(t("L'import depuis civlcomps.org est réservé aux administrateurs."));
+    const userId = user.id;
     const { a, files, warnings } = await civlToArchive(url, undefined, tracks);
     const r = writeArchive(db, tracks, userId, a, files);
     return { ...r, warnings: [...warnings, ...(r.warnings ?? [])] };
@@ -363,7 +365,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   app.post("/api/competitions/import-civl", async (c) => {
     try {
       const body = (await c.req.json().catch(() => ({}))) as { url?: unknown };
-      const r = await importCivl(me(c).id, String(body.url ?? ""));
+      const r = await importCivl(me(c), String(body.url ?? ""));
       return c.json({ ...r, url: `${cfg.baseUrl}/competitions/${r.id}` }, 201);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
@@ -376,7 +378,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       let r;
       if ((c.req.header("content-type") ?? "").startsWith("application/x-www-form-urlencoded")) {
         const f = await c.req.parseBody();
-        r = await importCivl(me(c).id, String(f.civl_url ?? ""));
+        r = await importCivl(me(c), String(f.civl_url ?? ""));
       } else r = importAny(me(c).id, await readImport(c));
       // Les manches importées avec leurs traces sont calculées tout de suite, l'une après l'autre ;
       // la page de la compétition montre l'avancement.
@@ -448,7 +450,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   };
 
   app.get("/competitions/new", (c) =>
-    c.html(<NewCompetitionPage user={c.get("user")} v={{ name: "", location: "", start_date: "", end_date: "", settings: DEFAULT_SETTINGS }} error={c.req.query("error") ?? null} />),
+    c.html(<NewCompetitionPage user={c.get("user")} civl={Boolean(c.get("user") && isAdmin(c.get("user")!))} v={{ name: "", location: "", start_date: "", end_date: "", settings: DEFAULT_SETTINGS }} error={c.req.query("error") ?? null} />),
   );
 
   app.post("/competitions", async (c) => {
@@ -478,7 +480,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       return c.redirect(`/competitions/${r.lastInsertRowid}`);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
-      return c.html(<NewCompetitionPage user={c.get("user")} v={formValues(f)} error={e.message} />, 400);
+      return c.html(<NewCompetitionPage user={c.get("user")} civl={Boolean(c.get("user") && isAdmin(c.get("user")!))} v={formValues(f)} error={e.message} />, 400);
     }
   });
 

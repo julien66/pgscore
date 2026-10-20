@@ -687,5 +687,6 @@ const dict: Record<string, string> = {
   "Depuis un fichier : archive pgscore (ZIP) ou fichier FS (.fsdb, seul ou en ZIP avec ses traces).": "From a file: pgscore archive (ZIP) or FS file (.fsdb, alone or in a ZIP with its tracks).",
   "Ou depuis civlcomps.org : adresse de la page de résultats de l'événement. Les manches, les pilotes, les pénalités, les absents et les traces publiées sont repris ; vérifiez ensuite le type de goal de chaque manche, que civlcomps ne publie pas.": "Or from civlcomps.org: address of the event's results page. Tasks, pilots, penalties, absences and published tracks are imported; then check each task's goal type, which civlcomps does not publish.",
   "La compétition est créée avec ses manches, ses pilotes et ses traces, puis les points sont calculés.": "The competition is created with its tasks, pilots and tracks, then points are computed.",
+  "L'import depuis civlcomps.org est réservé aux administrateurs.": "Import from civlcomps.org is restricted to administrators.",
 };
 export default dict;

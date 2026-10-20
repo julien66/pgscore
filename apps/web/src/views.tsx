@@ -386,7 +386,7 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
   );
 };
 
-export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValues; error?: string | null }> = ({ user, v, error }) => (
+export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValues; error?: string | null; civl?: boolean }> = ({ user, v, error, civl }) => (
   <Layout title={t("Nouvelle compétition")} user={user}>
     <div class="crumbs">
       <a href="/">{t("Compétitions")}</a>
@@ -411,6 +411,8 @@ export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValue
           </button>
         </div>
       </form>
+      {civl ? (
+        <>
       <p class="small muted mt">{t("Ou depuis civlcomps.org : adresse de la page de résultats de l'événement. Les manches, les pilotes, les pénalités, les absents et les traces publiées sont repris ; vérifiez ensuite le type de goal de chaque manche, que civlcomps ne publie pas.")}</p>
       <form
         method="post"
@@ -426,6 +428,8 @@ export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValue
           </button>
         </div>
       </form>
+        </>
+      ) : null}
       <p class="small muted mt">{t("La compétition est créée avec ses manches, ses pilotes et ses traces, puis les points sont calculés.")}</p>
     </div>
     <script src="/static/run.js" />
