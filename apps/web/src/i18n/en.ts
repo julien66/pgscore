@@ -1,5 +1,6 @@
 /** Traductions en : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Télécharger le tableau (CSV, ouvrable dans Excel)": "Download the table (CSV, opens in Excel)",
   "Imprimer / PDF": "Print / PDF",
   "Imprimer ou enregistrer en PDF (A4 portrait, détail déplié)": "Print or save as PDF (A4 portrait, details expanded)",
   "Sponsor": "Sponsor",
