@@ -1,5 +1,8 @@
 /** Traductions es : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "{n} pilote au goal": "{n} piloto en goal",
+  "{n} pilotes au goal": "{n} pilotos en goal",
+  "FTV {pct} %": "FTV {pct} %",
   "Nat.": "Nac.",
   "Voile": "Vela",
   "Vitesse (km/h)": "Velocidad (km/h)",

@@ -25,6 +25,9 @@ export interface StandingsTask {
   /** Validité GAP et points disponibles de la manche. */
   validity?: number;
   available?: number;
+  /** Dernier calcul : pilotes au goal et points du vainqueur (validité FTV = vainqueur / 1000). */
+  goal?: number;
+  winner?: number;
 }
 
 export interface Standings {
@@ -54,8 +57,11 @@ export function competitionStandings(db: Db, comp: CompetitionRow): Standings {
       stale: run ? lastScoringChange(db, t).changed > run.started_at : false,
     };
     tasks.push(st);
-    if (!st.official || !run) continue;
+    if (!run) continue;
     const r = JSON.parse(run.results) as TaskScoring;
+    st.goal = r.pilots.filter((p) => p.status === "GOAL").length;
+    st.winner = Math.max(0, ...r.pilots.map((p) => p.total ?? 0));
+    if (!st.official) continue;
     const task = JSON.parse(t.task) as Task;
     const a = r.gap.available;
     st.validity = r.gap.validity.task;

@@ -59,7 +59,7 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 .tm-num span{display:flex;min-width:22px;padding:0 4px;box-sizing:border-box;width:max-content;height:22px;border-radius:50%;color:#fff;font:600 12px/22px system-ui;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .tm-leg span{display:inline-block;background:rgba(17,24,39,.85);color:#fff;font:600 11px/16px system-ui;padding:1px 6px;border-radius:8px;white-space:nowrap}
 .upl{margin-top:8px}.upl p{margin:4px 0}
-.list .task-rk{margin-left:auto;color:var(--muted)}.list form.official{margin-left:12px}.list form.official .check{color:var(--muted)}
+.list li.task{flex-wrap:wrap;row-gap:2px}.list .task-rk{flex-basis:100%;color:var(--muted)}.list form.official{margin-left:auto}.list form.official .check{color:var(--muted)}
 .lead-warn{color:var(--warn);cursor:help;margin-right:4px}
 table.pilots td{padding:3px 4px}table.pilots input[type=text],table.pilots select{padding:4px 6px;font-size:13px}
 table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{width:190px}table.pilots tr.new td{background:var(--chip)}
@@ -406,24 +406,22 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }>
         <ul class="list">
           {tasks.map((tk) => {
             const task = JSON.parse(tk.task) as Task;
+            const info = board.s.tasks.find((x) => x.t.id === tk.id);
             return (
-              <li>
+              <li class="task">
                 <a href={`/tasks/${tk.id}`}>
                   <strong>{t("Manche {n}", { n: tk.number })}</strong>
                 </a>
                 <span class="muted small">
-                  {[tk.date ? dateRange(tk.date, null) : null, task.type === "race" ? t("race") : t("time trial"), task.stopAnnouncement ? t("arrêtée") : null]
+                  {[
+                    tk.date ? dateRange(tk.date, null) : null,
+                    task.type === "race" ? t("race") : t("time trial"),
+                    task.stopAnnouncement ? t("arrêtée") : null,
+                    info?.goal !== undefined ? (info.goal === 1 ? t("{n} pilote au goal", { n: 1 }) : t("{n} pilotes au goal", { n: info.goal })) : null,
+                    info?.winner !== undefined ? t("FTV {pct} %", { pct: fr(info.winner / 10, 1) }) : null,
+                  ]
                     .filter(Boolean)
                     .join(" · ")}
-                </span>
-                <span class="small task-rk">
-                  <a href={`/tasks/${tk.id}#results`}>{t("Général")}</a>
-                  {board.rankings.map((x) => (
-                    <>
-                      {" · "}
-                      <a href={`/tasks/${tk.id}?r=${x.r.row.id}#results`}>{t(x.r.row.name)}</a>
-                    </>
-                  ))}
                 </span>
                 <form method="post" action={`/tasks/${tk.id}/official`} class="official">
                   <input type="hidden" name="back" value="competition" />
@@ -434,6 +432,17 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }>
                     <button class="link">{t("Enregistrer")}</button>
                   </noscript>
                 </form>
+                {info?.calculatedAt ? (
+                  <span class="small task-rk">
+                    <a href={`/tasks/${tk.id}#results`}>{t("Général")}</a>
+                    {board.rankings.map((x) => (
+                      <>
+                        {" · "}
+                        <a href={`/tasks/${tk.id}?r=${x.r.row.id}#results`}>{t(x.r.row.name)}</a>
+                      </>
+                    ))}
+                  </span>
+                ) : null}
               </li>
             );
           })}
