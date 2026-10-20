@@ -119,6 +119,7 @@ const ICONS = {
   login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
   refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
   qr: '<rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/>',
+  heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
   zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
   unlock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
   key: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
@@ -2461,8 +2462,8 @@ export const AboutPage: FC<{ user: User | null }> = ({ user }) => (
           </p>
           <ul>
             <li>{t("Une application web : le scoreur, les pilotes et le public voient les mêmes résultats, en direct, sur ordinateur comme sur téléphone.")}</li>
-            <li>{t("Les règles 2026 : formule S7F 2026 ou PWCA 2026, manches arrêtées, FTV, espaces aériens, pénalités et décisions tracées.")}</li>
-            <li>{t("Des calculs vérifiés : sur 7 manches de la PWCA, environ 480 pilotes, les points tombent au dixième près.")}</li>
+            <li>{t("Les règles 2026 : formule GAP 2026 de la CIVL ou de la PWCA, manches arrêtées, FTV, espaces aériens, pénalités et décisions tracées.")}</li>
+            <li>{t("Des calculs vérifiés : sur 7 manches de la PWCA (SVL) et la manche 1 du French Open 2026 (FS), environ 570 pilotes, les points tombent au dixième près.")}</li>
             <li>{t("Les formats du terrain : QR code et fichier XCTrack, traces IGC, espaces aériens OpenAir, import et export FSDB pour FS.")}</li>
             <li>{t("Des sorties prêtes à publier : classements extraits (féminin, nations, sport…), CSV, impression A4, visualisation 3D des vols.")}</li>
             <li>{t("Une API pour brancher d'autres outils : export et import de compétitions entières.")}</li>
@@ -2481,6 +2482,16 @@ export const AboutPage: FC<{ user: User | null }> = ({ user }) => (
             <li>{t("Partagé : un club, une ligue ou une fédération peut l'installer sur son propre serveur.")}</li>
           </ul>
         </div>
+      </div>
+
+      <div class="card">
+        <h2><Ic n="heart" c="pink" />{t("Sur les épaules des pionniers")}</h2>
+        <p>
+          {t("pgscore doit beaucoup à ceux qui l'ont précédé. CompCheck™ d'Ulric Jessop et SVL de Daniel Dimov sont des références : l'évolution et l'histoire du parapente de compétition ont été portées par leurs outils, à une époque où créer un logiciel demandait bien plus d'efforts qu'aujourd'hui. Merci à eux.")}
+        </p>
+        <p>
+          {t("Un bon logiciel de scoring ouvert à toute la communauté, c'est aussi la possibilité de faire évoluer la compétition elle-même : tester de nouvelles règles et de nouveaux formats compétitifs bien plus facilement, les appliquer à des manches réelles et comparer les classements obtenus.")}
+        </p>
       </div>
 
       <div class="card">
