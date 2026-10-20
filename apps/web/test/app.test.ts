@@ -99,6 +99,13 @@ describe("interface web", () => {
     const other = before === "race" ? "time-trial" : "race";
     await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other }) });
     expect(type()).toBe(other);
+    const goal = () => JSON.parse((db.prepare("SELECT task FROM tasks").get() as { task: string }).task).turnpoints.at(-1).zone;
+    const g0 = goal();
+    const flip = g0.kind === "cylinder" ? "goal-line" : "cylinder";
+    await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, goalKind: flip }) });
+    expect(goal().kind).toBe(flip);
+    await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, goalKind: g0.kind }) });
+    expect(goal()).toEqual(g0);
   });
 
   it("enregistre et supprime les décisions de l'organisateur", async () => {

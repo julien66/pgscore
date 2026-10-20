@@ -681,5 +681,8 @@ const dict: Record<string, string> = {
   "Adresse de la page de résultats de l'événement : les manches, les pilotes, les pénalités, les absents et les traces publiées sont repris, puis les points recalculés. Le type de goal n'y figure pas : il est lu comme un cylindre.": "Dirección de la página de resultados del evento: se importan las mangas, los pilotos, las penalizaciones, las ausencias y los tracks publicados, y se recalculan los puntos. El tipo de gol no figura: se lee como un cilindro.",
   "Type de manche": "Tipo de manga",
   "{task} : annoncée en temps écoulé, mais tous les pilotes partent à {time} : lue comme une course.": "{task}: anunciada como tiempo transcurrido, pero todos los pilotos salen a las {time}: leída como carrera.",
+  "Type de goal": "Tipo de gol",
+  "Cylindre": "Cilindro",
+  "Ligne (demi-cercle derrière)": "Línea (semicírculo detrás)",
 };
 export default dict;

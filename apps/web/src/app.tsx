@@ -923,6 +923,12 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     try {
       const tz = parseSettings(x.comp.params).timeZone;
       if (f.type === "race" || f.type === "time-trial") task.type = f.type;
+      // Goal : cylindre de rayon r ou ligne de longueur 2r, centrés sur la même balise.
+      const goal = task.turnpoints.at(-1);
+      if (goal && f.goalKind === "goal-line" && goal.zone.kind === "cylinder")
+        goal.zone = { kind: "goal-line", waypoint: goal.zone.waypoint, length: 2 * goal.zone.radius };
+      else if (goal && f.goalKind === "cylinder" && goal.zone.kind === "goal-line")
+        goal.zone = { kind: "cylinder", waypoint: goal.zone.waypoint, radius: goal.zone.length / 2 };
       if (stop) task.stopAnnouncement = localHmsToUtc(stop, date, tz);
       else delete task.stopAnnouncement;
       const gr = String(f.bonusGlideRatio ?? "").trim().replace(",", ".");

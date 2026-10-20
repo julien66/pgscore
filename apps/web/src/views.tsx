@@ -1338,6 +1338,17 @@ export const TaskPage: FC<{
             </select>
           </div>
           <div>
+            <label>{t("Type de goal")}</label>
+            <select name="goalKind">
+              <option value="cylinder" selected={task.turnpoints.at(-1)?.zone.kind === "cylinder"}>
+                {t("Cylindre")}
+              </option>
+              <option value="goal-line" selected={task.turnpoints.at(-1)?.zone.kind === "goal-line"}>
+                {t("Ligne (demi-cercle derrière)")}
+              </option>
+            </select>
+          </div>
+          <div>
             <label>{t("Manche arrêtée : heure d'annonce (locale)")}</label>
             <input type="text" name="stop" placeholder="HH:MM" value={loc(task.stopAnnouncement)} />
           </div>

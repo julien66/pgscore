@@ -681,5 +681,8 @@ const dict: Record<string, string> = {
   "Adresse de la page de résultats de l'événement : les manches, les pilotes, les pénalités, les absents et les traces publiées sont repris, puis les points recalculés. Le type de goal n'y figure pas : il est lu comme un cylindre.": "Adresse der Ergebnisseite der Veranstaltung: Tasks, Piloten, Strafen, Abwesenheiten und veröffentlichte Tracks werden übernommen und die Punkte neu berechnet. Der Goal-Typ ist dort nicht angegeben: er wird als Zylinder gelesen.",
   "Type de manche": "Task-Typ",
   "{task} : annoncée en temps écoulé, mais tous les pilotes partent à {time} : lue comme une course.": "{task}: als Elapsed Time angegeben, aber alle Piloten starten um {time}: als Race gelesen.",
+  "Type de goal": "Goal-Typ",
+  "Cylindre": "Zylinder",
+  "Ligne (demi-cercle derrière)": "Linie (Halbkreis dahinter)",
 };
 export default dict;
