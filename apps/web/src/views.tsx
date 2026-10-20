@@ -18,7 +18,8 @@ header{background:var(--card);border-bottom:1px solid var(--line)}
 header .in{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
 header .brand{font-weight:700;font-size:17px;color:var(--text)}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}
 main{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
-h1{font-size:24px;margin:4px 0 16px}h2{font-size:18px;margin:0 0 12px}
+h1{font-size:24px;margin:4px 0 16px}h2{font-size:18px;margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ic{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;flex:none;color:var(--hue);background:color-mix(in srgb,var(--hue) 13%,var(--card))}
 .crumbs{color:var(--muted);font-size:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:0 0 16px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}
@@ -67,6 +68,34 @@ table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{
 th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
 .center{max-width:420px;margin:60px auto;text-align:center}
 `;
+
+/** Icônes des titres (tracés Lucide, licence ISC), dans une pastille colorée. */
+const ICONS = {
+  route: '<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
+  trophy:
+    '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+  users:
+    '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  shield:
+    '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  sliders:
+    '<path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/>',
+  map: '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/>',
+  pulse: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
+  gavel: '<path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/>',
+  calc: '<rect width="16" height="20" x="4" y="2" rx="2"/><path d="M8 6h8"/><path d="M16 14v4"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/>',
+  filter: '<path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/>',
+  key: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
+} as const;
+const ICON_COLORS = { blue: "#2563eb", amber: "#d97706", green: "#16a34a", red: "#dc2626", purple: "#7c3aed", teal: "#0d9488", gray: "#64748b", pink: "#db2777" } as const;
+
+export const Ic: FC<{ n: keyof typeof ICONS; c: keyof typeof ICON_COLORS }> = ({ n, c }) => (
+  <span class="ic" style={`--hue:${ICON_COLORS[c]}`} aria-hidden="true">
+    {raw(
+      `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`,
+    )}
+  </span>
+);
 
 export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; refresh?: number }>> = ({ title, user, refresh, children }) => (
   <>
@@ -126,7 +155,7 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
       ) : null}
       {devLogin ? (
         <form method="post" action="/auth/dev" class="card mt" style="text-align:left">
-          <h2>Connexion de développement</h2>
+          <h2><Ic n="key" c="gray" />Connexion de développement</h2>
           <p class="small muted">Active seulement avec DEV_LOGIN=1, pour tester sans Google.</p>
           <label>E-mail</label>
           <input type="email" name="email" required value="dev@pgscore.local" />
@@ -206,7 +235,7 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
           <input type="date" name="end_date" value={v.end_date} />
         </div>
       </div>
-      <h2 class="mt">Paramètres de la formule (S7F, chapitre 5)</h2>
+      <h2 class="mt"><Ic n="sliders" c="gray" />Paramètres de la formule (S7F, chapitre 5)</h2>
       <div class="grid">
         <div>
           <label>Distance nominale (km)</label>
@@ -277,7 +306,7 @@ export const NewCompetitionPage: FC<{ user: User; v: CompetitionFormValues; erro
     <ErrorBox message={error} />
     <form method="post" action="/competitions" enctype="multipart/form-data" class="card">
       <CompetitionFields v={v} />
-      <h2 class="mt">Espace aérien</h2>
+      <h2 class="mt"><Ic n="shield" c="red" />Espace aérien</h2>
       <label>Fichier OpenAir (facultatif, modifiable ensuite)</label>
       <input type="file" name="airspace" accept=".txt,.air,.openair" />
       <p class="mt">
@@ -309,7 +338,7 @@ export const CompetitionPage: FC<{
 
     <div class="card">
       <div class="row" style="justify-content:space-between">
-        <h2>Manches</h2>
+        <h2><Ic n="route" c="blue" />Manches</h2>
         <a class="btn primary" href={`/competitions/${c.id}/tasks/new`}>
           Nouvelle manche
         </a>
@@ -347,7 +376,7 @@ export const CompetitionPage: FC<{
     </div>
 
     <div class="card" id="standings">
-      <h2>Classement général</h2>
+      <h2><Ic n="trophy" c="amber" />Classement général</h2>
       <RankingTabs c={c} rankings={rankings} current={null} />
       <StandingsTable c={c} s={standings} limit={10} />
     </div>
@@ -355,7 +384,7 @@ export const CompetitionPage: FC<{
     <PilotsBlock c={c} pilots={pilots} />
 
     <div class="card">
-      <h2>Espace aérien</h2>
+      <h2><Ic n="shield" c="red" />Espace aérien</h2>
       {c.airspace_name ? (
         <p>
           <strong>{c.airspace_name}</strong> · {airspaceCount} zone{airspaceCount === 1 ? "" : "s"}
@@ -371,7 +400,7 @@ export const CompetitionPage: FC<{
     </div>
 
     <form method="post" action={`/competitions/${c.id}`} class="card">
-      <h2>Compétition</h2>
+      <h2><Ic n="sliders" c="gray" />Compétition</h2>
       <CompetitionFields v={v} />
       <p class="mt">
         <button class="primary">Enregistrer</button>
@@ -408,6 +437,7 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[] }> = ({ c, pilots 
     <details class="card fold" id="pilots" open={pilots.length === 0}>
       <summary>
         <h2>
+          <Ic n="users" c="purple" />
           Pilotes{" "}
           <span class="muted small">
             {pilots.length ? `${pilots.length} inscrits${women ? ` · ${women} femmes` : ""}` : "aucun inscrit"}
@@ -724,7 +754,7 @@ export const StandingsPage: FC<{
           {current ? (
             <details class="card fold" id="ranking-settings">
               <summary>
-                <h2>Règle et pilotes de ce classement</h2>
+                <h2><Ic n="filter" c="purple" />Règle et pilotes de ce classement</h2>
               </summary>
               <RankingForm c={c} r={current} />
               <h2 class="mt">Ajouts et retraits à la main</h2>
@@ -764,7 +794,7 @@ export const NewTaskPage: FC<{ user: User; c: CompetitionRow; number: number; er
           <input type="date" name="date" value={date ?? ""} />
         </div>
       </div>
-      <h2 class="mt">Définition de la manche</h2>
+      <h2 class="mt"><Ic n="map" c="teal" />Définition de la manche</h2>
       <p class="small muted">Une seule des trois sources suffit.</p>
       <div class="grid">
         <div>
@@ -827,7 +857,7 @@ export const TaskPage: FC<{
       {notice ? <div class="note">{notice}</div> : null}
 
       <div class="card">
-        <h2>Définition</h2>
+        <h2><Ic n="map" c="teal" />Définition</h2>
         <div id="task-map" class="task-map" />
         <p class="small muted legend">
           <span style="color:#16a34a">● départ</span> <span style="color:#2563eb">● balise</span> <span style="color:#9333ea">● ESS</span>{" "}
@@ -904,7 +934,7 @@ export const TaskPage: FC<{
       </div>
 
       <div class="card">
-        <h2>Traces ({tracks.length})</h2>
+        <h2><Ic n="pulse" c="green" />Traces ({tracks.length})</h2>
         <form method="post" action={`/tasks/${t.id}/tracks`} enctype="multipart/form-data" class="row upload">
           <input type="file" name="files" accept=".igc,.zip" multiple required />
           <button>Envoyer</button>
@@ -1011,7 +1041,7 @@ export const TaskPage: FC<{
 
       <details class="card fold" id="decisions">
         <summary>
-          <h2>Décisions de l'organisateur ({decisions.length})</h2>
+          <h2><Ic n="gavel" c="pink" />Décisions de l'organisateur ({decisions.length})</h2>
         </summary>
         <p class="small muted">
           Bonus (aide à un pilote accidenté…), pénalités, goal accordé après réclamation, pilotes absents ou restés au sol. Elles
@@ -1112,7 +1142,7 @@ export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; set
   return (
     <>
       <div class="row" style="justify-content:space-between">
-        <h2>Calcul</h2>
+        <h2><Ic n="calc" c="blue" />Calcul</h2>
         <form method="post" action={`/tasks/${t.id}/runs`} id="run-form">
           <button class="primary" disabled={running || !tracks}>
             {running ? "Calcul en cours…" : "Lancer le calcul"}
