@@ -18,6 +18,7 @@ export const PILOT_COLUMNS: Array<{ key: keyof PilotFields; label: string; csv: 
   { key: "harness_brand", label: N_("Marque sellette"), csv: "sellette_marque", aliases: ["harness brand", "harness make", "marque sellette"] },
   { key: "harness_model", label: N_("Modèle sellette"), csv: "sellette_modele", aliases: ["harness", "harness model", "modele sellette", "sellette"] },
   { key: "weight_max", label: N_("PTV max (kg)"), csv: "ptv_max_kg", aliases: ["ptv", "ptv max", "weight", "max weight", "poids", "poids max", "total weight"] },
+  { key: "sponsor", label: N_("Sponsor"), csv: "sponsor", aliases: ["sponsors", "team", "equipe", "club"] },
 ];
 
 const norm = (s: string) =>
@@ -63,6 +64,7 @@ export function cleanPilot(raw: Partial<Record<keyof PilotFields, unknown>>): Pi
     harness_brand: str("harness_brand"),
     harness_model: str("harness_model"),
     weight_max: weight,
+    sponsor: str("sponsor"),
   };
 }
 
@@ -178,6 +180,7 @@ export function pilotsFromFsdb(text: string): PilotFields[] {
         harness_brand: pick("harness_brand") || harness.brand,
         harness_model: pick("harness_model") || harness.model,
         weight_max: pick("ptv", "ptv max", "max weight", "weight"),
+        sponsor: pick("sponsor", "team"),
       });
     } catch (e) {
       throw new FormError(t("Pilote n° {n} du FSDB : {error}", { n: n + 1, error: (e as Error).message }));

@@ -1,5 +1,10 @@
 /** Traductions de : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Sponsor": "Sponsor",
+  "Matériel": "Ausrüstung",
+  "Afficher ou masquer le détail sportif": "Sportliche Details ein- oder ausblenden",
+  "◂ détail": "◂ Details",
+  "▸ masquer": "▸ ausblenden",
   "en gras, la part retenue d'une manche comptée en partie ; barré, le score de la manche non retenu": "fett: der gewertete Anteil eines teilweise gezählten Tasks; durchgestrichen: das nicht gewertete Task-Ergebnis",
   "{n} pilote au goal": "{n} Pilot im Goal",
   "{n} pilotes au goal": "{n} Piloten im Goal",
@@ -340,7 +345,7 @@ const dict: Record<string, string> = {
   "aucun inscrit": "keine Registrierten",
   "Importer": "Importieren",
   "Exporter en CSV": "Als CSV exportieren",
-  "Fichier FSDB (logiciel FS de la CIVL) ou CSV avec une ligne d'en-tête : numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg (seuls numero et nom sont obligatoires ; une colonne « voile » ou « sellette » seule est coupée en marque et modèle). Un pilote déjà inscrit sous le même numéro est mis à jour. Le numéro est celui des traces.": "FSDB-Datei (CIVL-Software FS) oder CSV mit einer Kopfzeile: numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg (nur numero und nom sind Pflicht; eine einzelne Spalte „voile“ oder „sellette“ wird in Marke und Modell aufgeteilt). Ein bereits unter derselben Nummer registrierter Pilot wird aktualisiert. Die Nummer ist die der Tracks.",
+  "Fichier FSDB (logiciel FS de la CIVL) ou CSV avec une ligne d'en-tête : numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg, sponsor (seuls numero et nom sont obligatoires ; une colonne « voile » ou « sellette » seule est coupée en marque et modèle). Un pilote déjà inscrit sous le même numéro est mis à jour. Le numéro est celui des traces.": "FSDB-Datei (CIVL-Software FS) oder CSV mit einer Kopfzeile: numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg, sponsor (nur numero und nom sind Pflicht; eine einzelne Spalte „voile“ oder „sellette“ wird in Marke und Modell aufgeteilt). Ein bereits unter derselben Nummer registrierter Pilot wird aktualisiert. Die Nummer ist die der Tracks.",
   "Retirer": "Entfernen",
   "Retirer ce pilote à l'enregistrement": "Diesen Piloten beim Speichern entfernen",
   "nouveau": "neu",

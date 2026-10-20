@@ -66,6 +66,8 @@ table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{
 .tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--muted)}.tabs a.on{background:var(--card);border-color:var(--line);color:var(--text);font-weight:600;margin-bottom:-1px}
 [data-swap].loading{opacity:.55;transition:opacity .15s}
 .tabs a.tab-end{margin-left:auto}
+table.rk.sport-hidden .sp{display:none}table.rk .sp-open{display:none}table.rk:not(.sport-hidden) .sp-open{display:inline}table.rk:not(.sport-hidden) .sp-closed{display:none}
+.sp-toggle{font-size:11px;text-transform:none;letter-spacing:0;color:var(--accent)}
 .details h3{font-size:16px;margin:22px 0 6px}.details ul{margin:4px 0 10px;padding-left:20px}
 table.calc{margin:4px 0 8px}table.calc th{width:190px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text);vertical-align:top}
 table.calc td.how{white-space:normal;color:var(--muted);font-size:13px}table.calc td.val{width:110px;vertical-align:top;font-variant-numeric:tabular-nums}
@@ -573,7 +575,7 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
       </form>
       <p class="small muted">
         {t(
-          "Fichier FSDB (logiciel FS de la CIVL) ou CSV avec une ligne d'en-tête : numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg (seuls numero et nom sont obligatoires ; une colonne « voile » ou « sellette » seule est coupée en marque et modèle). Un pilote déjà inscrit sous le même numéro est mis à jour. Le numéro est celui des traces.",
+          "Fichier FSDB (logiciel FS de la CIVL) ou CSV avec une ligne d'en-tête : numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg, sponsor (seuls numero et nom sont obligatoires ; une colonne « voile » ou « sellette » seule est coupée en marque et modèle). Un pilote déjà inscrit sous le même numéro est mis à jour. Le numéro est celui des traces.",
         )}
       </p>
       <form method="post" action={`/competitions/${c.id}/pilots`}>
@@ -641,21 +643,65 @@ const StandingsInfo: FC<{ s: Standings }> = ({ s }) => {
 };
 
 const FtvCell: FC<{ ts: { score: number; fraction: number; counted: number } | undefined; included: boolean }> = ({ ts, included }) => {
-  if (!ts) return <td class="n ftv-out">{included ? "0,0" : ""}</td>;
-  if (!included) return <td class="n ftv-out">{pts(ts.score)}</td>;
-  if (ts.fraction >= 1) return <td class="n">{pts(ts.score)}</td>;
-  if (ts.fraction <= 0) return <td class="n ftv-out" title={t("Non retenue (FTV)")}>
+  if (!ts) return <td class="n sp ftv-out">{included ? "0,0" : ""}</td>;
+  if (!included) return <td class="n sp ftv-out">{pts(ts.score)}</td>;
+  if (ts.fraction >= 1) return <td class="n sp">{pts(ts.score)}</td>;
+  if (ts.fraction <= 0) return <td class="n sp ftv-out" title={t("Non retenue (FTV)")}>
         <s>{pts(ts.score)}</s>
       </td>;
   return (
-    <td class="n" title={t("Retenue à {pct} % (FTV)", { pct: fr(ts.fraction * 100, 1) })}>
+    <td class="n sp" title={t("Retenue à {pct} % (FTV)", { pct: fr(ts.fraction * 100, 1) })}>
       <span class="ftv-part">{pts(ts.counted)}</span>
       <s class="ftv-raw">{pts(ts.score)}</s>
     </td>
   );
 };
 
-export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: number; rid?: number }> = ({ c, s, limit, rid }) => {
+/** Colonnes d'identité des classements (genre, nation, matériel, sponsor), affichées si le registre les renseigne. */
+const identity = (registry: PilotRow[], keys: string[]) => {
+  const reg = new Map(registry.map((p) => [p.pilot_key, p]));
+  const of = (k: string) => reg.get(k);
+  const gear = (x: PilotRow | undefined) => [x?.glider_brand, x?.glider_model].filter(Boolean).join(" ");
+  const has = (f: (x: PilotRow | undefined) => unknown) => keys.some((k) => Boolean(f(of(k))));
+  const show = { gender: has((x) => x?.gender), nation: has((x) => x?.nation), gear: has(gear), sponsor: has((x) => x?.sponsor) };
+  const Head: FC = () => (
+    <>
+      {show.gender ? <th>{t("Genre")}</th> : null}
+      {show.nation ? <th>{t("Nat.")}</th> : null}
+      {show.gear ? <th>{t("Matériel")}</th> : null}
+      {show.sponsor ? <th>{t("Sponsor")}</th> : null}
+    </>
+  );
+  const Cells: FC<{ k: string }> = ({ k }) => {
+    const x = of(k);
+    return (
+      <>
+        {show.gender ? <td>{x?.gender ?? ""}</td> : null}
+        {show.nation ? <td>{x?.nation ?? ""}</td> : null}
+        {show.gear ? (
+          <td class="small" title={x?.glider_class ?? ""}>
+            {gear(x)}
+          </td>
+        ) : null}
+        {show.sponsor ? <td class="small">{x?.sponsor ?? ""}</td> : null}
+      </>
+    );
+  };
+  return { Head, Cells };
+};
+
+/** En-tête du total, avec le bouton qui déplie ou replie le détail sportif (colonnes .sp). */
+const TotalHead: FC = () => (
+  <th class="n total-h">
+    <button type="button" class="link sp-toggle" title={t("Afficher ou masquer le détail sportif")}>
+      <span class="sp-closed">{t("◂ détail")}</span>
+      <span class="sp-open">{t("▸ masquer")}</span>
+    </button>{" "}
+    {t("Total")}
+  </th>
+);
+
+export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: number; rid?: number; registry?: PilotRow[] }> = ({ c, s, limit, rid, registry = [] }) => {
   const r = s.ranking;
   const q = rid ? `?r=${rid}` : "";
   if (!s.ranked.length)
@@ -671,21 +717,23 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
   const pilots = limit ? r.pilots.slice(0, limit) : r.pilots;
   if (rid && !pilots.length) return <p class="muted">{t("Aucun pilote classé dans ce classement.")}</p>;
   const info = new Map(r.tasks.map((x) => [x.key, x]));
+  const id = identity(registry, pilots.map((p) => p.pilot));
   return (
     <>
       <StandingsInfo s={s} />
       <div class="scroll">
-        <table>
+        <table class="rk sport-hidden">
           <thead>
             <tr>
               <th class="n">#</th>
-              <th>{t("Pilote")}</th>
+              <th class="n">{t("N°")}</th>
               <th>{t("Nom")}</th>
+              <id.Head />
               {s.ranked.map((x) => {
                 const ti = info.get(String(x.t.id))!;
                 return (
                   <th
-                    class="n"
+                    class="n sp"
                     title={
                       ti.excluded
                         ? t("Non comptée : {why}", { why: t(ti.excluded) })
@@ -700,15 +748,16 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
                   </th>
                 );
               })}
-              <th class="n">{t("Total")}</th>
+              <TotalHead />
             </tr>
           </thead>
           <tbody>
             {pilots.map((p) => (
               <tr>
                 <td class="n">{p.rank}</td>
-                <td>{p.pilot}</td>
+                <td class="n muted">{p.pilot}</td>
                 <td>{p.name}</td>
+                <id.Cells k={p.pilot} />
                 {s.ranked.map((x) => (
                   <FtvCell ts={p.tasks[String(x.t.id)]} included={info.get(String(x.t.id))!.included} />
                 ))}
@@ -899,7 +948,7 @@ const StandingsBoard: FC<{ c: CompetitionRow; b: Board }> = ({ c, b }) => {
               {!pilots.length ? ` ${t("Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition.")}` : ""}
             </p>
           ) : null}
-          <StandingsTable c={c} s={s} rid={current?.row.id} />
+          <StandingsTable c={c} s={s} rid={current?.row.id} registry={pilots} />
           {current ? (
             <details class="fold" id="ranking-settings" open={Boolean(b.error)}>
               <summary>{t("Règle et pilotes de ce classement")}</summary>
@@ -1842,39 +1891,35 @@ const TaskResults: FC<{
   only?: Set<string>;
   rid?: number;
 }> = ({ r, tz, taskId, speedSection, registry, only, rid }) => {
-  const reg = new Map(registry.map((p) => [p.pilot_key, p]));
   const shown = only ? r.pilots.filter((p) => only.has(p.id)) : r.pilots;
   const withPen = shown.some((p) => p.penaltyPoints);
-  const hasNation = shown.some((p) => reg.get(p.id)?.nation);
-  const hasGlider = shown.some((p) => reg.get(p.id)?.glider_model || reg.get(p.id)?.glider_brand);
+  const id = identity(registry, shown.map((p) => p.id));
   if (!r.gap) return <div class="note">{t("Ce calcul date d'avant les points GAP : relancez-le pour les obtenir.")}</div>;
   if (only && !shown.length) return <p class="muted">{t("Aucun pilote de ce classement dans les résultats de la manche.")}</p>;
   return (
     <>
       <div class="scroll">
-        <table class="results">
+        <table class="rk sport-hidden">
           <thead>
             <tr>
               <th class="n">#</th>
               <th class="n">{t("N°")}</th>
-              <th>{t("Pilote")}</th>
-              {hasNation ? <th>{t("Nat.")}</th> : null}
-              {hasGlider ? <th>{t("Voile")}</th> : null}
-              <th>SS</th>
-              <th>ES</th>
-              <th class="n">{t("Temps")}</th>
-              <th class="n">{t("Vitesse (km/h)")}</th>
-              <th class="n">{t("Distance (km)")}</th>
-              <th class="n">{t("Pts distance")}</th>
-              <th class="n">{t("Pts leading")}</th>
-              <th class="n">{t("Pts temps")}</th>
-              {withPen ? <th class="n">{t("Pénalité")}</th> : null}
-              <th class="n">{t("Total")}</th>
+              <th>{t("Nom")}</th>
+              <id.Head />
+              <th class="sp">SS</th>
+              <th class="sp">ES</th>
+              <th class="n sp">{t("Temps")}</th>
+              <th class="n sp">{t("Vitesse (km/h)")}</th>
+              <th class="n sp">{t("Distance (km)")}</th>
+              <th class="n sp">{t("Pts distance")}</th>
+              <th class="n sp">{t("Pts leading")}</th>
+              <th class="n sp">{t("Pts temps")}</th>
+              {withPen ? <th class="n sp">{t("Pénalité")}</th> : null}
+              <TotalHead />
             </tr>
           </thead>
           <tbody>
             {shown.map((p, i) => {
-              const x = reg.get(p.id);
               const absent = p.status === "ABS" || p.status === "DNF";
               const timed = (p.status === "GOAL" || p.status === "ESS") && p.speedSectionTime;
               return (
@@ -1885,17 +1930,16 @@ const TaskResults: FC<{
                     {p.fixes ? <a href={`/tasks/${taskId}/pilots/${encodeURIComponent(p.id)}`}>{p.name}</a> : p.name}
                     <StatusTags p={p} />
                   </td>
-                  {hasNation ? <td>{x?.nation ?? ""}</td> : null}
-                  {hasGlider ? <td class="small">{[x?.glider_brand, x?.glider_model].filter(Boolean).join(" ")}</td> : null}
-                  <td>{absent ? "" : localTime(p.startTime, tz)}</td>
-                  <td>{timed ? localTime(p.essTime, tz) : ""}</td>
-                  <td class="n">{timed ? duration(p.speedSectionTime) : ""}</td>
-                  <td class="n">{timed ? fr((speedSection / p.speedSectionTime!) * 3.6, 1) : ""}</td>
-                  <td class="n">{absent ? <span class="chip">{p.status}</span> : p.error ? <span class="chip s-ERREUR">{t("Erreur")}</span> : km(p.distance)}</td>
-                  <td class="n">{pts(p.points?.distance)}</td>
-                  <td class="n">{pts(p.points?.leading)}</td>
-                  <td class="n">{pts(p.points?.time)}</td>
-                  {withPen ? <td class="n pen">{p.penaltyPoints ? `${p.penaltyPoints > 0 ? "−" : "+"}${pts(Math.abs(p.penaltyPoints))}` : ""}</td> : null}
+                  <id.Cells k={p.id} />
+                  <td class="sp">{absent ? "" : localTime(p.startTime, tz)}</td>
+                  <td class="sp">{timed ? localTime(p.essTime, tz) : ""}</td>
+                  <td class="n sp">{timed ? duration(p.speedSectionTime) : ""}</td>
+                  <td class="n sp">{timed ? fr((speedSection / p.speedSectionTime!) * 3.6, 1) : ""}</td>
+                  <td class="n sp">{absent ? <span class="chip">{p.status}</span> : p.error ? <span class="chip s-ERREUR">{t("Erreur")}</span> : km(p.distance)}</td>
+                  <td class="n sp">{pts(p.points?.distance)}</td>
+                  <td class="n sp">{pts(p.points?.leading)}</td>
+                  <td class="n sp">{pts(p.points?.time)}</td>
+                  {withPen ? <td class="n sp pen">{p.penaltyPoints ? `${p.penaltyPoints > 0 ? "−" : "+"}${pts(Math.abs(p.penaltyPoints))}` : ""}</td> : null}
                   <td class="n">
                     <strong>{pts(p.total)}</strong>
                   </td>

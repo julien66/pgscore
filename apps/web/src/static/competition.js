@@ -8,6 +8,26 @@
   openHash();
   window.addEventListener("hashchange", openHash);
 
+  // Détail sportif des classements (manches, temps, points) : replié par défaut, choix gardé par le navigateur.
+  const SPORT = "pgscore.sport";
+  let sportOpen = false;
+  try {
+    sportOpen = localStorage.getItem(SPORT) === "1";
+  } catch {}
+  const applySport = () => {
+    for (const tb of document.querySelectorAll("table.rk")) tb.classList.toggle("sport-hidden", !sportOpen);
+  };
+  applySport();
+  document.addEventListener("click", (ev) => {
+    const b = ev.target.closest && ev.target.closest("table.rk .sp-toggle");
+    if (!b) return;
+    sportOpen = !sportOpen;
+    try {
+      localStorage.setItem(SPORT, sportOpen ? "1" : "0");
+    } catch {}
+    applySport();
+  });
+
   // Onglets de classement (général, féminin…) et « voir tous » : seul le bloc [data-swap] est remplacé.
   async function loadBoard(url, id) {
     const cur = document.getElementById(id || "standings");
@@ -17,6 +37,7 @@
       const html = await (await fetch(url.split("#")[0], { cache: "no-store", credentials: "same-origin" })).text();
       const fresh = new DOMParser().parseFromString(html, "text/html").getElementById(cur.id);
       if (fresh) cur.innerHTML = fresh.innerHTML;
+      applySport();
     } finally {
       cur.classList.remove("loading");
     }

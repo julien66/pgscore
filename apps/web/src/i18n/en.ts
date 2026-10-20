@@ -1,5 +1,10 @@
 /** Traductions en : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Sponsor": "Sponsor",
+  "Matériel": "Equipment",
+  "Afficher ou masquer le détail sportif": "Show or hide the scoring details",
+  "◂ détail": "◂ details",
+  "▸ masquer": "▸ hide",
   "en gras, la part retenue d'une manche comptée en partie ; barré, le score de la manche non retenu": "in bold, the kept share of a partly counted task; struck through, the task score not kept",
   "{n} pilote au goal": "{n} pilot in goal",
   "{n} pilotes au goal": "{n} pilots in goal",
@@ -340,7 +345,7 @@ const dict: Record<string, string> = {
   "aucun inscrit": "none registered",
   "Importer": "Import",
   "Exporter en CSV": "Export as CSV",
-  "Fichier FSDB (logiciel FS de la CIVL) ou CSV avec une ligne d'en-tête : numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg (seuls numero et nom sont obligatoires ; une colonne « voile » ou « sellette » seule est coupée en marque et modèle). Un pilote déjà inscrit sous le même numéro est mis à jour. Le numéro est celui des traces.": "FSDB file (CIVL FS software) or CSV with a header row: numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg (only numero and nom are required; a single “voile” (glider) or “sellette” (harness) column is split into make and model). A pilot already registered under the same number is updated. The number is the one used in the tracks.",
+  "Fichier FSDB (logiciel FS de la CIVL) ou CSV avec une ligne d'en-tête : numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg, sponsor (seuls numero et nom sont obligatoires ; une colonne « voile » ou « sellette » seule est coupée en marque et modèle). Un pilote déjà inscrit sous le même numéro est mis à jour. Le numéro est celui des traces.": "FSDB file (CIVL FS software) or CSV with a header row: numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg, sponsor (only numero and nom are required; a single “voile” (glider) or “sellette” (harness) column is split into make and model). A pilot already registered under the same number is updated. The number is the one used in the tracks.",
   "Retirer": "Remove",
   "Retirer ce pilote à l'enregistrement": "Remove this pilot on save",
   "nouveau": "new",

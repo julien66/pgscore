@@ -171,6 +171,8 @@ export const MIGRATIONS: Migration[] = [
    );
    INSERT INTO competition_rankings (competition_id, name, rule, created_at)
      SELECT id, 'Féminin', '{"conditions":[{"field":"gender","op":"in","value":"F"}]}', created_at FROM competitions;`,
+  // Sponsor du pilote, affiché dans les classements.
+  `ALTER TABLE competition_pilots ADD COLUMN sponsor TEXT;`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {
@@ -244,6 +246,7 @@ export interface PilotRow {
   harness_brand: string | null;
   harness_model: string | null;
   weight_max: number | null;
+  sponsor: string | null;
 }
 
 export interface RankingRow {
