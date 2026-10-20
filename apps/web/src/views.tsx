@@ -67,7 +67,7 @@ table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{
 [data-swap].loading{opacity:.55;transition:opacity .15s}
 .tabs a.tab-end{margin-left:auto}
 table.rk.sport-hidden .sp{display:none}table.rk .sp-open{display:none}table.rk:not(.sport-hidden) .sp-open{display:inline}table.rk:not(.sport-hidden) .sp-closed{display:none}
-td.gear{line-height:1.25}.sp-toggle{font-size:11px;text-transform:none;letter-spacing:0;color:var(--accent)}
+td.gear{line-height:1.25}table td.sponsor{white-space:normal;min-width:160px;max-width:260px;overflow-wrap:anywhere;line-height:1.25}.sp-toggle{font-size:11px;text-transform:none;letter-spacing:0;color:var(--accent)}
 .details h3{font-size:16px;margin:22px 0 6px}.details ul{margin:4px 0 10px;padding-left:20px}
 table.calc{margin:4px 0 8px}table.calc th{width:190px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text);vertical-align:top}
 table.calc td.how{white-space:normal;color:var(--muted);font-size:13px}table.calc td.val{width:110px;vertical-align:top;font-variant-numeric:tabular-nums}
@@ -686,7 +686,7 @@ const identity = (registry: PilotRow[], keys: string[]) => {
             {harness(x) ? <div class="muted">{harness(x)}</div> : null}
           </td>
         ) : null}
-        {show.sponsor ? <td class="small">{x?.sponsor ?? ""}</td> : null}
+        {show.sponsor ? <td class="small sponsor">{x?.sponsor ?? ""}</td> : null}
       </>
     );
   };
