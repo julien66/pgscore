@@ -1,6 +1,7 @@
 import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import { GAP_RULES, NOMINAL_GOAL, NOMINAL_LAUNCH, speedFraction, type DecisionKind, type LeadingWarning, type PilotResult, type Task, type TaskScoring } from "@pgscore/engine";
+import type { ApiTokenRow } from "./auth.js";
 import type { CompetitionRow, DecisionRow, PilotRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
 import { DECISION_KINDS } from "./decisions.js";
 import { GAP_PROFILES, LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
@@ -17,7 +18,7 @@ const CSS = `
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 header{background:var(--card);border-bottom:1px solid var(--line)}
 header .in{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
-header .brand{font-weight:700;font-size:17px;color:var(--text)}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}header .login{font-size:14px;font-weight:600}
+header .brand{font-weight:700;font-size:17px;color:var(--text)}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}header .login{font-size:14px;font-weight:600}header a.who:hover{color:var(--accent)}pre.code{background:var(--chip);padding:8px 10px;border-radius:7px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.doc h2{margin-top:18px}
 main{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
 h1{font-size:24px;margin:4px 0 16px}h2{font-size:18px;margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ic{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;flex:none;color:var(--hue);background:color-mix(in srgb,var(--hue) 13%,var(--card))}
@@ -109,6 +110,7 @@ const ICONS = {
   filter: '<path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
   save: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
   play: '<path d="M6 3l14 9-14 9z"/>',
   trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
@@ -162,7 +164,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
           </nav>
           {user ? (
             <>
-              <span class="who">{user.name ?? user.email}</span>
+              <a class="who" href="/account" title={t("Mon compte et clés d'API")}>{user.name ?? user.email}</a>
               <form method="post" action="/auth/logout">
                 <button class="link">{t("Se déconnecter")}</button>
               </form>
@@ -245,7 +247,7 @@ const CompList: FC<{ list: HomeComp[] }> = ({ list }) => (
 );
 
 /** Accueil : ses compétitions quand on est connecté, puis les compétitions récemment calculées, visibles de tous. */
-export const HomePage: FC<{ user: User | null; mine: HomeComp[]; recent: HomeComp[] }> = ({ user, mine, recent }) => (
+export const HomePage: FC<{ user: User | null; mine: HomeComp[]; recent: HomeComp[]; error?: string | null }> = ({ user, mine, recent, error }) => (
   <Layout title={user ? t("Mes compétitions") : t("Compétitions")} user={user}>
     {user ? (
       <>
@@ -256,8 +258,17 @@ export const HomePage: FC<{ user: User | null; mine: HomeComp[]; recent: HomeCom
             {t("Nouvelle compétition")}
           </a>
         </div>
+        <ErrorBox message={error} />
         <div class="card">
           {mine.length ? <CompList list={mine} /> : <p class="muted">{t("Pas encore de compétition. Créez-en une pour y ajouter des manches.")}</p>}
+          <form method="post" action="/competitions/import" enctype="multipart/form-data" class="row mt">
+            <span class="small muted">{t("Importer une compétition exportée de pgscore (archive ZIP) :")}</span>
+            <input type="file" name="file" accept=".zip,.json" required />
+            <button>
+              <Bi n="upload" />
+              {t("Importer")}
+            </button>
+          </form>
         </div>
       </>
     ) : null}
@@ -499,6 +510,17 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }>
       <h2><Ic n="trophy" c="amber" />{t("Classements")}</h2>
       <StandingsBoard c={c} b={board} />
     </div>
+    <p class="small muted">
+      {t("Télécharger la compétition :")}{" "}
+      <a class="act" href={`/api/competitions/${c.id}/export`}>
+        <Bi n="download" /> {t("archive complète avec les traces (ZIP)")}
+      </a>{" "}
+      ·{" "}
+      <a class="act" href={`/api/competitions/${c.id}/export?tracks=0`}>
+        {t("sans les traces")}
+      </a>{" "}
+      · <a href="/api">{t("API")}</a>
+    </p>
     <script src="/static/competition.js" />
   </>
 );
@@ -2253,5 +2275,108 @@ export const NotFound: FC<{ user?: User | null }> = ({ user }) => (
     </p>
   </Layout>
 );
+
+
+/** Mon compte : clés d'API pour les programmes (import et export de compétitions). */
+export const AccountPage: FC<{ user: User; tokens: ApiTokenRow[]; baseUrl: string; token: string | null; error: string | null }> = ({ user, tokens, baseUrl, token, error }) => (
+  <Layout title={t("Mon compte")} user={user}>
+    <div class="crumbs">
+      <a href="/">{t("Compétitions")}</a>
+    </div>
+    <h1>{t("Mon compte")}</h1>
+    <p class="muted">{user.email}</p>
+    <ErrorBox message={error} />
+    <div class="card">
+      <h2><Ic n="key" c="purple" />{t("Clés d'API")}</h2>
+      <p class="small muted">
+        {t("Une clé permet à un programme d'agir en votre nom : importer des compétitions et modifier les vôtres. Gardez-la secrète ; supprimez-la si elle a pu fuiter.")}{" "}
+        <a href="/api">{t("Documentation de l'API")}</a>
+      </p>
+      {token ? (
+        <div class="note">
+          <p>{t("Nouvelle clé, affichée une seule fois : copiez-la maintenant.")}</p>
+          <pre class="code">{token}</pre>
+          <pre class="code">{`curl -H "Authorization: Bearer ${token}" ${baseUrl}/api/competitions`}</pre>
+        </div>
+      ) : null}
+      {tokens.length ? (
+        <table>
+          <thead>
+            <tr>
+              <th>{t("Nom")}</th>
+              <th>{t("Créée le")}</th>
+              <th>{t("Dernière utilisation")}</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {tokens.map((k) => (
+              <tr>
+                <td>{k.name}</td>
+                <td>{new Date(k.created_at).toLocaleString(locale())}</td>
+                <td>{k.last_used_at ? new Date(k.last_used_at).toLocaleString(locale()) : t("jamais")}</td>
+                <td class="n">
+                  <form method="post" action={`/account/tokens/${k.id}/delete`}>
+                    <button class="link">
+                      <Bi n="trash" /> {t("Supprimer")}
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+      <form method="post" action="/account/tokens" class="row mt">
+        <input type="text" name="name" placeholder={t("Nom de la clé (ex. script d'export)")} style="max-width:320px" required />
+        <button class="primary">
+          <Bi n="plus" />
+          {t("Créer une clé")}
+        </button>
+      </form>
+    </div>
+  </Layout>
+);
+
+/** Documentation de l'API, avec des exemples prêts à copier. */
+export const ApiDocPage: FC<{ user: User | null; baseUrl: string }> = ({ user, baseUrl }) => {
+  const K = "pgs_xxxxxxxx";
+  return (
+    <Layout title={t("API")} user={user}>
+      <div class="crumbs">
+        <a href="/">{t("Compétitions")}</a>
+      </div>
+      <h1>{t("API")}</h1>
+      <div class="card doc">
+        <p>
+          {t("Les lectures sont libres. Les écritures demandent une clé d'API, créée dans")} <a href="/account">{t("Mon compte")}</a>{" "}
+          {t("et envoyée dans l'en-tête Authorization.")}
+        </p>
+        <pre class="code">{`Authorization: Bearer ${K}`}</pre>
+
+        <h2>{t("Lister les compétitions")}</h2>
+        <pre class="code">{`curl ${baseUrl}/api/competitions`}</pre>
+        <p class="small muted">{t("Pour chaque compétition : id, nom, lieu, dates, adresse, date du dernier calcul, et si la clé peut la modifier.")}</p>
+
+        <h2>{t("Exporter une compétition")}</h2>
+        <pre class="code">{`curl -o gemona.pgscore.zip ${baseUrl}/api/competitions/12/export\ncurl -o gemona.pgscore.zip "${baseUrl}/api/competitions/12/export?tracks=0"   # ${t("sans les traces")}`}</pre>
+        <p class="small muted">
+          {t("Archive ZIP : competition.json (réglages, espace aérien, pilotes, classements, manches, décisions, liste des traces et derniers résultats) et les fichiers IGC tels que reçus, sous tracks/m<numéro>/<empreinte SHA-256>.igc.")}
+        </p>
+
+        <h2>{t("Importer une compétition")}</h2>
+        <pre class="code">{`curl -H "Authorization: Bearer ${K}" --data-binary @gemona.pgscore.zip \\\n     -H "Content-Type: application/zip" ${baseUrl}/api/competitions/import`}</pre>
+        <p class="small muted">
+          {t("Crée une nouvelle compétition qui vous appartient, résultats compris (sans relancer de calcul). Réponse : id, adresse, nombre de manches, pilotes et traces. L'empreinte de chaque fichier IGC est vérifiée.")}
+        </p>
+
+        <h2>{t("Autres actions")}</h2>
+        <p class="small muted">
+          {t("Avec la clé, un programme peut aussi utiliser les formulaires du site (envoi de traces, calcul, officialisation…) sur les compétitions qu'il a le droit de modifier.")}
+        </p>
+      </div>
+    </Layout>
+  );
+};
 
 export type { Child };

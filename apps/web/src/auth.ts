@@ -155,3 +155,37 @@ export function deleteSession(db: Db, token: string | undefined): void {
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
+
+// --- Clés d'API ------------------------------------------------------------------------------
+
+export interface ApiTokenRow {
+  id: number;
+  name: string;
+  created_at: number;
+  last_used_at: number | null;
+}
+
+/** Crée une clé d'API pour l'utilisateur. La clé n'est montrée qu'une fois : seule son empreinte est gardée. */
+export function createApiToken(db: Db, userId: number, name: string): string {
+  const token = `pgs_${b64url(randomBytes(30))}`;
+  db.prepare("INSERT INTO api_tokens (user_id, name, token_hash, created_at) VALUES (?, ?, ?, ?)").run(userId, name, hashToken(token), Date.now());
+  return token;
+}
+
+export function listApiTokens(db: Db, userId: number): ApiTokenRow[] {
+  return db.prepare("SELECT id, name, created_at, last_used_at FROM api_tokens WHERE user_id = ? ORDER BY id DESC").all(userId) as unknown as ApiTokenRow[];
+}
+
+export function deleteApiToken(db: Db, userId: number, id: number): void {
+  db.prepare("DELETE FROM api_tokens WHERE id = ? AND user_id = ?").run(id, userId);
+}
+
+/** Utilisateur d'une clé d'API (en-tête « Authorization: Bearer pgs_… »). */
+export function apiTokenUser(db: Db, token: string): User | null {
+  const hash = hashToken(token);
+  const row = db
+    .prepare("SELECT u.id, u.provider, u.subject, u.email, u.name FROM api_tokens k JOIN users u ON u.id = k.user_id WHERE k.token_hash = ?")
+    .get(hash) as unknown as User | undefined;
+  if (row) db.prepare("UPDATE api_tokens SET last_used_at = ? WHERE token_hash = ?").run(Date.now(), hash);
+  return row ?? null;
+}

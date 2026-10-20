@@ -173,6 +173,15 @@ export const MIGRATIONS: Migration[] = [
      SELECT id, 'Féminin', '{"conditions":[{"field":"gender","op":"in","value":"F"}]}', created_at FROM competitions;`,
   // Sponsor du pilote, affiché dans les classements.
   `ALTER TABLE competition_pilots ADD COLUMN sponsor TEXT;`,
+  // Clés d'API personnelles, pour l'accès par programme (import et export de compétitions).
+  `CREATE TABLE api_tokens (
+     id INTEGER PRIMARY KEY,
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     name TEXT NOT NULL,
+     token_hash TEXT NOT NULL UNIQUE,
+     created_at INTEGER NOT NULL,
+     last_used_at INTEGER
+   );`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {

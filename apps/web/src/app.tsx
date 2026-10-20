@@ -2,7 +2,11 @@ import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { parseOpenAir, parseXctsk, taskDistances, type Task } from "@pgscore/engine";
 import {
+  apiTokenUser,
+  createApiToken,
   createSession,
+  deleteApiToken,
+  listApiTokens,
   deleteSession,
   GOOGLE_ISSUER,
   handleCallback,
@@ -26,8 +30,11 @@ import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRanki
 import { listPilots, pilotsCsv, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
 import { vendorFile } from "./vendor.js";
+import { exportCompetition, importCompetition } from "./archive.js";
 import { readFileSync } from "node:fs";
 import {
+  AccountPage,
+  ApiDocPage,
   CompetitionPage,
   HomePage,
   LoginPage,
@@ -172,10 +179,13 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
 
   // --- Consultation libre, modifications après connexion -------------------------------------
   // Les compétitions, manches et classements se consultent sans compte ; créer ou modifier demande d'être connecté.
-  const needsLogin = (c: Context<Env>) => c.req.method !== "GET" || /\/(edit|new)$/.test(c.req.path);
+  // Programmes : clé d'API dans l'en-tête « Authorization: Bearer pgs_… », à la place du cookie de session.
+  const needsLogin = (c: Context<Env>) => c.req.method !== "GET" || /\/(edit|new)$/.test(c.req.path) || c.req.path === "/account";
   app.use("*", async (c, next) => {
-    const user = sessionUser(db, getCookie(c, SESSION_COOKIE)) ?? null;
-    if (!user && needsLogin(c)) return c.redirect("/login");
+    const bearer = /^Bearer\s+(\S+)$/i.exec(c.req.header("authorization") ?? "")?.[1];
+    const user = bearer ? apiTokenUser(db, bearer) : (sessionUser(db, getCookie(c, SESSION_COOKIE)) ?? null);
+    if (bearer && !user) return c.json({ error: t("Clé d'API inconnue ou supprimée.") }, 401);
+    if (!user && needsLogin(c)) return c.req.path.startsWith("/api/") ? c.json({ error: t("Connexion requise : clé d'API attendue.") }, 401) : c.redirect("/login");
     c.set("user", user);
     await next();
   });
@@ -238,7 +248,92 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       .sort((a, b) => b.scored_at! - a.scored_at!)
       .slice(0, 30)
       .map((r) => ({ ...r, owner: r.owner_name || "", scoredAt: r.scored_at! }));
-    return c.html(<HomePage user={user} mine={user ? rows.filter((r) => r.owner_id === user.id) : []} recent={recent} />);
+    return c.html(<HomePage user={user} mine={user ? rows.filter((r) => r.owner_id === user.id) : []} recent={recent} error={c.req.query("error") ?? null} />);
+  });
+
+  // --- Clés d'API (page « Mon compte ») ------------------------------------------------------
+  const accountPage = (c: Context<Env>, extra: { token?: string; error?: string } = {}) =>
+    c.html(<AccountPage user={me(c)} tokens={listApiTokens(db, me(c).id)} baseUrl={cfg.baseUrl} token={extra.token ?? null} error={extra.error ?? null} />, extra.error ? 400 : 200);
+  app.get("/account", (c) => accountPage(c));
+  app.post("/account/tokens", async (c) => {
+    const f = await c.req.parseBody();
+    const name = String(f.name ?? "").trim();
+    if (!name) return accountPage(c, { error: t("Donnez un nom à la clé (par exemple le programme qui l'utilise).") });
+    return accountPage(c, { token: createApiToken(db, me(c).id, name.slice(0, 80)) });
+  });
+  app.post("/account/tokens/:tid/delete", (c) => {
+    deleteApiToken(db, me(c).id, Number(c.req.param("tid")));
+    return c.redirect("/account");
+  });
+  app.get("/api", (c) => c.html(<ApiDocPage user={c.get("user")} baseUrl={cfg.baseUrl} />));
+
+  // --- API : liste, export et import de compétitions ---------------------------------------------
+  const MAX_IMPORT = 1024 * 1024 * 1024;
+  const slug = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "competition";
+  const scoredAt = db.prepare(
+    "SELECT MAX(r.finished_at) AS at FROM runs r JOIN tasks tk ON tk.id = r.task_id WHERE tk.competition_id = ? AND r.status = 'done'",
+  );
+  app.get("/api/competitions", (c) => {
+    const rows = db.prepare("SELECT * FROM competitions ORDER BY COALESCE(start_date, '') DESC, id DESC").all() as unknown as CompetitionRow[];
+    const user = c.get("user");
+    return c.json(
+      rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        location: r.location,
+        start_date: r.start_date,
+        end_date: r.end_date,
+        url: `${cfg.baseUrl}/competitions/${r.id}`,
+        export: `${cfg.baseUrl}/api/competitions/${r.id}/export`,
+        scored_at: (scoredAt.get(r.id) as { at: number | null }).at,
+        editable: canEdit(c, r),
+        mine: r.owner_id === user?.id,
+      })),
+    );
+  });
+  app.get("/api/competitions/:id/export", (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return c.json({ error: t("Compétition introuvable.") }, 404);
+    const withTracks = c.req.query("tracks") !== "0";
+    const zip = exportCompetition(db, tracks, comp, { tracks: withTracks });
+    return c.body(zip as Uint8Array<ArrayBuffer>, 200, {
+      "content-type": "application/zip",
+      "content-disposition": `attachment; filename="${slug(comp.name)}${withTracks ? "" : "-sans-traces"}.pgscore.zip"`,
+    });
+  });
+  const readImport = async (c: Context<Env>): Promise<Uint8Array> => {
+    if (Number(c.req.header("content-length") ?? 0) > MAX_IMPORT) throw new FormError(t("Archive trop grosse (1 Go au plus)."));
+    if ((c.req.header("content-type") ?? "").startsWith("multipart/form-data")) {
+      const f = await c.req.parseBody();
+      if (!(f.file instanceof File) || !f.file.size) throw new FormError(t("Choisissez l'archive de la compétition."));
+      return new Uint8Array(await f.file.arrayBuffer());
+    }
+    return new Uint8Array(await c.req.arrayBuffer());
+  };
+  app.post("/api/competitions/import", async (c) => {
+    try {
+      const r = importCompetition(db, tracks, me(c).id, await readImport(c));
+      return c.json({ ...r, url: `${cfg.baseUrl}/competitions/${r.id}` }, 201);
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return c.json({ error: e.message }, 400);
+    }
+  });
+  // Même import depuis la page d'accueil (formulaire).
+  app.post("/competitions/import", async (c) => {
+    try {
+      const r = importCompetition(db, tracks, me(c).id, await readImport(c));
+      const msg = [
+        t("Compétition importée : {tasks} manches, {pilots} pilotes, {tracks} traces.", { tasks: r.tasks, pilots: r.pilots, tracks: r.tracks }),
+        r.missingTracks ? t("{n} traces sans fichier dans l'archive n'ont pas été reprises.", { n: r.missingTracks }) : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return c.redirect(`/competitions/${r.id}?msg=${encodeURIComponent(msg)}`);
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return c.redirect(`/?error=${encodeURIComponent(e.message)}`);
+    }
   });
 
   // --- Compétitions ------------------------------------------------------------------------
