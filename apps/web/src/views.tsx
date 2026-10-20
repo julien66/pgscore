@@ -409,6 +409,22 @@ export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValue
         </button>
       </div>
     </form>
+    <form
+      method="post"
+      action="/competitions/import"
+      class="card civl-import mt"
+      data-busy={t("Lecture des manches sur civlcomps.org et téléchargement des traces : comptez une à deux minutes, puis le calcul des manches démarre.")}
+    >
+      <h2><Ic n="upload" c="blue" />{t("Importer depuis civlcomps.org")}</h2>
+      <p class="small muted">{t("Adresse de la page de résultats de l'événement : les manches, les pilotes, les pénalités, les absents et les traces publiées sont repris, puis les points recalculés. Le type de goal n'y figure pas : il est lu comme un cylindre.")}</p>
+      <div class="row">
+        <input type="url" name="civl_url" placeholder="https://civlcomps.org/event/german-open-2026/results" required style="flex:1" />
+        <button class="primary">
+          <Bi n="upload" />
+          {t("Importer")}
+        </button>
+      </div>
+    </form>
     <script src="/static/run.js" />
     <h2 class="mt">{t("Ou créer une compétition vide")}</h2>
     <form method="post" action="/competitions" enctype="multipart/form-data" class="card">
