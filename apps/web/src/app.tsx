@@ -608,6 +608,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         rankings={rk.list}
         ranking={rk.current}
         details={c.req.query("view") === "details"}
+        registry={listPilots(db, comp.id)}
         running={isRunning(t.id) || run?.status === "running" || run?.status === "queued"}
         error={extra.error ?? null}
         notice={extra.notice ?? null}

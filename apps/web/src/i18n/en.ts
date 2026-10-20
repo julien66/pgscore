@@ -1,5 +1,10 @@
 /** Traductions en : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Nat.": "Nat.",
+  "Voile": "Glider",
+  "Vitesse (km/h)": "Speed (km/h)",
+  "Distance (km)": "Distance (km)",
+  "Heures locales ; vitesse sur la section de vitesse ({d} km).": "Local times; speed over the speed section ({d} km).",
   "Détails de la manche": "Task details",
   "Points distance": "Distance points",
   "{d} km / meilleure distance {best} km × {avail} points distance": "{d} km / best distance {best} km × {avail} distance points",
