@@ -36,6 +36,7 @@ import { readFileSync } from "node:fs";
 import {
   AccountPage,
   ApiDocPage,
+  AboutPage,
   CompetitionPage,
   HomePage,
   LoginPage,
@@ -266,6 +267,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     deleteApiToken(db, me(c).id, Number(c.req.param("tid")));
     return c.redirect("/account");
   });
+  app.get("/about", (c) => c.html(<AboutPage user={c.get("user")} />));
   app.get("/api", (c) => c.html(<ApiDocPage user={c.get("user")} baseUrl={cfg.baseUrl} />));
 
   // --- API : liste, export et import de compétitions ---------------------------------------------

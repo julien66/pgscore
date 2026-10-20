@@ -18,7 +18,7 @@ const CSS = `
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 header{background:var(--card);border-bottom:1px solid var(--line)}
 header .in{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
-header .brand{font-weight:700;font-size:17px;color:var(--text)}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}header .login{font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--text)}header .login:hover{border-color:var(--accent)}.gg{flex:none}a.btn.gbtn{background:#fff;color:#1f1f1f;border:1px solid #747775;font-weight:600;gap:10px;padding:10px 16px}a.btn.gbtn:hover{background:#f6f8fc}header a.who:hover{color:var(--accent)}pre.code{background:var(--chip);padding:8px 10px;border-radius:7px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.doc h2{margin-top:18px}
+header .brand{font-weight:700;font-size:17px;color:var(--text)}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}header .login{font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--text)}header .login:hover{border-color:var(--accent)}.gg{flex:none}a.btn.gbtn{background:#fff;color:#1f1f1f;border:1px solid #747775;font-weight:600;gap:10px;padding:10px 16px}a.btn.gbtn:hover{background:#f6f8fc}header a.who:hover{color:var(--accent)}footer{max-width:1200px;margin:0 auto;padding:0 16px 30px;color:var(--muted);font-size:13px;text-align:center}footer a{color:var(--muted)}footer a:hover{color:var(--accent)}@media print{footer{display:none}}.about{max-width:960px}.about .card h2{margin-top:0}.about .lead{font-size:17px;line-height:1.55}.about h2{margin-top:22px}.about ul{padding-left:20px;line-height:1.6}.about .pill2{display:flex;gap:12px;flex-wrap:wrap}.about .pill2>div{flex:1 1 300px}pre.code{background:var(--chip);padding:8px 10px;border-radius:7px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.doc h2{margin-top:18px}
 main{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
 h1{font-size:24px;margin:4px 0 16px}h2{font-size:18px;margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ic{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;flex:none;color:var(--hue);background:color-mix(in srgb,var(--hue) 13%,var(--card))}
@@ -118,6 +118,8 @@ const ICONS = {
   userMinus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/>',
   login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
   refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  unlock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
   key: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
 } as const;
 const ICON_COLORS = { blue: "#2563eb", amber: "#d97706", green: "#16a34a", red: "#dc2626", purple: "#7c3aed", teal: "#0d9488", gray: "#64748b", pink: "#db2777" } as const;
@@ -178,6 +180,9 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
         </div>
       </header>
       <main>{children}</main>
+      <footer>
+        <a href="/about">{t("À propos de pgscore")}</a> · <a href="/api">{t("API")}</a>
+      </footer>
     </body>
   </html>
   </>
@@ -2406,5 +2411,55 @@ export const ApiDocPage: FC<{ user: User | null; baseUrl: string }> = ({ user, b
     </Layout>
   );
 };
+
+export const AboutPage: FC<{ user: User | null }> = ({ user }) => (
+  <Layout title={t("À propos")} user={user}>
+    <div class="about">
+      <h1>{t("À propos de pgscore")}</h1>
+      <p class="lead">
+        {t("pgscore est un logiciel de contrôle des traces et de scoring des compétitions de parapente cross-country. Il applique la formule GAP du Sporting Code FAI Section 7F (édition 2026), dans un navigateur, sans rien installer.")}
+      </p>
+
+      <div class="pill2">
+        <div class="card">
+          <h2><Ic n="zap" c="blue" />{t("Un outil moderne")}</h2>
+          <p>
+            {t("Les outils de référence ont fait leurs preuves, mais ils datent : FS est un logiciel Windows à installer sur le poste du scoreur, AirScore est né en 2007 en Perl et PHP. pgscore repart de zéro avec les technologies et les règles d'aujourd'hui.")}
+          </p>
+          <ul>
+            <li>{t("Une application web : le scoreur, les pilotes et le public voient les mêmes résultats, en direct, sur ordinateur comme sur téléphone.")}</li>
+            <li>{t("Les règles 2026 : formule S7F 2026 ou PWCA 2026, manches arrêtées, FTV, espaces aériens, pénalités et décisions tracées.")}</li>
+            <li>{t("Des calculs vérifiés : sur 7 manches de la PWCA, environ 480 pilotes, les points tombent au dixième près.")}</li>
+            <li>{t("Les formats du terrain : QR code et fichier XCTrack, traces IGC, espaces aériens OpenAir, import et export FSDB pour FS.")}</li>
+            <li>{t("Des sorties prêtes à publier : classements extraits (féminin, nations, sport…), CSV, impression A4, visualisation 3D des vols.")}</li>
+            <li>{t("Une API pour brancher d'autres outils : export et import de compétitions entières.")}</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2><Ic n="unlock" c="green" />{t("Libre et indépendant")}</h2>
+          <p>
+            {t("pgscore est un logiciel libre et open source : son code est public, chacun peut le lire, vérifier comment les points sont calculés, le corriger et l'améliorer.")}
+          </p>
+          <ul>
+            <li>{t("Transparent : un résultat se vérifie en lisant le code, pas en faisant confiance à une boîte noire.")}</li>
+            <li>{t("Indépendant : aucun éditeur commercial, aucune licence à payer, aucune dépendance à un service fermé.")}</li>
+            <li>{t("Ouvert : vos données vous appartiennent. Une compétition s'exporte en entier, traces comprises, dans un format documenté.")}</li>
+            <li>{t("Partagé : un club, une ligue ou une fédération peut l'installer sur son propre serveur.")}</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><Ic n="users" c="amber" />{t("Qui porte le projet")}</h2>
+        <p>
+          {t("pgscore est porté par le travail de la FFVL (Fédération française de vol libre) et de Julien Garcia. Il est développé pour les compétitions de parapente de tous niveaux, de la compétition de club à la Coupe du monde.")}
+        </p>
+        <p class="small muted">
+          {t("Code source, questions et contributions :")} <a href="https://github.com/julien66/pgscore">github.com/julien66/pgscore</a>
+        </p>
+      </div>
+    </div>
+  </Layout>
+);
 
 export type { Child };
