@@ -33,7 +33,7 @@ import { taskGeometry, viewerData } from "./viewer-data.js";
 import { vendorFile } from "./vendor.js";
 import { exportCompetition, importCompetition, writeArchive } from "./archive.js";
 import { competitionFsdb, competitionFsdbZip, fsdbToArchive, looksLikeFsdb } from "./fsdb.js";
-import { civlToArchive } from "./civlcomps.js";
+import { civlToArchive, GOAL_LINE_LENGTH } from "./civlcomps.js";
 import { readFileSync } from "node:fs";
 import {
   AccountPage,
@@ -923,12 +923,12 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     try {
       const tz = parseSettings(x.comp.params).timeZone;
       if (f.type === "race" || f.type === "time-trial") task.type = f.type;
-      // Goal : cylindre de rayon r ou ligne de longueur 2r, centrés sur la même balise.
+      // Goal : une ligne fait 200 m de large (demi-cercle derrière) ; un cylindre fait 200 m de rayon ou plus.
       const goal = task.turnpoints.at(-1);
       if (goal && f.goalKind === "goal-line" && goal.zone.kind === "cylinder")
-        goal.zone = { kind: "goal-line", waypoint: goal.zone.waypoint, length: 2 * goal.zone.radius };
+        goal.zone = { kind: "goal-line", waypoint: goal.zone.waypoint, length: GOAL_LINE_LENGTH };
       else if (goal && f.goalKind === "cylinder" && goal.zone.kind === "goal-line")
-        goal.zone = { kind: "cylinder", waypoint: goal.zone.waypoint, radius: goal.zone.length / 2 };
+        goal.zone = { kind: "cylinder", waypoint: goal.zone.waypoint, radius: Math.max(GOAL_LINE_LENGTH, goal.zone.length / 2) };
       if (stop) task.stopAnnouncement = localHmsToUtc(stop, date, tz);
       else delete task.stopAnnouncement;
       const gr = String(f.bonusGlideRatio ?? "").trim().replace(",", ".");

@@ -104,8 +104,7 @@ describe("interface web", () => {
     const flip = g0.kind === "cylinder" ? "goal-line" : "cylinder";
     await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, goalKind: flip }) });
     expect(goal().kind).toBe(flip);
-    await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, goalKind: g0.kind }) });
-    expect(goal()).toEqual(g0);
+    if (flip === "goal-line") expect(goal().length).toBe(200);
   });
 
   it("enregistre et supprime les décisions de l'organisateur", async () => {

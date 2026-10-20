@@ -21,6 +21,8 @@ import type { TrackStore } from "./track-store.js";
  */
 
 export const CIVLCOMPS_HOST = "civlcomps.org";
+/** Largeur habituelle d'une ligne de goal, en mètres. */
+export const GOAL_LINE_LENGTH = 200;
 const USER_AGENT = "pgscore (import de compétition à la demande d'un organisateur)";
 
 /** Téléchargement : adresse → octets. Remplaçable pour les tests. */
@@ -357,11 +359,12 @@ export function fitToStats(turnpoints: TaskTurnpoint[], stats: Record<string, st
   const goal = turnpoints[last]!;
   const cyl = goal.zone;
   if (cyl.kind !== "cylinder") return;
-  const line = { kind: "goal-line" as const, waypoint: cyl.waypoint, length: 2 * cyl.radius };
+  const line = { kind: "goal-line" as const, waypoint: cyl.waypoint, length: GOAL_LINE_LENGTH };
   const roles = turnpoints.map((x) => x.role);
   const tol = (d: number) => Math.max(50, d * 0.001);
   let best: { err: number; ess: number; zone: typeof cyl | typeof line } | null = null;
-  for (const zone of [cyl, line])
+  // Un goal de plus de 200 m est presque toujours un cylindre : la ligne n'est envisagée qu'en dessous.
+  for (const zone of cyl.radius > GOAL_LINE_LENGTH ? [cyl] : [cyl, line])
     for (let ess = ss + 1; ess <= last; ess++) {
       const trial = turnpoints.map((x, i) => ({
         role: i === last ? ("goal" as const) : i === ess ? ("ess" as const) : x.role === "ess" ? ("turnpoint" as const) : x.role,
