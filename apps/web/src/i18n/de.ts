@@ -684,5 +684,8 @@ const dict: Record<string, string> = {
   "Type de goal": "Goal-Typ",
   "Cylindre": "Zylinder",
   "Ligne (demi-cercle derrière)": "Linie (Halbkreis dahinter)",
+  "Depuis un fichier : archive pgscore (ZIP) ou fichier FS (.fsdb, seul ou en ZIP avec ses traces).": "Aus einer Datei: pgscore-Archiv (ZIP) oder FS-Datei (.fsdb, allein oder als ZIP mit den Tracks).",
+  "Ou depuis civlcomps.org : adresse de la page de résultats de l'événement. Les manches, les pilotes, les pénalités, les absents et les traces publiées sont repris ; vérifiez ensuite le type de goal de chaque manche, que civlcomps ne publie pas.": "Oder von civlcomps.org: Adresse der Ergebnisseite der Veranstaltung. Tasks, Piloten, Strafen, Abwesenheiten und veröffentlichte Tracks werden übernommen; prüfen Sie danach den Goal-Typ jedes Tasks, den civlcomps nicht veröffentlicht.",
+  "La compétition est créée avec ses manches, ses pilotes et ses traces, puis les points sont calculés.": "Der Wettbewerb wird mit Tasks, Piloten und Tracks angelegt, dann werden die Punkte berechnet.",
 };
 export default dict;
