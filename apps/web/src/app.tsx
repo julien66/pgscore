@@ -121,6 +121,12 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     db.prepare("SELECT 1").get();
     return c.text("ok");
   });
+  // Logo du projet (route optimisée qui frôle les cylindres), aussi icône d'onglet.
+  const logo = readFileSync(new URL("./static/logo.svg", import.meta.url), "utf8");
+  const sendLogo = (c: Context) => c.body(logo, 200, { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" });
+  app.get("/logo.svg", sendLogo);
+  app.get("/favicon.svg", sendLogo);
+  app.get("/favicon.ico", (c) => c.redirect("/favicon.svg", 301));
   app.get("/static/:file", (c) => {
     const js = scripts[c.req.param("file")];
     return js ? c.body(js, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" }) : c.notFound();

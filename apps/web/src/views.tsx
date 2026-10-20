@@ -18,7 +18,7 @@ const CSS = `
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 header{background:var(--card);border-bottom:1px solid var(--line)}
 header .in{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
-header .brand{font-weight:700;font-size:17px;color:var(--text)}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}header .login{font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--text)}header .login:hover{border-color:var(--accent)}.gg{flex:none}a.btn.gbtn{background:#fff;color:#1f1f1f;border:1px solid #747775;font-weight:600;gap:10px;padding:10px 16px}a.btn.gbtn:hover{background:#f6f8fc}header a.who:hover{color:var(--accent)}footer{max-width:1200px;margin:0 auto;padding:0 16px 30px;color:var(--muted);font-size:13px;text-align:center}footer a{color:var(--muted)}footer a:hover{color:var(--accent)}@media print{footer{display:none}}.about{max-width:960px}.about .card h2{margin-top:0}.about .lead{font-size:17px;line-height:1.55}.about h2{margin-top:22px}.about ul{padding-left:20px;line-height:1.6}.about .pill2{display:flex;gap:12px;flex-wrap:wrap}.about .pill2>div{flex:1 1 300px}pre.code{background:var(--chip);padding:8px 10px;border-radius:7px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.doc h2{margin-top:18px}
+header .brand{font-weight:700;font-size:17px;color:var(--text);display:inline-flex;align-items:center;gap:9px}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}header .login{font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--text)}header .login:hover{border-color:var(--accent)}.gg{flex:none}a.btn.gbtn{background:#fff;color:#1f1f1f;border:1px solid #747775;font-weight:600;gap:10px;padding:10px 16px}a.btn.gbtn:hover{background:#f6f8fc}header a.who:hover{color:var(--accent)}footer{max-width:1200px;margin:0 auto;padding:0 16px 30px;color:var(--muted);font-size:13px;text-align:center}footer a{color:var(--muted)}footer a:hover{color:var(--accent)}@media print{footer{display:none}}.about{max-width:960px}.about-title{display:flex;align-items:center;gap:14px}.about .card h2{margin-top:0}.about .lead{font-size:17px;line-height:1.55}.about h2{margin-top:22px}.about ul{padding-left:20px;line-height:1.6}.about .pill2{display:flex;gap:12px;flex-wrap:wrap}.about .pill2>div{flex:1 1 300px}pre.code{background:var(--chip);padding:8px 10px;border-radius:7px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.doc h2{margin-top:18px}
 main{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
 h1{font-size:24px;margin:4px 0 16px}h2{font-size:18px;margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ic{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;flex:none;color:var(--hue);background:color-mix(in srgb,var(--hue) 13%,var(--card))}
@@ -148,6 +148,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       {refresh ? <meta http-equiv="refresh" content={String(refresh)} /> : null}
       <title>{title} · pgscore</title>
+      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <script src="/static/i18n.js" />
     </head>
@@ -155,6 +156,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
       <header>
         <div class="in">
           <a class="brand" href="/">
+            <img src="/logo.svg" alt="" width="26" height="26" />
             pgscore
           </a>
           <span class="sp" />
@@ -209,6 +211,7 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
 }) => (
   <Layout title={t("Connexion")}>
     <div class="center">
+      <img src="/logo.svg" alt="" width="72" height="72" />
       <h1>pgscore</h1>
       <p class="muted">{t("Contrôle et scoring des compétitions de parapente cross-country.")}</p>
       <ErrorBox message={error} />
@@ -2423,7 +2426,10 @@ export const ApiDocPage: FC<{ user: User | null; baseUrl: string }> = ({ user, b
 export const AboutPage: FC<{ user: User | null }> = ({ user }) => (
   <Layout title={t("À propos")} user={user}>
     <div class="about">
-      <h1>{t("À propos de pgscore")}</h1>
+      <h1 class="about-title">
+        <img src="/logo.svg" alt="" width="48" height="48" />
+        {t("À propos de pgscore")}
+      </h1>
       <p class="lead">
         {t("pgscore est un logiciel de contrôle des traces et de scoring des compétitions de parapente cross-country. Il applique la formule GAP du Sporting Code FAI Section 7F (édition 2026), dans un navigateur, sans rien installer.")}
       </p>
