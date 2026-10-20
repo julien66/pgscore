@@ -50,6 +50,8 @@ export interface AppConfig {
   devLogin?: boolean;
   /** Cookies « Secure » (vrai dès que l'appli est servie en HTTPS). */
   secureCookies?: boolean;
+  /** Adresses e-mail des administrateurs : ils modifient toutes les compétitions. */
+  adminEmails?: string[];
 }
 
 type Env = { Variables: { user: User } };
@@ -174,12 +176,36 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     await next();
   });
 
-  const competition = (c: Context<Env>, id: string): CompetitionRow | null => {
-    const row = db.prepare("SELECT * FROM competitions WHERE id = ? AND owner_id = ?").get(Number(id), c.get("user").id) as unknown as
-      | CompetitionRow
-      | undefined;
+  // Tout utilisateur connecté voit toutes les compétitions ; seuls leur créateur et les administrateurs les modifient.
+  const competition = (_c: Context<Env>, id: string): CompetitionRow | null => {
+    const row = db.prepare("SELECT * FROM competitions WHERE id = ?").get(Number(id)) as unknown as CompetitionRow | undefined;
     return row ?? null;
   };
+  const admins = new Set((cfg.adminEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean));
+  const isAdmin = (u: User) => Boolean(u.email && admins.has(u.email.toLowerCase()));
+  const canEdit = (c: Context<Env>, comp: CompetitionRow) => comp.owner_id === c.get("user").id || isAdmin(c.get("user"));
+  // Garde d'écriture : toute requête autre que GET (réglages, traces, calcul, officialisation, classements…)
+  // et les pages d'édition demandent le droit de modifier la compétition concernée.
+  const writes = (c: Context<Env>) => c.req.method !== "GET" || /\/(edit|tasks\/new)$/.test(c.req.path);
+  const guard = (load: (c: Context<Env>) => CompetitionRow | null) => async (c: Context<Env>, next: () => Promise<void>) => {
+    if (writes(c)) {
+      const comp = load(c);
+      if (comp && !canEdit(c, comp)) {
+        if (c.req.method === "GET") return c.redirect(c.req.path.replace(/\/(edit|tasks\/new)$/, ""));
+        return c.text(t("Vous ne pouvez pas modifier cette compétition."), 403);
+      }
+    }
+    await next();
+  };
+  const compOfTask = (c: Context<Env>) => {
+    const row = db.prepare("SELECT competition_id FROM tasks WHERE id = ?").get(Number(c.req.param("id"))) as unknown as { competition_id: number } | undefined;
+    return row ? competition(c, String(row.competition_id)) : null;
+  };
+  const compGuard = guard((c) => (/^\d+$/.test(c.req.param("id") ?? "") ? competition(c, c.req.param("id")!) : null));
+  app.use("/competitions/:id", compGuard);
+  app.use("/competitions/:id/*", compGuard);
+  app.use("/tasks/:id", guard(compOfTask));
+  app.use("/tasks/:id/*", guard(compOfTask));
   const taskOf = (c: Context<Env>, id: string): { t: TaskRow; comp: CompetitionRow } | null => {
     const t = db.prepare("SELECT * FROM tasks WHERE id = ?").get(Number(id)) as unknown as TaskRow | undefined;
     const comp = t ? competition(c, String(t.competition_id)) : null;
@@ -189,9 +215,18 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
 
   app.get("/", (c) => {
     const rows = db
-      .prepare("SELECT * FROM competitions WHERE owner_id = ? ORDER BY COALESCE(start_date, '') DESC, id DESC")
-      .all(c.get("user").id) as unknown as CompetitionRow[];
-    return c.html(<HomePage user={c.get("user")} competitions={rows} />);
+      .prepare(
+        "SELECT c.*, u.name AS owner_name, u.email AS owner_email FROM competitions c JOIN users u ON u.id = c.owner_id ORDER BY COALESCE(c.start_date, '') DESC, c.id DESC",
+      )
+      .all() as unknown as Array<CompetitionRow & { owner_name: string | null; owner_email: string | null }>;
+    const me = c.get("user").id;
+    return c.html(
+      <HomePage
+        user={c.get("user")}
+        mine={rows.filter((r) => r.owner_id === me)}
+        others={rows.filter((r) => r.owner_id !== me).map((r) => ({ ...r, owner: r.owner_name || r.owner_email || "" }))}
+      />,
+    );
   });
 
   // --- Compétitions ------------------------------------------------------------------------
@@ -293,7 +328,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
           pilots: x.pilots,
           rankings: x.rankings.map((r) => ({ r, count: x.members.get(r.row.id)!.size })),
           current: x.current,
-          create: Boolean(bq.create),
+          create: Boolean(bq.create) && canEdit(c, comp),
+          canEdit: canEdit(c, comp),
           all: Boolean(bq.all),
           error: bq.error ?? null,
           notice: bq.notice ?? null,
@@ -303,6 +339,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         error={extra.error ?? null}
         notice={extra.notice ?? null}
         edit={extra.edit ?? false}
+        canEdit={canEdit(c, comp)}
       />,
       extra.error || bq.error ? 400 : 200,
     );
@@ -613,6 +650,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         error={extra.error ?? null}
         notice={extra.notice ?? null}
         edit={extra.edit ?? Boolean(extra.error)}
+        canEdit={canEdit(c, comp)}
       />,
       extra.error ? 400 : 200,
     );

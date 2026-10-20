@@ -1,5 +1,8 @@
 /** Traductions es : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Vous ne pouvez pas modifier cette compétition.": "No puede modificar esta competición.",
+  "par {name}": "por {name}",
+  "Autres compétitions": "Otras competiciones",
   "Version complète": "Versión completa",
   "Version courte": "Versión corta",
   "Télécharger le tableau (CSV, ouvrable dans Excel)": "Descargar la tabla (CSV, se abre en Excel)",

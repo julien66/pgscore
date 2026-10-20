@@ -219,7 +219,23 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
   </Layout>
 );
 
-export const HomePage: FC<{ user: User; competitions: CompetitionRow[] }> = ({ user, competitions }) => (
+type HomeComp = CompetitionRow & { owner?: string };
+const CompList: FC<{ list: HomeComp[] }> = ({ list }) => (
+  <ul class="list">
+    {list.map((c) => (
+      <li>
+        <a href={`/competitions/${c.id}`}>
+          <strong>{c.name}</strong>
+        </a>
+        <span class="muted small">
+          {[c.location, dateRange(c.start_date, c.end_date), c.owner ? t("par {name}", { name: c.owner }) : null].filter(Boolean).join(" · ")}
+        </span>
+      </li>
+    ))}
+  </ul>
+);
+
+export const HomePage: FC<{ user: User; mine: HomeComp[]; others: HomeComp[] }> = ({ user, mine, others }) => (
   <Layout title={t("Mes compétitions")} user={user}>
     <div class="row" style="justify-content:space-between">
       <h1>{t("Mes compétitions")}</h1>
@@ -229,23 +245,16 @@ export const HomePage: FC<{ user: User; competitions: CompetitionRow[] }> = ({ u
       </a>
     </div>
     <div class="card">
-      {competitions.length ? (
-        <ul class="list">
-          {competitions.map((c) => (
-            <li>
-              <a href={`/competitions/${c.id}`}>
-                <strong>{c.name}</strong>
-              </a>
-              <span class="muted small">
-                {[c.location, dateRange(c.start_date, c.end_date)].filter(Boolean).join(" · ")}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p class="muted">{t("Pas encore de compétition. Créez-en une pour y ajouter des manches.")}</p>
-      )}
+      {mine.length ? <CompList list={mine} /> : <p class="muted">{t("Pas encore de compétition. Créez-en une pour y ajouter des manches.")}</p>}
     </div>
+    {others.length ? (
+      <>
+        <h2>{t("Autres compétitions")}</h2>
+        <div class="card">
+          <CompList list={others} />
+        </div>
+      </>
+    ) : null}
   </Layout>
 );
 
@@ -380,7 +389,9 @@ export const CompetitionPage: FC<{
   error?: string | null;
   notice?: string | null;
   edit?: boolean;
-}> = ({ user, c, v, tasks, board, pilots, airspaceCount, error, notice, edit }) => (
+  /** Créateur de la compétition ou administrateur : sinon, lecture seule. */
+  canEdit: boolean;
+}> = ({ user, c, v, tasks, board, pilots, airspaceCount, error, notice, edit, canEdit }) => (
   <Layout title={edit ? `${t("Éditer")} · ${c.name}` : c.name} user={user}>
     <div class="crumbs">
       <a href="/">{t("Mes compétitions")}</a>
@@ -391,14 +402,16 @@ export const CompetitionPage: FC<{
         <Bi n="route" />
         {t("Manches et classements")}
       </a>
-      <a href={`/competitions/${c.id}/edit`} class={edit ? "on" : ""}>
-        <Bi n="sliders" />
-        {t("Éditer")}
-      </a>
+      {canEdit ? (
+        <a href={`/competitions/${c.id}/edit`} class={edit ? "on" : ""}>
+          <Bi n="sliders" />
+          {t("Éditer")}
+        </a>
+      ) : null}
     </nav>
     <ErrorBox message={error} />
     {notice ? <div class="note">{notice}</div> : null}
-    {edit ? (
+    {edit && canEdit ? (
       <CompetitionEdit c={c} v={v} pilots={pilots} airspaceCount={airspaceCount} open={Boolean(error)} />
     ) : (
       <CompetitionMain c={c} tasks={tasks} board={board} />
@@ -411,10 +424,12 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }>
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <h2><Ic n="route" c="blue" />{t("Manches")}</h2>
-        <a class="btn primary" href={`/competitions/${c.id}/tasks/new`}>
-          <Bi n="plus" />
-          {t("Nouvelle manche")}
-        </a>
+        {board.canEdit ? (
+          <a class="btn primary" href={`/competitions/${c.id}/tasks/new`}>
+            <Bi n="plus" />
+            {t("Nouvelle manche")}
+          </a>
+        ) : null}
       </div>
       {tasks.length ? (
         <ul class="list">
@@ -437,6 +452,9 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }>
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
+                {!board.canEdit ? (
+                  tk.official === 1 ? <span class="small muted official">{t("officielle")}</span> : null
+                ) : (
                 <form method="post" action={`/tasks/${tk.id}/official`} class="official">
                   <input type="hidden" name="back" value="competition" />
                   <label class="check">
@@ -446,6 +464,7 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }>
                     <button class="link">{t("Enregistrer")}</button>
                   </noscript>
                 </form>
+                )}
                 {info?.calculatedAt ? (
                   <span class="small task-rk">
                     <a href={`/tasks/${tk.id}#results`}>{t("Général")}</a>
@@ -829,11 +848,12 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
 };
 
 /** Onglets des classements : général, puis les classements extraits. Ils restent sur la page de la compétition. */
-const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: string; count?: number }>; current: number | null; create?: boolean }> = ({
+const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: string; count?: number }>; current: number | null; create?: boolean; canEdit?: boolean }> = ({
   c,
   rankings,
   current,
   create,
+  canEdit,
 }) => (
   <nav class="tabs">
     <a href={boardUrl(c)} class={`swap${current === null && !create ? " on" : ""}`}>
@@ -844,9 +864,11 @@ const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: s
         {t(r.name)}
       </a>
     ))}
-    <a href={boardUrl(c, { create: true })} class={`swap${create ? " on" : ""}`}>
-      + {t("Nouveau classement")}
-    </a>
+    {canEdit ? (
+      <a href={boardUrl(c, { create: true })} class={`swap${create ? " on" : ""}`}>
+        + {t("Nouveau classement")}
+      </a>
+    ) : null}
   </nav>
 );
 
@@ -951,6 +973,8 @@ export interface Board {
   current: Ranking | null;
   create: boolean;
   all: boolean;
+  /** Créateur ou administrateur : création et réglage des classements, officialisation des manches. */
+  canEdit: boolean;
   error?: string | null;
   notice?: string | null;
 }
@@ -969,16 +993,16 @@ const StandingsBoard: FC<{ c: CompetitionRow; b: Board }> = ({ c, b }) => {
   const { s, pilots, rankings, current, create } = b;
   return (
     <>
-      <RankingTabs c={c} rankings={rankings.map((x) => ({ id: x.r.row.id, name: x.r.row.name, count: x.count }))} current={current?.row.id ?? null} create={create} />
+      <RankingTabs c={c} rankings={rankings.map((x) => ({ id: x.r.row.id, name: x.r.row.name, count: x.count }))} current={current?.row.id ?? null} create={create} canEdit={b.canEdit} />
       <ErrorBox message={b.error} />
       {b.notice ? <div class="note">{b.notice}</div> : null}
       {create ? (
         <RankingForm c={c} r={null} />
       ) : (
         <>
-          {current && !pilots.length ? <p class="small muted">{t("Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition.")}</p> : null}
+          {current && !pilots.length && b.canEdit ? <p class="small muted">{t("Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition.")}</p> : null}
           <StandingsTable c={c} s={s} rid={current?.row.id} registry={pilots} />
-          {current ? (
+          {current && b.canEdit ? (
             <details class="fold" id="ranking-settings" open={Boolean(b.error)}>
               <summary>{t("Règle et pilotes de ce classement")} <span class="small muted">· {describeRule(current.rule)}</span></summary>
               <RankingForm c={c} r={current} />
@@ -1076,7 +1100,10 @@ export const TaskPage: FC<{
   error?: string | null;
   notice?: string | null;
   edit?: boolean;
-}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, rankings, ranking, details, registry, running, error, notice, edit }) => {
+  /** Créateur de la compétition ou administrateur : sinon, lecture seule. */
+  canEdit: boolean;
+}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, rankings, ranking, details, registry, running, error, notice, edit: editTab, canEdit }) => {
+  const edit = Boolean(editTab && canEdit);
   const tz = settings.timeZone;
   const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, tk.date, tz) : "");
   const results = done?.results ? (JSON.parse(done.results) as TaskScoring) : null;
@@ -1101,10 +1128,12 @@ export const TaskPage: FC<{
           <Bi n="map" />
           {t("Carte et résultats")}
         </a>
-        <a href={`/tasks/${tk.id}/edit`} class={edit ? "on" : ""}>
-          <Bi n="sliders" />
-          {t("Éditer")}
-        </a>
+        {canEdit ? (
+          <a href={`/tasks/${tk.id}/edit`} class={edit ? "on" : ""}>
+            <Bi n="sliders" />
+            {t("Éditer")}
+          </a>
+        ) : null}
       </nav>
       <ErrorBox message={error} />
       {notice ? <div class="note">{notice}</div> : null}
@@ -1422,12 +1451,12 @@ export const TaskPage: FC<{
         ) : null}
         {running ? (
           <div class="note">
-            <span class="spin" /> {t("Calcul en cours.")} <a href={`/tasks/${tk.id}/edit#run-card`}>{t("Suivre le calcul")}</a>
+            <span class="spin" /> {t("Calcul en cours.")} {canEdit ? <a href={`/tasks/${tk.id}/edit#run-card`}>{t("Suivre le calcul")}</a> : null}
           </div>
         ) : null}
         {results ? (
           <>
-            {stale && !running ? (
+            {stale && !running && canEdit ? (
               <div class="note">
                 {t("Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.")}{" "}
                 <a href={`/tasks/${tk.id}/edit#run-card`}>{t("Relancer le calcul")}</a>
@@ -1444,7 +1473,7 @@ export const TaskPage: FC<{
           </>
         ) : running ? null : (
           <p class="muted">
-            {t("Pas encore de résultats.")} <a href={`/tasks/${tk.id}/edit`}>{t("Envoyer les traces et lancer le calcul")}</a>
+            {t("Pas encore de résultats.")} {canEdit ? <a href={`/tasks/${tk.id}/edit`}>{t("Envoyer les traces et lancer le calcul")}</a> : null}
           </p>
         )}
       </div>

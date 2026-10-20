@@ -11,10 +11,10 @@ const engineFixtures = new URL("../../../packages/engine/test/fixtures/", import
 const QR = readFileSync(new URL("pwca-gemona-2026-t3.qr.txt", engineFixtures), "utf8").trim();
 const AIRSPACE = readFileSync(new URL("pwca-gemona-2026-airspace.txt", engineFixtures));
 
-function setup() {
+function setup(adminEmails: string[] = []) {
   const tracks = new TrackStore(mkdtempSync(join(tmpdir(), "pgscore-tracks-")));
   const db = openDb(":memory:", tracks);
-  const app = createApp(db, tracks, { baseUrl: "http://localhost", devLogin: true });
+  const app = createApp(db, tracks, { baseUrl: "http://localhost", devLogin: true, adminEmails });
   let cookie = "";
   const req = async (path: string, init: RequestInit = {}) => {
     const r = await app.request(`http://localhost${path}`, { ...init, headers: { cookie, ...(init.headers ?? {}) } });
@@ -226,7 +226,7 @@ describe("interface web", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM competition_rankings").get() as { n: number }).n).toBe(1);
   });
 
-  it("refuse une manche illisible et l'accès aux compétitions des autres", async () => {
+  it("refuse une manche illisible", async () => {
     const { req } = setup();
     const { compUrl } = await createCompetitionAndTask(req);
     const ft = new FormData();
@@ -235,9 +235,44 @@ describe("interface web", () => {
     const r = await req(`${compUrl}/tasks`, { method: "POST", body: ft });
     expect(r.status).toBe(400);
     expect(await r.text()).toContain("Manche illisible");
-    await req("/auth/logout", { method: "POST" });
-    await req("/auth/dev", { method: "POST", body: new URLSearchParams({ email: "autre@example.org" }) });
-    expect((await req(compUrl)).status).toBe(404);
+  });
+
+  it("montre les compétitions des autres en lecture seule, sauf aux administrateurs", async () => {
+    const { req } = setup(["Admin@Example.org"]);
+    const { compUrl, taskUrl } = await createCompetitionAndTask(req);
+    const taskId = taskUrl.split("/").pop();
+    const login = async (email: string) => {
+      await req("/auth/logout", { method: "POST" });
+      await req("/auth/dev", { method: "POST", body: new URLSearchParams({ email }) });
+    };
+    await login("autre@example.org");
+    const home = await (await req("/")).text();
+    expect(home).toContain("Autres compétitions");
+    expect(home).toContain("Coupe test");
+    const comp = await (await req(compUrl)).text();
+    expect(comp).toContain("Coupe test");
+    expect(comp).not.toContain(`${compUrl}/edit`);
+    expect(comp).not.toContain("/official");
+    expect(comp).not.toContain("Nouvelle manche");
+    expect(comp).not.toContain("Nouveau classement");
+    expect((await req(taskUrl)).status).toBe(200);
+    expect(await (await req(taskUrl)).text()).not.toContain(`${taskUrl}/edit`);
+    for (const path of [`${compUrl}/edit`, `${compUrl}/tasks/new`, `${taskUrl}/edit`]) expect((await req(path)).status).toBe(302);
+    const posts: Array<[string, BodyInit]> = [
+      [`/tasks/${taskId}/official`, new URLSearchParams({ official: "1" })],
+      [compUrl, new URLSearchParams(competitionFields)],
+      [`${compUrl}/rankings`, new URLSearchParams({ name: "X" })],
+      [`${compUrl}/tasks`, new URLSearchParams({ number: "9", text: QR })],
+      [`${compUrl}/pilots/import`, new FormData()],
+      [taskUrl, new URLSearchParams({ date: "2026-07-28" })],
+      [`${taskUrl}/runs`, new URLSearchParams()],
+      [`${taskUrl}/decisions`, new URLSearchParams({ pilot: "1", kind: "goal", reason: "x" })],
+      [`${taskUrl}/tracks`, new FormData()],
+    ];
+    for (const [path, body] of posts) expect((await req(path, { method: "POST", body })).status, path).toBe(403);
+    await login("admin@example.org");
+    expect(await (await req(compUrl)).text()).toContain(`${compUrl}/edit`);
+    expect((await req(`/tasks/${taskId}/official`, { method: "POST", body: new URLSearchParams({ official: "1" }) })).status).toBe(302);
   });
 
   it("lit l'image du QR code", async () => {

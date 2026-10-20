@@ -21,6 +21,7 @@ Variables :
 | `TRACKS_DIR` | dossier des fichiers IGC | `tracks` à côté de la base |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | connexion Google | aucune |
 | `DEV_LOGIN` | `1` : connexion de test sans fournisseur, **jamais en production** | désactivée |
+| `ADMIN_EMAILS` | e-mails des administrateurs, séparés par des virgules : ils modifient toutes les compétitions (les autres utilisateurs voient tout mais ne modifient que les leurs) | aucun |
 
 Les fichiers IGC sont gardés tels que reçus, hors de la base, dans `TRACKS_DIR`, rangés sous leur
 empreinte SHA-256 (`tracks/ab/abcdef….igc.gz`, compressés : environ 0,12 Mo par trace). Un fichier n'est jamais modifié ni écrasé ; une trace
