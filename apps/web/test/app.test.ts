@@ -139,6 +139,41 @@ describe("interface web", () => {
     expect(await (await req(compUrl)).text()).toContain("Aucune manche officielle calculée");
   });
 
+  it("importe, modifie et retire les pilotes inscrits", async () => {
+    const { req, db } = setup();
+    const { compUrl } = await createCompetitionAndTask(req);
+    const f = new FormData();
+    f.append("file", new Blob([readFileSync(new URL("fixtures/sample.fsdb", import.meta.url))]), "comp.fsdb");
+    const r = await req(`${compUrl}/pilots/import`, { method: "POST", body: f });
+    expect(r.status).toBe(302);
+    expect(decodeURIComponent(r.headers.get("location")!)).toContain("2 pilotes ajoutés");
+    let html = await (await req(compUrl)).text();
+    expect(html).toContain("2 inscrits · 1 femmes");
+    const rows = db.prepare("SELECT id, pilot_key FROM competition_pilots ORDER BY id").all() as Array<{ id: number; pilot_key: string }>;
+    // Échange des numéros, retrait d'un pilote et ajout d'un nouveau en un seul enregistrement.
+    const body = new URLSearchParams({
+      [`p.${rows[0]!.id}.pilot_key`]: "269",
+      [`p.${rows[0]!.id}.name`]: "Baptiste Lambert",
+      [`p.${rows[1]!.id}.pilot_key`]: "2",
+      [`p.${rows[1]!.id}.name`]: "Mélanie Pfister",
+      [`p.${rows[1]!.id}.gender`]: "F",
+      [`del.${rows[0]!.id}`]: "1",
+      "new.pilot_key": "50",
+      "new.name": "Nouveau Pilote",
+      "new.weight_max": "105",
+    });
+    expect((await req(`${compUrl}/pilots`, { method: "POST", body })).status).toBe(302);
+    const after = db.prepare("SELECT pilot_key, name, gender, weight_max FROM competition_pilots ORDER BY CAST(pilot_key AS INTEGER)").all();
+    expect(after.map((x) => ({ ...x }))).toEqual([
+      { pilot_key: "2", name: "Mélanie Pfister", gender: "F", weight_max: null },
+      { pilot_key: "50", name: "Nouveau Pilote", gender: null, weight_max: 105 },
+    ]);
+    const bad = await req(`${compUrl}/pilots`, { method: "POST", body: new URLSearchParams({ "new.pilot_key": "2", "new.name": "Doublon" }) });
+    expect(bad.status).toBe(400);
+    expect(await bad.text()).toContain("déjà inscrit");
+    expect(await (await req(`${compUrl}/pilots.csv`)).text()).toContain("50,Nouveau Pilote,,,,,,,,,105");
+  });
+
   it("refuse une manche illisible et l'accès aux compétitions des autres", async () => {
     const { req } = setup();
     const { compUrl } = await createCompetitionAndTask(req);

@@ -21,6 +21,7 @@ import { addDecision, deleteDecision, listDecisions, touchScoring } from "./deci
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
 import { competitionStandings, lastScoringChange, standingsCsv } from "./standings.js";
+import { listPilots, pilotsCsv, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
 import { vendorFile } from "./vendor.js";
 import { readFileSync } from "node:fs";
@@ -259,6 +260,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         v={extra.v ?? rowValues(comp)}
         tasks={tasks}
         standings={competitionStandings(db, comp)}
+        pilots={listPilots(db, comp.id)}
         airspaceCount={count}
         error={extra.error ?? null}
         notice={extra.notice ?? null}
@@ -270,7 +272,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   app.get("/competitions/:id", (c) => {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
-    return competitionPage(c, comp, c.req.query("ok") ? { notice: "Enregistré." } : {});
+    const msg = c.req.query("msg");
+    return competitionPage(c, comp, msg ? { notice: msg } : c.req.query("ok") ? { notice: "Enregistré." } : {});
   });
 
   app.post("/competitions/:id", async (c) => {
@@ -294,6 +297,49 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       if (!(e instanceof FormError)) throw e;
       return competitionPage(c, comp, { error: e.message, v: formValues(f, parseSettings(comp.params)) });
     }
+  });
+
+  // --- Pilotes inscrits -------------------------------------------------------------------
+  const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
+  const backToPilots = (c: Context<Env>, comp: CompetitionRow, msg: string) =>
+    c.redirect(`/competitions/${comp.id}?msg=${encodeURIComponent(msg)}#pilots`);
+
+  app.post("/competitions/:id/pilots/import", async (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    const f = await c.req.parseBody();
+    try {
+      if (!(f.file instanceof File) || !f.file.size) throw new FormError("Choisissez un fichier FSDB ou CSV.");
+      const list = pilotsFromFile(f.file.name, decodeText(new Uint8Array(await f.file.arrayBuffer())));
+      const r = upsertPilots(db, comp.id, list);
+      return backToPilots(c, comp, `Import : ${plural(r.added, "pilote ajouté", "pilotes ajoutés")}, ${plural(r.updated, "mis à jour", "mis à jour")}.`);
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return competitionPage(c, comp, { error: e.message });
+    }
+  });
+
+  app.post("/competitions/:id/pilots", async (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    const f = await c.req.parseBody();
+    try {
+      const r = savePilotTable(db, comp.id, f);
+      const parts = [r.added ? "pilote ajouté" : "", r.removed ? plural(r.removed, "pilote retiré", "pilotes retirés") : ""].filter(Boolean);
+      return backToPilots(c, comp, `Pilotes enregistrés${parts.length ? ` : ${parts.join(", ")}` : ""}.`);
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return competitionPage(c, comp, { error: e.message });
+    }
+  });
+
+  app.get("/competitions/:id/pilots.csv", (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    return c.body(pilotsCsv(listPilots(db, comp.id)), 200, {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="pilotes.csv"`,
+    });
   });
 
   app.get("/competitions/:id/standings", (c) => {

@@ -1,11 +1,12 @@
 import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { DecisionKind, PilotResult, Task, TaskScoring } from "@pgscore/engine";
-import type { CompetitionRow, DecisionRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
+import type { CompetitionRow, DecisionRow, PilotRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
 import { DECISION_KINDS } from "./decisions.js";
 import { GAP_PROFILES, LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
 import type { Standings } from "./standings.js";
+import { PILOT_COLUMNS } from "./pilots.js";
 
 const CSS = `
 :root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5d6678;--line:#dde1e8;--accent:#1f6feb;--accent-ink:#fff;--ok:#1a7f37;--warn:#9a6700;--bad:#cf222e;--chip:#eef1f5}
@@ -57,6 +58,8 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 .upl{margin-top:8px}.upl p{margin:4px 0}
 .list form.official{margin-left:auto}.list form.official .check{color:var(--muted)}
 .lead-warn{color:var(--warn);cursor:help;margin-right:4px}
+table.pilots td{padding:3px 4px}table.pilots input[type=text],table.pilots select{padding:4px 6px;font-size:13px}
+table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{width:190px}table.pilots tr.new td{background:var(--chip)}
 .ftv-part{font-weight:600}.ftv-raw{color:var(--muted);font-size:12px;margin-left:4px}.ftv-out{color:var(--muted)}
 th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
 .center{max-width:420px;margin:60px auto;text-align:center}
@@ -287,10 +290,11 @@ export const CompetitionPage: FC<{
   v: CompetitionFormValues;
   tasks: TaskRow[];
   standings: Standings;
+  pilots: PilotRow[];
   airspaceCount: number | null;
   error?: string | null;
   notice?: string | null;
-}> = ({ user, c, v, tasks, standings, airspaceCount, error, notice }) => (
+}> = ({ user, c, v, tasks, standings, pilots, airspaceCount, error, notice }) => (
   <Layout title={c.name} user={user}>
     <div class="crumbs">
       <a href="/">Mes compétitions</a>
@@ -343,6 +347,8 @@ export const CompetitionPage: FC<{
       <StandingsTable c={c} s={standings} limit={10} />
     </div>
 
+    <PilotsBlock c={c} pilots={pilots} />
+
     <div class="card">
       <h2>Espace aérien</h2>
       {c.airspace_name ? (
@@ -369,6 +375,88 @@ export const CompetitionPage: FC<{
     <script src="/static/competition.js" />
   </Layout>
 );
+
+/** Pilotes inscrits : import FSDB/CSV et tableau modifiable. */
+const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[] }> = ({ c, pilots }) => {
+  const women = pilots.filter((p) => p.gender === "F").length;
+  const cell = (p: PilotRow | null, key: (typeof PILOT_COLUMNS)[number]["key"]) => {
+    const name = p ? `p.${p.id}.${key}` : `new.${key}`;
+    const v = p ? p[key] : null;
+    if (key === "gender")
+      return (
+        <select name={name}>
+          <option value="" selected={!v}>
+            –
+          </option>
+          <option value="F" selected={v === "F"}>
+            F
+          </option>
+          <option value="M" selected={v === "M"}>
+            M
+          </option>
+        </select>
+      );
+    const size = key === "pilot_key" || key === "nation" || key === "weight_max" || key === "glider_class" ? "s" : key === "name" ? "l" : "m";
+    return <input type="text" name={name} value={v === null ? "" : String(v)} class={`in-${size}`} placeholder={p ? "" : PILOT_COLUMNS.find((x) => x.key === key)!.label} />;
+  };
+  return (
+    <details class="card fold" id="pilots" open={pilots.length === 0}>
+      <summary>
+        <h2>
+          Pilotes{" "}
+          <span class="muted small">
+            {pilots.length ? `${pilots.length} inscrits${women ? ` · ${women} femmes` : ""}` : "aucun inscrit"}
+          </span>
+        </h2>
+      </summary>
+      <form method="post" action={`/competitions/${c.id}/pilots/import`} enctype="multipart/form-data" class="row">
+        <input type="file" name="file" accept=".fsdb,.xml,.csv,.txt" required />
+        <button>Importer</button>
+        {pilots.length ? <a href={`/competitions/${c.id}/pilots.csv`}>Exporter en CSV</a> : null}
+      </form>
+      <p class="small muted">
+        Fichier FSDB (logiciel FS de la CIVL) ou CSV avec une ligne d'en-tête : numero, nom, genre, nation, civl_id, voile_marque, voile_modele,
+        voile_classe, sellette_marque, sellette_modele, ptv_max_kg (seuls numero et nom sont obligatoires ; une colonne « voile » ou « sellette » seule est
+        coupée en marque et modèle). Un pilote déjà inscrit sous le même numéro est mis à jour. Le numéro est celui des traces.
+      </p>
+      <form method="post" action={`/competitions/${c.id}/pilots`}>
+        <div class="scroll">
+          <table class="pilots">
+            <thead>
+              <tr>
+                {PILOT_COLUMNS.map((col) => (
+                  <th>{col.label}</th>
+                ))}
+                <th>Retirer</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pilots.map((p) => (
+                <tr>
+                  {PILOT_COLUMNS.map((col) => (
+                    <td>{cell(p, col.key)}</td>
+                  ))}
+                  <td>
+                    <input type="checkbox" name={`del.${p.id}`} value="1" title="Retirer ce pilote à l'enregistrement" />
+                  </td>
+                </tr>
+              ))}
+              <tr class="new">
+                {PILOT_COLUMNS.map((col) => (
+                  <td>{cell(null, col.key)}</td>
+                ))}
+                <td class="small muted">nouveau</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="mt">
+          <button class="primary">Enregistrer les pilotes</button>
+        </p>
+      </form>
+    </details>
+  );
+};
 
 /** Ce qui compte au classement général, en une ligne. */
 const StandingsInfo: FC<{ s: Standings }> = ({ s }) => {

@@ -137,6 +137,23 @@ export const MIGRATIONS: Migration[] = [
    ALTER TABLE tasks ADD COLUMN scoring_changed_at INTEGER;`,
   // Manche officielle : ses derniers résultats comptent au classement général.
   `ALTER TABLE tasks ADD COLUMN official INTEGER NOT NULL DEFAULT 0;`,
+  // Pilotes inscrits à la compétition (import FSDB ou CSV, ou saisie) : ils servent aux classements extraits.
+  `CREATE TABLE competition_pilots (
+     id INTEGER PRIMARY KEY,
+     competition_id INTEGER NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+     pilot_key TEXT NOT NULL,
+     name TEXT NOT NULL,
+     gender TEXT,
+     nation TEXT,
+     civl_id TEXT,
+     glider_brand TEXT,
+     glider_model TEXT,
+     glider_class TEXT,
+     harness_brand TEXT,
+     harness_model TEXT,
+     weight_max REAL,
+     UNIQUE (competition_id, pilot_key)
+   );`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {
@@ -194,6 +211,22 @@ export interface TaskRow {
   scoring_changed_at: number | null;
   /** 1 si la manche compte au classement général. */
   official: number;
+}
+
+export interface PilotRow {
+  id: number;
+  competition_id: number;
+  pilot_key: string;
+  name: string;
+  gender: "F" | "M" | null;
+  nation: string | null;
+  civl_id: string | null;
+  glider_brand: string | null;
+  glider_model: string | null;
+  glider_class: string | null;
+  harness_brand: string | null;
+  harness_model: string | null;
+  weight_max: number | null;
 }
 
 export interface DecisionRow {

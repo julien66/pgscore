@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Fs version="3.5" comment="Supports only a single Comp">
+  <FsCompetition id="1" name="Coupe test" location="Gemona" from="2026-07-25" to="2026-08-01" utc_offset="2" discipline="pg">
+    <FsParticipants>
+      <FsParticipant id="2" name="Baptiste Lambert" birthday="1990-01-01" glider="Ozone Enzo 3" glider_main_colors="" fai_licence="1" female="0" nat_code_3166_a3="FRA" sponsor="" CIVLID="12345" />
+      <FsParticipant id="269" name="Mélanie Pfister &amp; co" female="1" nat_code_3166_a3="sui" glider="Gin Leopard" CIVLID="678">
+        <FsCustomAttributes>
+          <FsCustomAttribute name="Class" value="EN D" />
+          <FsCustomAttribute name="Harness" value="Gin Genie Race 5" />
+        </FsCustomAttributes>
+      </FsParticipant>
+    </FsParticipants>
+  </FsCompetition>
+</Fs>

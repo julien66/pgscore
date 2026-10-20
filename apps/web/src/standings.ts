@@ -1,6 +1,7 @@
 import { competitionRanking, type CompetitionRanking, type Task, type TaskScoring } from "@pgscore/engine";
 import type { CompetitionRow, Db, TaskRow } from "./db.js";
 import { parseSettings } from "./settings.js";
+import { listPilots } from "./pilots.js";
 
 /** Dernier changement qui rend un calcul périmé : traces envoyées ou retirées, réglages, décisions. */
 export function lastScoringChange(db: Db, t: TaskRow): { tracks: number; changed: number } {
@@ -40,6 +41,8 @@ export function competitionStandings(db: Db, comp: CompetitionRow): Standings {
   const tasks: StandingsTask[] = [];
   const inputs = [];
   const ranked: StandingsTask[] = [];
+  // Nom des inscrits plutôt que celui des traces.
+  const names = new Map(listPilots(db, comp.id).map((p) => [p.pilot_key, p.name]));
   for (const t of rows) {
     const run = db
       .prepare("SELECT results, started_at FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1")
@@ -61,7 +64,7 @@ export function competitionStandings(db: Db, comp: CompetitionRow): Standings {
     inputs.push({
       key: String(t.id),
       stopped: Boolean(task.stopAnnouncement),
-      results: r.pilots.map((p) => ({ pilot: p.id, name: p.name, total: p.total })),
+      results: r.pilots.map((p) => ({ pilot: p.id, name: names.get(p.id) ?? p.name, total: p.total })),
     });
   }
   return { tasks, ranked, ranking: competitionRanking(inputs, parseSettings(comp.params).ftvFactor) };
