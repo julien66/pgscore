@@ -1,6 +1,7 @@
 {
   "name": "pgscore",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "version": "0.0.0",
   "description": "Logiciel de contrôle et de scoring de compétitions de parapente cross-country (FAI S7F)",
   "scripts": {

@@ -1,5 +1,7 @@
 /** Traductions es : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Logiciel libre, licence AGPL-3.0": "Software libre, licencia AGPL-3.0",
+  "Il est publié sous licence GNU AGPL-3.0 : toute version modifiée mise en ligne doit, elle aussi, publier son code.": "Se publica bajo la licencia GNU AGPL-3.0: toda versión modificada puesta en línea debe publicar también su código.",
   "À propos de pgscore": "Acerca de pgscore",
   "À propos": "Acerca de",
   "pgscore est un logiciel de contrôle des traces et de scoring des compétitions de parapente cross-country. Il applique la formule GAP du Sporting Code FAI Section 7F (édition 2026), dans un navigateur, sans rien installer.": "pgscore es un programa de control de trazas y de puntuación de competiciones de parapente de cross-country. Aplica la fórmula GAP del Código Deportivo FAI Sección 7F (edición 2026), en un navegador, sin instalar nada.",

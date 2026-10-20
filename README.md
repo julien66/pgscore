@@ -44,3 +44,9 @@ Interface, début :
 - [ ] Classement des nations
 - [x] Décisions de l'organisateur : bonus, pénalités, goal accordé, ABS, DNF, décollé sans trace
 - [ ] Plusieurs organisateurs par compétition, résultats publics
+
+## Licence
+
+pgscore est un logiciel libre, distribué sous la licence GNU Affero General Public License, version 3 ou ultérieure (AGPL-3.0-or-later) : voir [LICENSE](LICENSE). Toute version modifiée mise à disposition sur un réseau doit offrir son code source à ses utilisateurs.
+
+Copyright © 2026 Julien Garcia et les contributeurs de pgscore.

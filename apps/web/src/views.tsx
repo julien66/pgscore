@@ -181,7 +181,8 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
       </header>
       <main>{children}</main>
       <footer>
-        <a href="/about">{t("À propos de pgscore")}</a> · <a href="/api">{t("API")}</a>
+        <a href="/about">{t("À propos de pgscore")}</a> · <a href="/api">{t("API")}</a> ·{" "}
+        <a href="https://github.com/julien66/pgscore">{t("Logiciel libre, licence AGPL-3.0")}</a>
       </footer>
     </body>
   </html>
@@ -2438,7 +2439,8 @@ export const AboutPage: FC<{ user: User | null }> = ({ user }) => (
         <div class="card">
           <h2><Ic n="unlock" c="green" />{t("Libre et indépendant")}</h2>
           <p>
-            {t("pgscore est un logiciel libre et open source : son code est public, chacun peut le lire, vérifier comment les points sont calculés, le corriger et l'améliorer.")}
+            {t("pgscore est un logiciel libre et open source : son code est public, chacun peut le lire, vérifier comment les points sont calculés, le corriger et l'améliorer.")}{" "}
+            {t("Il est publié sous licence GNU AGPL-3.0 : toute version modifiée mise en ligne doit, elle aussi, publier son code.")}
           </p>
           <ul>
             <li>{t("Transparent : un résultat se vérifie en lisant le code, pas en faisant confiance à une boîte noire.")}</li>
