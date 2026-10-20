@@ -1,6 +1,6 @@
 import { unzipSync } from "fflate";
 import { createHash } from "node:crypto";
-import type { TaskTurnpoint } from "@pgscore/engine";
+import { taskDistances, type TaskTurnpoint } from "@pgscore/engine";
 import { ARCHIVE_FORMAT, ARCHIVE_VERSION, type ArchiveFile, type ArchiveTask, type CompetitionArchive } from "./archive.js";
 import { t } from "./i18n.js";
 import { cleanPilot, splitBrand, type PilotFields } from "./pilots.js";
@@ -168,6 +168,8 @@ export interface CivlPilotRow {
   sponsor: string;
   /** Rang, ou ABS, DNF… */
   rank: string;
+  /** Heure de départ (SS) du pilote, telle qu'affichée. */
+  start: string | null;
 }
 
 export interface CivlTaskPage {
@@ -276,6 +278,7 @@ export function parseTaskPage(html: string): CivlTaskPage {
         glider: c("Glider") >= 0 ? (r[c("Glider")] ?? "") : "",
         sponsor: c("Sponsor") >= 0 ? (r[c("Sponsor")] ?? "") : "",
         rank: r[0] ?? "",
+        start: c("SS") >= 0 ? hm(r[c("SS")]) : null,
       });
     }
   }
@@ -323,6 +326,7 @@ export function taskFromPage(p: CivlTaskPage, type: "race" | "time-trial", offse
     const role = i === last ? "goal" : i === ss ? "sss" : i === es ? "ess" : i === 0 && ss > 0 ? "takeoff" : "turnpoint";
     return { role, zone: { kind: "cylinder" as const, waypoint: { name: x.name || `TP${i + 1}`, lat: x.lat, lon: x.lon, altitude: x.altitude }, radius: x.radius } };
   });
+  fitToStats(turnpoints, p.stats, ss);
   const starts = p.startTimes.length ? p.startTimes : tps[ss]?.open ? [tps[ss]!.open!] : [];
   const task: StoredTask = { type, turnpoints, startGates: starts.map((s) => toUtc(s, offset)) };
   if (ss > 0 && tps[0]!.open) task.takeoffOpen = toUtc(tps[0]!.open, offset);
@@ -338,6 +342,48 @@ export function taskFromPage(p: CivlTaskPage, type: "race" | "time-trial", offse
   const present = Number(p.stats.no_of_pilots_present);
   if (Number.isInteger(present) && present > 0) task.pilotsPresent = present;
   return task;
+}
+
+/**
+ * La page ne dit pas toujours juste où est l'ESS (certaines marquent « ES » sur le goal) et ne donne pas
+ * le type de goal. Les statistiques de FS donnent les distances calculées (task_distance,
+ * launch_to_ess_distance) : on retient l'ESS et le type de goal qui les retrouvent.
+ */
+export function fitToStats(turnpoints: TaskTurnpoint[], stats: Record<string, string>, ss: number): void {
+  const wantTask = Number(stats.task_distance) * 1000;
+  const wantEss = Number(stats.launch_to_ess_distance) * 1000;
+  if (!(wantTask > 0) || !(wantEss > 0)) return;
+  const last = turnpoints.length - 1;
+  const goal = turnpoints[last]!;
+  const cyl = goal.zone;
+  if (cyl.kind !== "cylinder") return;
+  const line = { kind: "goal-line" as const, waypoint: cyl.waypoint, length: 2 * cyl.radius };
+  const roles = turnpoints.map((x) => x.role);
+  const tol = (d: number) => Math.max(50, d * 0.001);
+  let best: { err: number; ess: number; zone: typeof cyl | typeof line } | null = null;
+  for (const zone of [cyl, line])
+    for (let ess = ss + 1; ess <= last; ess++) {
+      const trial = turnpoints.map((x, i) => ({
+        role: i === last ? ("goal" as const) : i === ess ? ("ess" as const) : x.role === "ess" ? ("turnpoint" as const) : x.role,
+        zone: i === last ? zone : x.zone,
+      }));
+      let d;
+      try {
+        d = taskDistances({ type: "race", turnpoints: trial, startGates: [] });
+      } catch {
+        continue;
+      }
+      const err = Math.abs(d.task - wantTask) / tol(wantTask) + Math.abs(d.launchToEss - wantEss) / tol(wantEss);
+      // À égalité, on garde la lecture de la page (cylindre, ESS marqué).
+      const pref = (zone === cyl ? 0 : 0.01) + (roles[ess] === "ess" || (ess === last && !roles.includes("ess")) ? 0 : 0.01);
+      if (!best || err + pref < best.err) best = { err: err + pref, ess, zone };
+    }
+  if (!best || best.err > 2) return;
+  turnpoints.forEach((x, i) => {
+    if (i === last) x.zone = best.zone;
+    else if (i === best.ess) x.role = "ess";
+    else if (x.role === "ess") x.role = "turnpoint";
+  });
 }
 
 export function settingsFromFormula(f: Record<string, string>, offset: number | null): CompetitionSettings {
@@ -420,7 +466,15 @@ export async function civlToArchive(
     const offset = page.utcOffset ?? 0;
     if (page.utcOffset === null) warnings.push(t("{task} : fuseau horaire introuvable, heures lues en UTC.", { task: link.label }));
     settings ??= settingsFromFormula(page.formula, page.utcOffset);
-    const task = taskFromPage(page, link.type, offset, n);
+    // civlcomps annonce parfois « Elapsed time » pour une course : si tous les pilotes partent à la même
+    // heure, c'est une course à une porte.
+    let type = link.type;
+    const starts = new Set(page.pilots.map((r) => r.start).filter(Boolean));
+    if (type === "time-trial" && starts.size === 1 && page.pilots.filter((r) => r.start).length > 1) {
+      type = "race";
+      warnings.push(t("{task} : annoncée en temps écoulé, mais tous les pilotes partent à {time} : lue comme une course.", { task: link.label, time: [...starts][0]! }));
+    }
+    const task = taskFromPage(page, type, offset, n);
 
     const names = new Map<string, string>();
     for (const r of page.pilots) {

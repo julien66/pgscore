@@ -1327,6 +1327,17 @@ export const TaskPage: FC<{
             <input type="date" name="date" value={tk.date ?? ""} />
           </div>
           <div>
+            <label>{t("Type de manche")}</label>
+            <select name="type">
+              <option value="race" selected={task.type === "race"}>
+                {t("Race to goal")}
+              </option>
+              <option value="time-trial" selected={task.type === "time-trial"}>
+                {t("Time trial")}
+              </option>
+            </select>
+          </div>
+          <div>
             <label>{t("Manche arrêtée : heure d'annonce (locale)")}</label>
             <input type="text" name="stop" placeholder="HH:MM" value={loc(task.stopAnnouncement)} />
           </div>

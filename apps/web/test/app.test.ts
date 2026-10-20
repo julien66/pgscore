@@ -91,6 +91,16 @@ describe("interface web", () => {
     expect(JSON.parse(row.task).stopAnnouncement).toBe("13:47:00");
   });
 
+  it("change le type de la manche", async () => {
+    const { req, db } = setup();
+    const { taskUrl } = await createCompetitionAndTask(req);
+    const type = () => JSON.parse((db.prepare("SELECT task FROM tasks").get() as { task: string }).task).type;
+    const before = type();
+    const other = before === "race" ? "time-trial" : "race";
+    await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other }) });
+    expect(type()).toBe(other);
+  });
+
   it("enregistre et supprime les décisions de l'organisateur", async () => {
     const { req, db } = setup();
     const { taskUrl } = await createCompetitionAndTask(req);

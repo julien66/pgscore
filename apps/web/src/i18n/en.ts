@@ -679,5 +679,7 @@ const dict: Record<string, string> = {
   "Lecture des manches sur civlcomps.org et téléchargement des traces : comptez une à deux minutes, puis le calcul des manches démarre.": "Reading the tasks on civlcomps.org and downloading the tracks: allow one or two minutes, then task scoring starts.",
   "Importer depuis civlcomps.org": "Import from civlcomps.org",
   "Adresse de la page de résultats de l'événement : les manches, les pilotes, les pénalités, les absents et les traces publiées sont repris, puis les points recalculés. Le type de goal n'y figure pas : il est lu comme un cylindre.": "Address of the event's results page: tasks, pilots, penalties, absences and published tracks are imported, then points are recomputed. The goal type is not given there: it is read as a cylinder.",
+  "Type de manche": "Task type",
+  "{task} : annoncée en temps écoulé, mais tous les pilotes partent à {time} : lue comme une course.": "{task}: listed as elapsed time, but every pilot starts at {time}: read as a race.",
 };
 export default dict;

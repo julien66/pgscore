@@ -922,6 +922,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const end = String(f.taskEndTime ?? "").trim();
     try {
       const tz = parseSettings(x.comp.params).timeZone;
+      if (f.type === "race" || f.type === "time-trial") task.type = f.type;
       if (stop) task.stopAnnouncement = localHmsToUtc(stop, date, tz);
       else delete task.stopAnnouncement;
       const gr = String(f.bonusGlideRatio ?? "").trim().replace(",", ".");
