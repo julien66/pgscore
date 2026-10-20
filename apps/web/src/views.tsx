@@ -1244,6 +1244,10 @@ export const TaskPage: FC<{
             <input type="text" name="stop" placeholder="HH:MM" value={loc(task.stopAnnouncement)} />
           </div>
           <div>
+            <label>{t("Manche arrêtée : finesse du bonus d'altitude")}</label>
+            <input type="number" step="any" min="0" name="bonusGlideRatio" placeholder="2,5 (S7F)" value={task.bonusGlideRatio !== undefined ? String(task.bonusGlideRatio) : ""} />
+          </div>
+          <div>
             <label>{t("Leading Time Ratio (%)")}</label>
             <input
               type="number"

@@ -1,5 +1,7 @@
 /** Traductions de : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Manche arrêtée : finesse du bonus d'altitude": "Gestoppter Task: Gleitzahl des Höhenbonus",
+  "Finesse du bonus d'altitude : nombre positif attendu.": "Gleitzahl des Höhenbonus: positive Zahl erwartet.",
   "Un bon logiciel de scoring ouvert à toute la communauté, c'est aussi la possibilité de faire évoluer la compétition elle-même : tester de nouvelles règles et de nouveaux formats compétitifs bien plus facilement, les appliquer à des manches réelles et comparer les classements obtenus.": "Eine gute, für die ganze Community offene Wertungssoftware ermöglicht es auch, den Wettkampf selbst weiterzuentwickeln: neue Regeln und neue Wettkampfformate viel leichter ausprobieren, sie auf echte Tasks anwenden und die Ranglisten vergleichen.",
   "Sur les épaules des pionniers": "Auf den Schultern der Pioniere",
   "pgscore doit beaucoup à ceux qui l'ont précédé. CompCheck™ d'Ulric Jessop et SVL de Daniel Dimov sont des références : l'évolution et l'histoire du parapente de compétition ont été portées par leurs outils, à une époque où créer un logiciel demandait bien plus d'efforts qu'aujourd'hui. Merci à eux.": "pgscore verdankt seinen Vorgängern viel. CompCheck™ von Ulric Jessop und SVL von Daniel Dimov sind Referenzen: Die Entwicklung und Geschichte des Wettkampf-Gleitschirmfliegens wurde von ihren Werkzeugen getragen, in einer Zeit, in der Softwareentwicklung weit mehr Aufwand verlangte als heute. Danke an sie.",

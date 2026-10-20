@@ -52,6 +52,8 @@ export interface Task {
   stopAnnouncement?: string;
   /** Score-back en secondes (13.4.1) : 300 en parapente (par défaut), 900 en delta. */
   scoreBackTime?: number;
+  /** Manche arrêtée : finesse du bonus d'altitude (13.4.6), 2,5 par défaut ; FS la règle dans sa formule (bonus_gr). */
+  bonusGlideRatio?: number;
   /** Indication d'origine (enter/exit) gardée pour l'affichage : le S7F 2026 ne l'utilise plus. */
   startDirection?: "enter" | "exit";
   /** Modèle terrestre déclaré par le fichier source ; le contrôle utilise toujours WGS84. */

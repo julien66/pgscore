@@ -187,7 +187,7 @@ export function controlFlight(task: Task, fixes: IgcFix[], options: ControlOptio
     altitudeAboveGoal = Math.max(0, (alt(p) ?? goalAlt) - goalAlt);
     const sssIdx = task.turnpoints.findIndex((t) => t.role === "sss");
     const remaining = remainingFrom(task, c.validated, sssIdx)(p);
-    bonusDistance = Math.min(distances.task, distances.task - remaining + altitudeAboveGoal * BONUS_GLIDE_RATIO);
+    bonusDistance = Math.min(distances.task, distances.task - remaining + altitudeAboveGoal * (task.bonusGlideRatio ?? BONUS_GLIDE_RATIO));
   }
   c.stopped = {
     taskStopTime: stop,

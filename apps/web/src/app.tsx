@@ -864,6 +864,10 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       const tz = parseSettings(x.comp.params).timeZone;
       if (stop) task.stopAnnouncement = localHmsToUtc(stop, date, tz);
       else delete task.stopAnnouncement;
+      const gr = String(f.bonusGlideRatio ?? "").trim().replace(",", ".");
+      if (gr === "") delete task.bonusGlideRatio;
+      else if (Number.isFinite(Number(gr)) && Number(gr) >= 0) task.bonusGlideRatio = Number(gr);
+      else throw new Error(t("Finesse du bonus d'altitude : nombre positif attendu."));
       delete task.leadingTimeRatio;
       delete task.pilotsPresent;
       delete task.taskEndTime;

@@ -127,6 +127,20 @@ describe("échange avec FS (FSDB)", () => {
     expect(strFromU8(ex["coupe-de-test-fs.fsdb"]!)).toContain('tracklog_filename="12.igc"');
   });
 
+  it("reprend une manche arrêtée et la finesse du bonus d'altitude de FS", () => {
+    const xml = FSDB.toString("utf8")
+      .replace('task_state="REGULAR"', 'task_state="STOPPED"')
+      .replace('nom_goal="0.2" score_back_time="5"', 'nom_goal="0.2" bonus_gr="1" score_back_time="5"');
+    const { a } = fsdbToArchive(new Uint8Array(Buffer.from(xml, "utf8")));
+    const task = a.tasks[0]!.task;
+    expect(task.stopAnnouncement).toBe("16:00:00");
+    expect(task.scoreBackTime).toBe(300);
+    expect(task.bonusGlideRatio).toBe(1);
+    // Sans réglage dans la manche, celui de la compétition FS (4 dans la fixture).
+    const fromComp = fsdbToArchive(new Uint8Array(Buffer.from(xml.replace(' bonus_gr="1"', ""), "utf8")));
+    expect(fromComp.a.tasks[0]!.task.bonusGlideRatio).toBe(4);
+  });
+
   it("distingue une archive pgscore d'un FSDB", () => {
     expect(looksLikeFsdb(new Uint8Array(FSDB))).toBe(true);
     expect(looksLikeFsdb(zipSync({ "competition.json": strToU8("{}"), "x.fsdb": strToU8("<Fs/>") }))).toBe(false);

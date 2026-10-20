@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
-import type { PilotResult, TaskScoring, TaskTurnpoint } from "@pgscore/engine";
+import { BONUS_GLIDE_RATIO, type PilotResult, type TaskScoring, type TaskTurnpoint } from "@pgscore/engine";
 import { ARCHIVE_FORMAT, ARCHIVE_VERSION, competitionArchive, type ArchiveTask, type CompetitionArchive } from "./archive.js";
 import type { CompetitionRow, Db } from "./db.js";
 import { t } from "./i18n.js";
@@ -89,7 +89,7 @@ function settingsFromFormula(f: XmlEl | undefined, comp: XmlEl, warnings: string
 }
 
 /** Manche FS → manche du moteur. FsTurnpoint dans l'ordre ; ss et es sont des rangs (à partir de 1). */
-function taskFromFs(def: XmlEl, state: XmlEl | undefined, warnings: string[], n: number): { task: StoredTask; date: string | null } {
+function taskFromFs(def: XmlEl, state: XmlEl | undefined, formulaEl: XmlEl | undefined, warnings: string[], n: number): { task: StoredTask; date: string | null } {
   const tps = children(def, "FsTurnpoint");
   if (tps.length < 2) throw new FormError(t("Manche {n} du FSDB : au moins deux balises attendues.", { n }));
   const ss = num(def.attrs.ss, 1) - 1;
@@ -121,6 +121,8 @@ function taskFromFs(def: XmlEl, state: XmlEl | undefined, warnings: string[], n:
     const stop = isoMs(state.attrs.stop_time);
     if (stop !== null) task.stopAnnouncement = utcHms(stop);
     task.scoreBackTime = num(state.attrs.score_back_time, 5) * 60;
+    const gr = Number(formulaEl?.attrs.bonus_gr);
+    if (formulaEl?.attrs.bonus_gr && Number.isFinite(gr) && gr >= 0) task.bonusGlideRatio = gr;
   }
   const ltr = Number(def.attrs.leading_time_ratio);
   if (def.attrs.leading_time_ratio && Number.isFinite(ltr)) task.leadingTimeRatio = ltr;
@@ -243,7 +245,7 @@ export function fsdbToArchive(bytes: Uint8Array): { a: CompetitionArchive; files
     const def = child(ft, "FsTaskDefinition");
     if (!def) throw new FormError(t("Manche {n} du FSDB : définition absente.", { n }));
     const state = child(ft, "FsTaskState");
-    const { task, date } = taskFromFs(def, state, warnings, n);
+    const { task, date } = taskFromFs(def, state, [child(ft, "FsScoreFormula"), child(comp, "FsScoreFormula")].find((f) => f?.attrs.bonus_gr), warnings, n);
     const folder = base(ft.attrs.tracklog_folder ?? "");
     const decisions: ArchiveTask["decisions"] = [];
     const tracks: ArchiveTask["tracks"] = [];
@@ -324,7 +326,7 @@ export function fsdbToArchive(bytes: Uint8Array): { a: CompetitionArchive; files
 const r1 = (v: number | null | undefined) => (v === null || v === undefined ? 0 : Math.round(v * 10) / 10);
 const km3 = (m: number | null | undefined) => ((m ?? 0) / 1000).toFixed(3);
 
-function formula(s: CompetitionSettings): string {
+function formula(s: CompetitionSettings, task?: StoredTask): string {
   return el("FsScoreFormula", {
     id: s.gapProfile === "PWCA" ? "PWC2026" : "GAP2026",
     is_pg_comp: 1,
@@ -335,7 +337,7 @@ function formula(s: CompetitionSettings): string {
     nom_launch: 0.96,
     nom_goal: 0.3,
     day_quality_override: 0,
-    bonus_gr: 1,
+    bonus_gr: task?.bonusGlideRatio ?? BONUS_GLIDE_RATIO,
     use_distance_points: 1,
     use_time_points: 1,
     use_leading_points: 1,
@@ -559,7 +561,7 @@ export function competitionFsdb(db: Db, comp: CompetitionRow, opts: { withTracks
           ]),
         ]
       : [];
-    return el("FsTask", { id: tk.number, name: `Task ${tk.number}`, tracklog_folder: `tracks\\${folder}` }, [formula(s), def, state, el("FsParticipants", {}, parts), ...taskResults]);
+    return el("FsTask", { id: tk.number, name: `Task ${tk.number}`, tracklog_folder: `tracks\\${folder}` }, [formula(s, task), def, state, el("FsParticipants", {}, parts), ...taskResults]);
   });
   const ranking = st.ranking;
   const compResults = ranking.pilots.length
