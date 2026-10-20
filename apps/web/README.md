@@ -69,8 +69,10 @@ Pour chaque trace : contrôle du vol (départ, balises, ESS, goal, distance), ma
 distance minimale, espaces aériens et pénalité, puis coefficient de leading sur l'ensemble des
 pilotes, et enfin les points GAP : validité de la manche, points disponibles, points distance,
 temps et leading de chaque pilote, pénalités. La formule se choisit dans les réglages de la
-compétition : S7F 2026 (texte FAI) ou PWCA 2026 (comme SVL : coefficients arrondis, LTR 26,3158 %,
-points disponibles au dixième, meilleur temps parmi tous les pilotes à l'ESS).
+compétition : CIVL GAP 2026 (comme FS) ou PWCA 2026 (comme SVL : coefficients arrondis, LTR 26,3158 %,
+meilleur temps parmi tous les pilotes à l'ESS). Le leading se calcule d'une seule façon, celle de FS et
+de SVL (sans le facteur de distance restante du texte S7F), vérifiée à 0,1 point près sur Baixo Guandu
+2026 (PWCA) et la manche 1 du French Open 2026 (FS).
 
 Réglages de la manche utiles aux points : Leading Time Ratio (26 % par défaut en S7F), nombre de
 pilotes présents pour la validité de décollage (par défaut, ceux qui ont volé), et heure de fin de

@@ -4,16 +4,14 @@ import {
   type AirspacePenaltyRule,
   type CompetitionParameters,
   type GapProfile,
-  type LeadingProfile,
   type Task,
 } from "@pgscore/engine";
 import { N_, t } from "./i18n.js";
 
 /** Réglages d'une compétition : paramètres GAP (S7F 5) et choix de règlement. */
 export interface CompetitionSettings extends CompetitionParameters {
-  /** Formule de points : S7F 2026 ou variante PWCA (SVL). */
+  /** Formule de points : GAP 2026 de la CIVL (comme FS) ou variante PWCA (comme SVL). */
   gapProfile: GapProfile;
-  leadingProfile: LeadingProfile;
   airspacePenaltyRule: AirspacePenaltyRule;
   /** Arrondi au mètre des limites converties depuis les pieds (comme SVL, logiciel de la PWCA). */
   roundAirspaceLimits: boolean;
@@ -24,20 +22,14 @@ export interface CompetitionSettings extends CompetitionParameters {
 export const DEFAULT_SETTINGS: CompetitionSettings = {
   ...DEFAULT_COMPETITION_PARAMETERS,
   gapProfile: "S7F2026",
-  leadingProfile: "S7F2026",
   airspacePenaltyRule: "s7a",
   roundAirspaceLimits: false,
   timeZone: "Europe/Paris",
 };
 
 export const GAP_PROFILES: Record<GapProfile, string> = {
-  S7F2026: N_("S7F 2026 (texte FAI)"),
+  S7F2026: N_("CIVL GAP 2026 (comme FS)"),
   PWCA: N_("PWCA 2026 (comme SVL)"),
-};
-
-export const LEADING_PROFILES: Record<LeadingProfile, string> = {
-  S7F2026: N_("S7F 2026 (texte FAI)"),
-  PWCA: N_("Comme FS et SVL (sans facteur distance)"),
 };
 
 export const PENALTY_RULES: Record<AirspacePenaltyRule, string> = {
@@ -47,7 +39,9 @@ export const PENALTY_RULES: Record<AirspacePenaltyRule, string> = {
 };
 
 export function parseSettings(json: string): CompetitionSettings {
-  return { ...DEFAULT_SETTINGS, ...(JSON.parse(json) as Partial<CompetitionSettings>) };
+  // leadingProfile : ancien choix du calcul de leading, retiré (un seul calcul, celui de FS et SVL).
+  const { leadingProfile: _old, ...stored } = JSON.parse(json) as Partial<CompetitionSettings> & { leadingProfile?: unknown };
+  return { ...DEFAULT_SETTINGS, ...stored };
 }
 
 export class FormError extends Error {}
@@ -71,9 +65,7 @@ function isTimeZone(tz: string): boolean {
 export function settingsFromForm(form: Record<string, unknown>): CompetitionSettings {
   const gapProfile = String(form.gapProfile ?? DEFAULT_SETTINGS.gapProfile) as GapProfile;
   if (!(gapProfile in GAP_PROFILES)) throw new FormError(t("Formule de points inconnue."));
-  const leadingProfile = String(form.leadingProfile) as LeadingProfile;
   const airspacePenaltyRule = String(form.airspacePenaltyRule) as AirspacePenaltyRule;
-  if (!(leadingProfile in LEADING_PROFILES)) throw new FormError(t("Profil de leading inconnu."));
   if (!(airspacePenaltyRule in PENALTY_RULES)) throw new FormError(t("Barème d'espace aérien inconnu."));
   const timeZone = String(form.timeZone ?? "").trim() || DEFAULT_SETTINGS.timeZone;
   if (!isTimeZone(timeZone)) throw new FormError(t("Fuseau horaire inconnu : {timeZone}", { timeZone }));
@@ -88,7 +80,7 @@ export function settingsFromForm(form: Record<string, unknown>): CompetitionSett
   } catch (e) {
     throw new FormError((e as Error).message);
   }
-  return { ...params, gapProfile, leadingProfile, airspacePenaltyRule, roundAirspaceLimits: form.roundAirspaceLimits === "on", timeZone };
+  return { ...params, gapProfile, airspacePenaltyRule, roundAirspaceLimits: form.roundAirspaceLimits === "on", timeZone };
 }
 
 /** Réglages de points propres à une manche, rangés avec elle. */

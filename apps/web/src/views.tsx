@@ -4,7 +4,7 @@ import { GAP_RULES, NOMINAL_GOAL, NOMINAL_LAUNCH, speedFraction, type DecisionKi
 import type { ApiTokenRow } from "./auth.js";
 import type { CompetitionRow, DecisionRow, PilotRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
 import { DECISION_KINDS } from "./decisions.js";
-import { GAP_PROFILES, LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
+import { GAP_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
 import type { Standings } from "./standings.js";
 import { lang, LANGS, locale, N_, t } from "./i18n.js";
@@ -354,16 +354,6 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
           <select name="gapProfile">
             {Object.entries(GAP_PROFILES).map(([k, l]) => (
               <option value={k} selected={s.gapProfile === k}>
-                {t(l)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label>{t("Leading")}</label>
-          <select name="leadingProfile">
-            {Object.entries(LEADING_PROFILES).map(([k, l]) => (
-              <option value={k} selected={s.leadingProfile === k}>
                 {t(l)}
               </option>
             ))}
@@ -1841,8 +1831,7 @@ const TaskDetails: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r,
   const winner = [...r.pilots].sort((x, y) => (y.total ?? 0) - (x.total ?? 0))[0];
   const lander = [...r.pilots].filter((p) => p.status === "DF" || p.status === "MIND").sort((x, y) => (y.total ?? 0) - (x.total ?? 0))[0];
   const share = (w: number) => fr(w * 100, 1);
-  const lcFormula =
-    settings.leadingProfile === "S7F2026" ? "1 − ((LC − LCmin)² / √LCmin)^(1/3)" : "1 − ((LC − LCmin)² / LCmin)^(1/3)";
+  const lcFormula = "1 − ((LC − LCmin)² / LCmin)^(1/3)";
   const Example: FC<{ p: PilotResult; title: string }> = ({ p, title }) => {
     const pt = p.points;
     if (!pt) return null;
@@ -2024,7 +2013,6 @@ const TaskDetails: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r,
       <table class="calc">
         <tbody>
           <Calc label={t("Formule de points")} value={t(GAP_PROFILES[settings.gapProfile])} />
-          <Calc label={t("Leading")} value={t(LEADING_PROFILES[settings.leadingProfile])} />
           <Calc label={t("Distance nominale (km)")} value={km(nomD, 1)} />
           <Calc label={t("Distance minimale (km)")} value={km(minD, 1)} />
           <Calc label={t("Temps nominal (min)")} value={String(settings.nominalTime / 60)} />
@@ -2158,7 +2146,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
               : t("{n} trace au leading peut-être faussé (trou, points espacés ou arrêt avant l'atterrissage : survolez l'icône)", { n: leadWarn })}
           </>
         ) : null}{" "}
-        · {t("leading {profile}", { profile: t(LEADING_PROFILES[settings.leadingProfile]) })} ·{" "}
+        · {t(GAP_PROFILES[settings.gapProfile])} ·{" "}
         <CsvLink href={`/tasks/${taskId}/results.csv${rid ? `?r=${rid}` : ""}`} />
       </p>
       <div class="scroll">

@@ -47,7 +47,7 @@ describe("pilote d'une trace envoyée", () => {
     };
     await req("/auth/dev", { method: "POST", body: new URLSearchParams({ email: "o@example.org", name: "o" }) });
     const f = new FormData();
-    for (const [k, v] of Object.entries({ name: "Entraînement", location: "Gemona", start_date: "2026-07-28", end_date: "2026-07-28", nominalDistance: "60", minimumDistance: "5", nominalTime: "60", ftvFactor: "25", leadingProfile: "PWCA", airspacePenaltyRule: "pwca-soft", timeZone: "Europe/Rome" })) f.append(k, v);
+    for (const [k, v] of Object.entries({ name: "Entraînement", location: "Gemona", start_date: "2026-07-28", end_date: "2026-07-28", nominalDistance: "60", minimumDistance: "5", nominalTime: "60", ftvFactor: "25", gapProfile: "PWCA", airspacePenaltyRule: "pwca-soft", timeZone: "Europe/Rome" })) f.append(k, v);
     const compUrl = (await req("/competitions", { method: "POST", body: f })).headers.get("location")!;
     const ft = new FormData();
     ft.append("number", "1");

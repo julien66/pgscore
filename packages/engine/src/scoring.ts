@@ -1,7 +1,7 @@
 import { controlFlight, zoneApproaches, type FlightControl, type ZoneApproach } from "./control.js";
 import { taskDistances, type TaskDistances } from "./distances.js";
 import { parseIgc } from "./igc.js";
-import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingTrack, type LeadingProfile, type LeadingTrack, type LeadingWarning } from "./leading.js";
+import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingTrack, type LeadingTrack, type LeadingWarning } from "./leading.js";
 import {
   airspaceInfringements,
   airspacePenalty,
@@ -26,7 +26,6 @@ export interface ScoringOptions {
   airspacePenaltyRule?: AirspacePenaltyRule;
   /** Arrondit au mètre les limites converties depuis les pieds, comme SVL (PWCA). */
   roundAirspaceLimits?: boolean;
-  leadingProfile?: LeadingProfile;
   /** Variante de la formule de points (S7F 2026 par défaut). */
   gapProfile?: GapProfile;
   /** Leading Time Ratio de la manche (0 à 0,26) ; à défaut, celui de la formule. */
@@ -219,7 +218,6 @@ export function finishScoring(task: Task, controlled: ControlledPilot[], options
   const distances = taskDistances(task);
   const pilots = applyDecisions(controlled, options.decisions ?? [], distances.task, options.params.minimumDistance);
   const ssKm = distances.speedSection / 1000;
-  const profile = options.leadingProfile ?? "S7F2026";
   const absent = (r: PilotResult) => r.status === "ABS" || r.status === "DNF";
   const withLeading = pilots.filter((p) => p.leading && p.control && !absent(p.result));
   let lcMin: number | null = null;
@@ -237,9 +235,9 @@ export function finishScoring(task: Task, controlled: ControlledPilot[], options
     const cap = task.deadline ? at(task.deadline) : Infinity;
     const end = options.taskEndTime ?? (options.gapProfile === "PWCA" && c0.stopped ? task.stopAnnouncement : undefined);
     maxTime = leadingMaxTime(withLeading.map((p) => p.leading!), cap, end ? at(end) : undefined);
-    for (const p of withLeading) p.result.leadingCoefficient = leadingCoefficient(p.leading!, ssKm, maxTime, profile);
+    for (const p of withLeading) p.result.leadingCoefficient = leadingCoefficient(p.leading!, ssKm, maxTime);
     lcMin = Math.min(...withLeading.map((p) => p.result.leadingCoefficient!));
-    for (const p of withLeading) p.result.leadingFactor = leadingFactor(p.result.leadingCoefficient!, lcMin, profile);
+    for (const p of withLeading) p.result.leadingFactor = leadingFactor(p.result.leadingCoefficient!, lcMin);
   }
 
   // Points GAP. Un pilote en erreur n'a pas de vol retenu : il ne compte pas parmi les volants.

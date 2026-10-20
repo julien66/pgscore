@@ -28,12 +28,12 @@ describe.skipIf(!dir || !existsSync(dir))("profil de leading PWCA, Baixo Guandu 
     }
     // Fin de manche retenue par la PWCA : 19:17:24Z, soit 12 744 s après la porte (notre dernier posé : +22 s).
     const maxTime = 12_744;
-    const lc = new Map([...tracks].filter(([, t]) => t).map(([id, t]) => [id, leadingCoefficient(t!, ss, maxTime, "PWCA")]));
+    const lc = new Map([...tracks].filter(([, t]) => t).map(([id, t]) => [id, leadingCoefficient(t!, ss, maxTime)]));
     const lcMin = Math.min(...lc.values());
     expect(lcMin).toBeCloseTo(1.73356, 3); // « Best progress coefficient » publié
     for (const [id, , lead] of rows) {
       const l = lc.get(id!);
-      const points = l === undefined ? 0 : Math.round(leadingFactor(l, lcMin, "PWCA") * 1636) / 10;
+      const points = l === undefined ? 0 : Math.round(leadingFactor(l, lcMin) * 1636) / 10;
       expect(Math.abs(points - Number(lead || 0)), `pilote ${id}`).toBeLessThanOrEqual(0.11);
     }
   });

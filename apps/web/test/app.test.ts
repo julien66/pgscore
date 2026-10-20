@@ -34,7 +34,7 @@ const competitionFields = {
   minimumDistance: "5",
   nominalTime: "60",
   ftvFactor: "0",
-  leadingProfile: "PWCA",
+  gapProfile: "PWCA",
   airspacePenaltyRule: "pwca-soft",
   timeZone: "Europe/Rome",
   roundAirspaceLimits: "on",

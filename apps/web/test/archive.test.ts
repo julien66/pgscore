@@ -36,7 +36,7 @@ describe("export et import de compétitions", () => {
     const { db, req, login, logout } = setup();
     await login("orga@example.org");
     const f = new FormData();
-    for (const [k, v] of Object.entries({ name: "Coupe export", location: "Gemona", start_date: "2026-07-25", end_date: "2026-08-01", nominalDistance: "60", minimumDistance: "5", nominalTime: "60", ftvFactor: "25", leadingProfile: "PWCA", airspacePenaltyRule: "pwca-soft", timeZone: "Europe/Rome" }))
+    for (const [k, v] of Object.entries({ name: "Coupe export", location: "Gemona", start_date: "2026-07-25", end_date: "2026-08-01", nominalDistance: "60", minimumDistance: "5", nominalTime: "60", ftvFactor: "25", gapProfile: "PWCA", airspacePenaltyRule: "pwca-soft", timeZone: "Europe/Rome" }))
       f.append(k, v);
     f.append("airspace", new Blob([AIRSPACE]), "gemona.txt");
     const compUrl = (await req("/competitions", { method: "POST", body: f })).headers.get("location")!;
@@ -73,7 +73,7 @@ describe("export et import de compétitions", () => {
     const zip = new Uint8Array(await ex.arrayBuffer());
     const files = unzipSync(zip);
     const a = JSON.parse(strFromU8(files["competition.json"]!));
-    expect(a).toMatchObject({ format: "pgscore-competition", version: 1, competition: { name: "Coupe export", settings: { ftvFactor: 0.25, leadingProfile: "PWCA" } } });
+    expect(a).toMatchObject({ format: "pgscore-competition", version: 1, competition: { name: "Coupe export", settings: { ftvFactor: 0.25, gapProfile: "PWCA" } } });
     expect(a.pilots).toHaveLength(2);
     expect(a.rankings.map((r: { name: string }) => r.name)).toContain("Féminin");
     expect(a.tasks[0]).toMatchObject({ number: 3, official: true, decisions: [{ pilot_key: "7", kind: "penalty", value: 50 }] });

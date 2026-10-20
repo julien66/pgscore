@@ -14,7 +14,7 @@ interface Case {
   qr: string;
   points: string;
   stopAnnouncement?: string;
-  options: Omit<ScoringOptions, "leadingProfile" | "gapProfile" | "airspacePenaltyRule">;
+  options: Omit<ScoringOptions, "gapProfile" | "airspacePenaltyRule">;
   /** Disponibles publiés : distance, temps, leading. */
   available: [number, number, number];
   /** Pilotes à écarter, avec la raison. */
@@ -71,7 +71,7 @@ for (const c of cases) {
   describe.skipIf(!c.dir || !existsSync(c.dir))(`points GAP PWCA : ${c.name}`, () => {
     const task = parseXctsk(fixture(c.qr).trim());
     if (c.stopAnnouncement) task.stopAnnouncement = c.stopAnnouncement;
-    const options: ScoringOptions = { ...c.options, leadingProfile: "PWCA", gapProfile: "PWCA", airspacePenaltyRule: "pwca-soft" };
+    const options: ScoringOptions = { ...c.options, gapProfile: "PWCA", airspacePenaltyRule: "pwca-soft" };
     const files = c.dir && existsSync(c.dir) ? readdirSync(c.dir).filter((f) => f.endsWith(".igc")) : [];
     const id = (f: string) => f.replace(/\.igc$/, "").replace(/^.*\./, "");
     const scoring = files.length

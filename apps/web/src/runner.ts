@@ -45,7 +45,6 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
       airspaces: comp.airspace_text ? parseOpenAir(comp.airspace_text) : [],
       airspacePenaltyRule: s.airspacePenaltyRule,
       roundAirspaceLimits: s.roundAirspaceLimits,
-      leadingProfile: s.leadingProfile,
       gapProfile: s.gapProfile,
       ...(task.leadingTimeRatio !== undefined ? { leadingTimeRatio: task.leadingTimeRatio } : {}),
       ...(task.pilotsPresent !== undefined ? { pilotsPresent: task.pilotsPresent } : {}),
