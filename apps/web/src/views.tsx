@@ -64,6 +64,7 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 table.pilots td{padding:3px 4px}table.pilots input[type=text],table.pilots select{padding:4px 6px;font-size:13px}
 table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{width:190px}table.pilots tr.new td{background:var(--chip)}
 .tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--muted)}.tabs a.on{background:var(--card);border-color:var(--line);color:var(--text);font-weight:600;margin-bottom:-1px}
+#standings.loading{opacity:.55;transition:opacity .15s}
 .cond{margin-top:6px}.cond select{width:auto}.cond input{max-width:280px}
 .ftv-part{font-weight:600}.ftv-raw{color:var(--muted);font-size:12px;margin-left:4px}.ftv-out{color:var(--muted)}
 th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
@@ -354,14 +355,13 @@ export const CompetitionPage: FC<{
   c: CompetitionRow;
   v: CompetitionFormValues;
   tasks: TaskRow[];
-  standings: Standings;
+  board: Board;
   pilots: PilotRow[];
-  rankings: Array<{ id: number; name: string }>;
   airspaceCount: number | null;
   error?: string | null;
   notice?: string | null;
   edit?: boolean;
-}> = ({ user, c, v, tasks, standings, pilots, rankings, airspaceCount, error, notice, edit }) => (
+}> = ({ user, c, v, tasks, board, pilots, airspaceCount, error, notice, edit }) => (
   <Layout title={edit ? `${t("Éditer")} · ${c.name}` : c.name} user={user}>
     <div class="crumbs">
       <a href="/">{t("Mes compétitions")}</a>
@@ -382,17 +382,12 @@ export const CompetitionPage: FC<{
     {edit ? (
       <CompetitionEdit c={c} v={v} pilots={pilots} airspaceCount={airspaceCount} open={Boolean(error)} />
     ) : (
-      <CompetitionMain c={c} tasks={tasks} standings={standings} rankings={rankings} />
+      <CompetitionMain c={c} tasks={tasks} board={board} />
     )}
   </Layout>
 );
 
-const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; standings: Standings; rankings: Array<{ id: number; name: string }> }> = ({
-  c,
-  tasks,
-  standings,
-  rankings,
-}) => (
+const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }> = ({ c, tasks, board }) => (
   <>
     <div class="card">
       <div class="row" style="justify-content:space-between">
@@ -435,9 +430,8 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; standings: Stan
     </div>
 
     <div class="card" id="standings">
-      <h2><Ic n="trophy" c="amber" />{t("Classement général")}</h2>
-      <RankingTabs c={c} rankings={rankings} current={null} />
-      <StandingsTable c={c} s={standings} limit={10} />
+      <h2><Ic n="trophy" c="amber" />{t("Classements")}</h2>
+      <StandingsBoard c={c} b={board} />
     </div>
     <script src="/static/competition.js" />
   </>
@@ -710,7 +704,10 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
       <p class="small mt">
         {limit && r.pilots.length > limit ? (
           <>
-            <a href={`/competitions/${c.id}/standings${q}`}>{t("Voir les {n} pilotes", { n: r.pilots.length })}</a> ·{" "}
+            <a class="swap" href={boardUrl(c, { r: rid, all: true })}>
+              {t("Voir les {n} pilotes", { n: r.pilots.length })}
+            </a>{" "}
+            ·{" "}
           </>
         ) : null}
         <a href={`/competitions/${c.id}/standings.csv${q}`}>{t("Exporter en CSV")}</a>
@@ -722,7 +719,7 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
   );
 };
 
-/** Onglets des classements : général, puis les classements extraits. */
+/** Onglets des classements : général, puis les classements extraits. Ils restent sur la page de la compétition. */
 const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: string; count?: number }>; current: number | null; create?: boolean }> = ({
   c,
   rankings,
@@ -730,16 +727,16 @@ const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: s
   create,
 }) => (
   <nav class="tabs">
-    <a href={`/competitions/${c.id}/standings`} class={current === null && !create ? "on" : ""}>
+    <a href={boardUrl(c)} class={`swap${current === null && !create ? " on" : ""}`}>
       {t("Général")}
     </a>
     {rankings.map((r) => (
-      <a href={`/competitions/${c.id}/standings?r=${r.id}`} class={current === r.id ? "on" : ""}>
+      <a href={boardUrl(c, { r: r.id })} class={`swap${current === r.id ? " on" : ""}`}>
         {t(r.name)}
         {r.count !== undefined ? <span class="muted small"> {r.count}</span> : null}
       </a>
     ))}
-    <a href={`/competitions/${c.id}/standings?new=1`} class={create ? "on" : ""}>
+    <a href={boardUrl(c, { create: true })} class={`swap${create ? " on" : ""}`}>
       + {t("Nouveau classement")}
     </a>
   </nav>
@@ -838,37 +835,38 @@ const RankingPilots: FC<{ c: CompetitionRow; r: Ranking; pilots: PilotRow[] }> =
   );
 };
 
-export const StandingsPage: FC<{
-  user: User;
-  c: CompetitionRow;
+/** Classement affiché sur la page de la compétition : général ou extrait, création d'un classement. */
+export interface Board {
   s: Standings;
-  overall: Standings;
   pilots: PilotRow[];
   rankings: Array<{ r: Ranking; count: number }>;
   current: Ranking | null;
   create: boolean;
+  all: boolean;
   error?: string | null;
   notice?: string | null;
-}> = ({ user, c, s, pilots, rankings, current, create, error, notice }) => {
-  const title = create
-    ? t("Nouveau classement")
-    : current
-      ? t("Classement {name}", { name: t(current.row.name).toLowerCase() })
-      : t("Classement général");
-  const count = current ? rankings.find((x) => x.r.row.id === current.row.id)!.count : 0;
+}
+
+/** Adresse d'une vue du classement, sur la page de la compétition. */
+export const boardUrl = (c: CompetitionRow, q: { r?: number | null; all?: boolean; create?: boolean } = {}) => {
+  const p = new URLSearchParams();
+  if (q.r) p.set("r", String(q.r));
+  if (q.all) p.set("all", "1");
+  if (q.create) p.set("new", "1");
+  const qs = p.toString();
+  return `/competitions/${c.id}${qs ? `?${qs}` : ""}#standings`;
+};
+
+const StandingsBoard: FC<{ c: CompetitionRow; b: Board }> = ({ c, b }) => {
+  const { s, pilots, rankings, current, create } = b;
+  const count = current ? (rankings.find((x) => x.r.row.id === current.row.id)?.count ?? 0) : 0;
   return (
-    <Layout title={`${title} · ${c.name}`} user={user}>
-      <div class="crumbs">
-        <a href="/">{t("Mes compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
-      </div>
-      <h1>{title}</h1>
-      <ErrorBox message={error} />
-      {notice ? <div class="note">{notice}</div> : null}
+    <>
       <RankingTabs c={c} rankings={rankings.map((x) => ({ id: x.r.row.id, name: x.r.row.name, count: x.count }))} current={current?.row.id ?? null} create={create} />
+      <ErrorBox message={b.error} />
+      {b.notice ? <div class="note">{b.notice}</div> : null}
       {create ? (
-        <div class="card">
-          <RankingForm c={c} r={null} />
-        </div>
+        <RankingForm c={c} r={null} />
       ) : (
         <>
           {current ? (
@@ -883,14 +881,10 @@ export const StandingsPage: FC<{
               {!pilots.length ? ` ${t("Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition.")}` : ""}
             </p>
           ) : null}
-          <div class="card">
-            <StandingsTable c={c} s={s} rid={current?.row.id} />
-          </div>
+          <StandingsTable c={c} s={s} rid={current?.row.id} limit={b.all ? undefined : 10} />
           {current ? (
-            <details class="card fold" id="ranking-settings">
-              <summary>
-                <h2><Ic n="filter" c="purple" />{t("Règle et pilotes de ce classement")}</h2>
-              </summary>
+            <details class="fold" id="ranking-settings" open={Boolean(b.error)}>
+              <summary>{t("Règle et pilotes de ce classement")}</summary>
               <RankingForm c={c} r={current} />
               <h2 class="mt">{t("Ajouts et retraits à la main")}</h2>
               <RankingPilots c={c} r={current} pilots={pilots} />
@@ -904,7 +898,7 @@ export const StandingsPage: FC<{
           ) : null}
         </>
       )}
-    </Layout>
+    </>
   );
 };
 

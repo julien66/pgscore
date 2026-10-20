@@ -36,7 +36,7 @@ import {
   NotFound,
   resultsCsv,
   RunCard,
-  StandingsPage,
+  boardUrl,
   TaskPage,
   ViewerPage,
   type CompetitionFormValues,
@@ -269,8 +269,10 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   const competitionPage = (
     c: Context<Env>,
     comp: CompetitionRow,
-    extra: { error?: string; notice?: string; v?: CompetitionFormValues; edit?: boolean } = {},
+    extra: { error?: string; notice?: string; v?: CompetitionFormValues; edit?: boolean; board?: BoardQuery } = {},
   ) => {
+    const bq = extra.board ?? {};
+    const x = standingsOf(comp, bq.rid);
     const tasks = db.prepare("SELECT * FROM tasks WHERE competition_id = ? ORDER BY number").all(comp.id) as unknown as TaskRow[];
     let count: number | null = null;
     if (comp.airspace_text) {
@@ -286,17 +288,34 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         c={comp}
         v={extra.v ?? rowValues(comp)}
         tasks={tasks}
-        standings={competitionStandings(db, comp)}
-        pilots={listPilots(db, comp.id)}
-        rankings={listRankings(db, comp.id).map((r) => ({ id: r.row.id, name: r.row.name }))}
+        board={{
+          s: x.s,
+          pilots: x.pilots,
+          rankings: x.rankings.map((r) => ({ r, count: x.members.get(r.row.id)!.size })),
+          current: x.current,
+          create: Boolean(bq.create),
+          all: Boolean(bq.all),
+          error: bq.error ?? null,
+          notice: bq.notice ?? null,
+        }}
+        pilots={x.pilots}
         airspaceCount={count}
         error={extra.error ?? null}
         notice={extra.notice ?? null}
         edit={extra.edit ?? false}
       />,
-      extra.error ? 400 : 200,
+      extra.error || bq.error ? 400 : 200,
     );
   };
+
+  /** Vue du classement demandée dans l'adresse de la page de la compétition. */
+  type BoardQuery = { rid?: string; create?: boolean; all?: boolean; error?: string; notice?: string };
+  const boardQuery = (c: Context<Env>): BoardQuery => ({
+    rid: c.req.query("r"),
+    create: c.req.query("new") === "1",
+    all: c.req.query("all") === "1",
+    notice: c.req.query("note"),
+  });
 
   // Onglet « Éditer » : réglages de la compétition, espace aérien et pilotes.
   app.get("/competitions/:id/edit", (c) => {
@@ -310,7 +329,9 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
     const msg = c.req.query("msg");
-    return competitionPage(c, comp, msg ? { notice: msg } : c.req.query("ok") ? { notice: t("Enregistré.") } : {});
+    const board = boardQuery(c);
+    if (board.rid && !standingsOf(comp, board.rid).current) return notFound(c);
+    return competitionPage(c, comp, { board, ...(msg ? { notice: msg } : c.req.query("ok") ? { notice: t("Enregistré.") } : {}) });
   });
 
   app.post("/competitions/:id", async (c) => {
@@ -407,30 +428,16 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     return { all, s, pilots, rankings, members, current };
   };
 
-  const standingsPage = (c: Context<Env>, comp: CompetitionRow, rid: string | undefined, extra: { error?: string; notice?: string; create?: boolean } = {}) => {
-    const x = standingsOf(comp, rid);
-    if (rid && !x.current) return notFound(c);
-    return c.html(
-      <StandingsPage
-        user={c.get("user")}
-        c={comp}
-        s={x.s}
-        overall={x.all}
-        pilots={x.pilots}
-        rankings={x.rankings.map((r) => ({ r, count: x.members.get(r.row.id)!.size }))}
-        current={x.current}
-        create={extra.create ?? false}
-        error={extra.error ?? null}
-        notice={extra.notice ?? null}
-      />,
-      extra.error ? 400 : 200,
-    );
-  };
+  /** Erreur d'un formulaire de classement : la page de la compétition, classement ouvert. */
+  const standingsPage = (c: Context<Env>, comp: CompetitionRow, rid: string | undefined, extra: { error?: string; create?: boolean } = {}) =>
+    competitionPage(c, comp, { board: { rid, create: extra.create, error: extra.error } });
 
+  // Ancienne page des classements : tout est maintenant sur la page de la compétition.
   app.get("/competitions/:id/standings", (c) => {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
-    return standingsPage(c, comp, c.req.query("r"), { create: c.req.query("new") === "1", notice: c.req.query("msg") });
+    const r = c.req.query("r");
+    return c.redirect(boardUrl(comp, { r: r ? Number(r) : null, all: true, create: c.req.query("new") === "1" }));
   });
 
   app.get("/competitions/:id/standings.csv", (c) => {
@@ -447,7 +454,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
 
   // --- Classements extraits --------------------------------------------------------------
   const toRanking = (comp: CompetitionRow, rid: number, msg?: string) =>
-    `/competitions/${comp.id}/standings?r=${rid}${msg ? `&msg=${encodeURIComponent(msg)}` : ""}`;
+    boardUrl(comp, { r: rid }).replace("#", msg ? `&note=${encodeURIComponent(msg)}#` : "#");
 
   app.post("/competitions/:id/rankings", async (c) => {
     const comp = competition(c, c.req.param("id"));
@@ -480,7 +487,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const r = comp ? getRanking(db, comp.id, Number(c.req.param("rid"))) : null;
     if (!comp || !r) return notFound(c);
     deleteRanking(db, r);
-    return c.redirect(`/competitions/${comp.id}/standings?msg=${encodeURIComponent(t("Classement « {name} » supprimé.", { name: r.row.name }))}`);
+    return c.redirect(`/competitions/${comp.id}?note=${encodeURIComponent(t("Classement « {name} » supprimé.", { name: r.row.name }))}#standings`);
   });
 
   app.post("/competitions/:id/rankings/:rid/pilots", async (c) => {

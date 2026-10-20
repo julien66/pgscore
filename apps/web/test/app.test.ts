@@ -134,7 +134,9 @@ describe("interface web", () => {
     expect(comp).toContain("640,5");
     const csv = await (await req(`${compUrl}/standings.csv`)).text();
     expect(csv.split("\n")[1]).toBe("1,12,Ana Vainqueur,1000.0,1000.0,1000.0,1000.0");
-    expect(await (await req(`${compUrl}/standings`)).text()).toContain("Bruno Second");
+    expect(await (await req(`${compUrl}?all=1`)).text()).toContain("Bruno Second");
+    // L'ancienne page des classements renvoie vers la page de la compétition.
+    expect((await req(`${compUrl}/standings`)).headers.get("location")).toBe(`${compUrl}?all=1#standings`);
     await req(`${taskUrl}/official`, { method: "POST", body: new URLSearchParams({ official: "0" }) });
     expect(await (await req(compUrl)).text()).toContain("Aucune manche officielle calculée");
   });

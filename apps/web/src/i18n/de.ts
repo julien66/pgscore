@@ -1,5 +1,6 @@
 /** Traductions de : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Classements": "Wertungen",
   "Origine refusée": "Herkunft abgelehnt",
   "Se connecter avec Google": "Mit Google anmelden",
   "Connexion annulée.": "Anmeldung abgebrochen.",
