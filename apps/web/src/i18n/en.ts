@@ -1,5 +1,6 @@
 /** Traductions en : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Pour remplacer la trace d'un pilote, utilisez « Remplacer » sur sa ligne.": "IGC files or a .zip archive. The pilot is recognised by the file's number or, failing that, by the name written in the track; a track with no recognised pilot is added separately, without overwriting another. To replace a pilot's track, use “Replace” on their row.",
   "QR code de la manche (XCTrack)": "Task QR code (XCTrack)",
   "texte du QR code": "QR code text",
   "Logiciel libre, licence AGPL-3.0": "Free software, AGPL-3.0 licence",

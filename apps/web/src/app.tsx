@@ -770,6 +770,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const run = (db.prepare("SELECT * FROM runs WHERE task_id = ? ORDER BY id DESC LIMIT 1").get(t.id) as unknown as RunRow | undefined) ?? null;
     return c.html(
       <TaskPage
+        openTracks={c.req.query("open") === "tracks"}
         user={c.get("user")}
         c={comp}
         t={t}
@@ -909,7 +910,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       count[saveTrack(db, x.t.id, me(c).id, { pilotKey, pilotName: regName.get(pilotKey) ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
     }
     db.exec("COMMIT");
-    return c.redirect(`/tasks/${x.t.id}/edit?${new URLSearchParams(Object.entries(count).filter(([, n]) => n).map(([k, n]) => [k, String(n)]))}`);
+    return c.redirect(`/tasks/${x.t.id}/edit?${new URLSearchParams([...Object.entries(count).filter(([, n]) => n).map(([k, n]) => [k, String(n)]), ["open", "tracks"]])}#tracks`);
   });
 
   // Remplacer la trace d'un pilote donné, quel que soit le nom du nouveau fichier. Le pilote garde son
@@ -937,7 +938,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const sha256 = tracks.put(g.bytes);
     const how = saveTrack(db, x.t.id, me(c).id, { pilotKey: tr.pilot_key, pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
     if (how === "same") return taskPage(c, x.t, x.comp, { edit: true, notice: t("Ce fichier est déjà la trace de {pilot} : rien n'a changé.", { pilot: tr.pilot_name ?? tr.pilot_key }) });
-    return c.redirect(`/tasks/${x.t.id}/edit?replaced=1`);
+    return c.redirect(`/tasks/${x.t.id}/edit?replaced=1&open=tracks#tracks`);
   });
 
   // Fichier IGC d'origine (trace en vigueur ou ancienne version), pour l'organisateur.
@@ -957,7 +958,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     removeTrack(db, x.t.id, Number(c.req.param("trackId")), me(c).id);
-    return c.redirect(`/tasks/${x.t.id}/edit#tracks`);
+    // La liste des traces reste dépliée : on enchaîne souvent plusieurs retraits.
+    return c.redirect(`/tasks/${x.t.id}/edit?open=tracks#tracks`);
   });
 
   app.post("/tasks/:id/runs", (c) => {

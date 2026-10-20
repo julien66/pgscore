@@ -72,5 +72,11 @@ describe("pilote d'une trace envoyée", () => {
     expect(await send([["2026-05-29-XCT-XXX-01.igc", igc("HFPLTPILOTINCHARGE:", 5)]])).toContain("added=1");
     const keys = (db.prepare("SELECT pilot_key FROM tracks WHERE task_id = ? ORDER BY id").all(taskId) as Array<{ pilot_key: string }>).map((r) => r.pilot_key);
     expect(keys).toEqual(["hans-petit", "damien-s", "XTR-ED1831420028", "XCT-XXX", "XCT-XXX-2"]);
+    // Retirer une trace : retour sur la page avec la liste des traces toujours dépliée.
+    const trackId = (db.prepare("SELECT id FROM tracks WHERE task_id = ? LIMIT 1").get(taskId) as { id: number }).id;
+    const del = await req(`${taskUrl}/tracks/${trackId}/delete`, { method: "POST" });
+    expect(del.headers.get("location")).toContain("open=tracks");
+    const page = await (await req(del.headers.get("location")!)).text();
+    expect(page).toMatch(/<details class="mt" open="">\s*<summary>Voir les traces/);
   });
 });

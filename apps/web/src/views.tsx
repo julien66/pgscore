@@ -1161,12 +1161,14 @@ export const TaskPage: FC<{
   /** Pilotes inscrits (nation, voile) pour le classement de la manche. */
   registry: PilotRow[];
   running: boolean;
+  /** Liste des traces dépliée (après un envoi, un remplacement ou un retrait). */
+  openTracks?: boolean;
   error?: string | null;
   notice?: string | null;
   edit?: boolean;
   /** Créateur de la compétition ou administrateur : sinon, lecture seule. */
   canEdit: boolean;
-}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, rankings, ranking, details, registry, running, error, notice, edit: editTab, canEdit }) => {
+}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, rankings, ranking, details, registry, running, error, notice, edit: editTab, canEdit, openTracks }) => {
   const edit = Boolean(editTab && canEdit);
   const tz = settings.timeZone;
   const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, tk.date, tz) : "");
@@ -1260,12 +1262,12 @@ export const TaskPage: FC<{
           </button>
           <span class="small muted">
             {t(
-              "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro en fin de nom de fichier ; une trace envoyée pour un pilote qui en a déjà une la remplace. Pour un fichier nommé autrement, utilisez « Remplacer » sur la ligne du pilote.",
+              "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Pour remplacer la trace d'un pilote, utilisez « Remplacer » sur sa ligne.",
             )}
           </span>
         </form>
         {tracks.length ? (
-          <details class="mt">
+          <details class="mt" open={openTracks}>
             <summary>{t("Voir les traces")}</summary>
             <div class="scroll">
               <table>
