@@ -1,5 +1,11 @@
 /** Traductions en : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Se connecter": "Sign in",
+  "Compétitions": "Competitions",
+  "Récemment calculées": "Recently scored",
+  "Compétitions récemment calculées": "Recently scored competitions",
+  "Aucune compétition calculée pour l'instant.": "No competition scored yet.",
+  "calculée le {date}": "scored on {date}",
   "Vous ne pouvez pas modifier cette compétition.": "You cannot edit this competition.",
   "par {name}": "by {name}",
   "Autres compétitions": "Other competitions",

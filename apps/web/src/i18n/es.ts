@@ -1,5 +1,11 @@
 /** Traductions es : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Se connecter": "Iniciar sesión",
+  "Compétitions": "Competiciones",
+  "Récemment calculées": "Calculadas recientemente",
+  "Compétitions récemment calculées": "Competiciones calculadas recientemente",
+  "Aucune compétition calculée pour l'instant.": "Todavía no hay ninguna competición calculada.",
+  "calculée le {date}": "calculada el {date}",
   "Vous ne pouvez pas modifier cette compétition.": "No puede modificar esta competición.",
   "par {name}": "por {name}",
   "Autres compétitions": "Otras competiciones",

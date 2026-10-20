@@ -58,10 +58,14 @@ async function createCompetitionAndTask(req: ReturnType<typeof setup>["req"]) {
 }
 
 describe("interface web", () => {
-  it("demande de se connecter", async () => {
+  it("ouvre l'accueil sans compte et demande de se connecter pour modifier", async () => {
     const { req } = setup();
-    const r = await req("/");
-    expect(await r.text()).toContain("Connexion de développement");
+    const home = await (await req("/")).text();
+    expect(home).toContain("Compétitions récemment calculées");
+    expect(home).toContain('href="/login"');
+    expect(await (await req("/login")).text()).toContain("Connexion de développement");
+    expect((await req("/competitions/new")).headers.get("location")).toBe("/login");
+    expect((await req("/competitions", { method: "POST", body: new URLSearchParams(competitionFields) })).headers.get("location")).toBe("/login");
   });
 
   it("crée une compétition avec son espace aérien, puis une manche depuis le texte du QR code", async () => {
@@ -246,9 +250,7 @@ describe("interface web", () => {
       await req("/auth/dev", { method: "POST", body: new URLSearchParams({ email }) });
     };
     await login("autre@example.org");
-    const home = await (await req("/")).text();
-    expect(home).toContain("Autres compétitions");
-    expect(home).toContain("Coupe test");
+    expect(await (await req("/")).text()).toContain("Récemment calculées");
     const comp = await (await req(compUrl)).text();
     expect(comp).toContain("Coupe test");
     expect(comp).not.toContain(`${compUrl}/edit`);
@@ -270,6 +272,11 @@ describe("interface web", () => {
       [`${taskUrl}/tracks`, new FormData()],
     ];
     for (const [path, body] of posts) expect((await req(path, { method: "POST", body })).status, path).toBe(403);
+    await req("/auth/logout", { method: "POST" });
+    expect(await (await req(compUrl)).text()).toContain("Coupe test");
+    expect((await req(taskUrl)).status).toBe(200);
+    expect((await req(`${taskUrl}/edit`)).headers.get("location")).toBe("/login");
+    expect((await req(`/tasks/${taskId}/official`, { method: "POST", body: new URLSearchParams({ official: "1" }) })).headers.get("location")).toBe("/login");
     await login("admin@example.org");
     expect(await (await req(compUrl)).text()).toContain(`${compUrl}/edit`);
     expect((await req(`/tasks/${taskId}/official`, { method: "POST", body: new URLSearchParams({ official: "1" }) })).status).toBe(302);

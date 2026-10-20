@@ -17,7 +17,7 @@ const CSS = `
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 header{background:var(--card);border-bottom:1px solid var(--line)}
 header .in{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
-header .brand{font-weight:700;font-size:17px;color:var(--text)}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}
+header .brand{font-weight:700;font-size:17px;color:var(--text)}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}header .login{font-size:14px;font-weight:600}
 main{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
 h1{font-size:24px;margin:4px 0 16px}h2{font-size:18px;margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ic{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;flex:none;color:var(--hue);background:color-mix(in srgb,var(--hue) 13%,var(--card))}
@@ -167,7 +167,9 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
                 <button class="link">{t("Se déconnecter")}</button>
               </form>
             </>
-          ) : null}
+          ) : (
+            <a href="/login" class="login">{t("Se connecter")}</a>
+          )}
         </div>
       </header>
       <main>{children}</main>
@@ -219,7 +221,7 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
   </Layout>
 );
 
-type HomeComp = CompetitionRow & { owner?: string };
+type HomeComp = CompetitionRow & { owner?: string; scoredAt?: number };
 const CompList: FC<{ list: HomeComp[] }> = ({ list }) => (
   <ul class="list">
     {list.map((c) => (
@@ -228,33 +230,41 @@ const CompList: FC<{ list: HomeComp[] }> = ({ list }) => (
           <strong>{c.name}</strong>
         </a>
         <span class="muted small">
-          {[c.location, dateRange(c.start_date, c.end_date), c.owner ? t("par {name}", { name: c.owner }) : null].filter(Boolean).join(" · ")}
+          {[
+            c.location,
+            dateRange(c.start_date, c.end_date),
+            c.owner ? t("par {name}", { name: c.owner }) : null,
+            c.scoredAt ? t("calculée le {date}", { date: new Date(c.scoredAt).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" }) }) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       </li>
     ))}
   </ul>
 );
 
-export const HomePage: FC<{ user: User; mine: HomeComp[]; others: HomeComp[] }> = ({ user, mine, others }) => (
-  <Layout title={t("Mes compétitions")} user={user}>
-    <div class="row" style="justify-content:space-between">
-      <h1>{t("Mes compétitions")}</h1>
-      <a class="btn primary" href="/competitions/new">
-        <Bi n="plus" />
-        {t("Nouvelle compétition")}
-      </a>
-    </div>
-    <div class="card">
-      {mine.length ? <CompList list={mine} /> : <p class="muted">{t("Pas encore de compétition. Créez-en une pour y ajouter des manches.")}</p>}
-    </div>
-    {others.length ? (
+/** Accueil : ses compétitions quand on est connecté, puis les compétitions récemment calculées, visibles de tous. */
+export const HomePage: FC<{ user: User | null; mine: HomeComp[]; recent: HomeComp[] }> = ({ user, mine, recent }) => (
+  <Layout title={user ? t("Mes compétitions") : t("Compétitions")} user={user}>
+    {user ? (
       <>
-        <h2>{t("Autres compétitions")}</h2>
+        <div class="row" style="justify-content:space-between">
+          <h1>{t("Mes compétitions")}</h1>
+          <a class="btn primary" href="/competitions/new">
+            <Bi n="plus" />
+            {t("Nouvelle compétition")}
+          </a>
+        </div>
         <div class="card">
-          <CompList list={others} />
+          {mine.length ? <CompList list={mine} /> : <p class="muted">{t("Pas encore de compétition. Créez-en une pour y ajouter des manches.")}</p>}
         </div>
       </>
     ) : null}
+    {user ? <h2>{t("Récemment calculées")}</h2> : <h1>{t("Compétitions récemment calculées")}</h1>}
+    <div class="card">
+      {recent.length ? <CompList list={recent} /> : <p class="muted">{t("Aucune compétition calculée pour l'instant.")}</p>}
+    </div>
   </Layout>
 );
 
@@ -356,10 +366,10 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
   );
 };
 
-export const NewCompetitionPage: FC<{ user: User; v: CompetitionFormValues; error?: string | null }> = ({ user, v, error }) => (
+export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValues; error?: string | null }> = ({ user, v, error }) => (
   <Layout title={t("Nouvelle compétition")} user={user}>
     <div class="crumbs">
-      <a href="/">{t("Mes compétitions")}</a>
+      <a href="/">{t("Compétitions")}</a>
     </div>
     <h1>{t("Nouvelle compétition")}</h1>
     <ErrorBox message={error} />
@@ -379,7 +389,7 @@ export const NewCompetitionPage: FC<{ user: User; v: CompetitionFormValues; erro
 );
 
 export const CompetitionPage: FC<{
-  user: User;
+  user: User | null;
   c: CompetitionRow;
   v: CompetitionFormValues;
   tasks: TaskRow[];
@@ -394,7 +404,7 @@ export const CompetitionPage: FC<{
 }> = ({ user, c, v, tasks, board, pilots, airspaceCount, error, notice, edit, canEdit }) => (
   <Layout title={edit ? `${t("Éditer")} · ${c.name}` : c.name} user={user}>
     <div class="crumbs">
-      <a href="/">{t("Mes compétitions")}</a>
+      <a href="/">{t("Compétitions")}</a>
     </div>
     <h1>{c.name}</h1>
     <nav class="tabs">
@@ -1022,7 +1032,7 @@ const StandingsBoard: FC<{ c: CompetitionRow; b: Board }> = ({ c, b }) => {
   );
 };
 
-export const NewTaskPage: FC<{ user: User; c: CompetitionRow; number: number; error?: string | null; date?: string }> = ({
+export const NewTaskPage: FC<{ user: User | null; c: CompetitionRow; number: number; error?: string | null; date?: string }> = ({
   user,
   c,
   number,
@@ -1031,7 +1041,7 @@ export const NewTaskPage: FC<{ user: User; c: CompetitionRow; number: number; er
 }) => (
   <Layout title={t("Nouvelle manche")} user={user}>
     <div class="crumbs">
-      <a href="/">{t("Mes compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
+      <a href="/">{t("Compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
     </div>
     <h1>{t("Nouvelle manche")}</h1>
     <ErrorBox message={error} />
@@ -1075,7 +1085,7 @@ const ROLE: Record<string, string> =
 
 
 export const TaskPage: FC<{
-  user: User;
+  user: User | null;
   c: CompetitionRow;
   t: TaskRow;
   task: StoredTask;
@@ -1117,7 +1127,7 @@ export const TaskPage: FC<{
   return (
     <Layout title={`${edit ? `${t("Éditer")} · ` : ""}${t("Manche {n}", { n: tk.number })} · ${c.name}`} user={user}>
       <div class="crumbs">
-        <a href="/">{t("Mes compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
+        <a href="/">{t("Compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
       </div>
       <h1>
         {t("Manche {n}", { n: tk.number })}
@@ -2210,7 +2220,7 @@ main{max-width:none}
 #v-baro{width:100%;height:170px;background:var(--card);border:1px solid var(--line);border-radius:10px;cursor:crosshair}
 `;
 
-export const ViewerPage: FC<{ user: User; c: CompetitionRow; t: TaskRow; pilotKey: string; pilotName: string; data: string }> = ({
+export const ViewerPage: FC<{ user: User | null; c: CompetitionRow; t: TaskRow; pilotKey: string; pilotName: string; data: string }> = ({
   user,
   c,
   t: tk,
@@ -2222,7 +2232,7 @@ export const ViewerPage: FC<{ user: User; c: CompetitionRow; t: TaskRow; pilotKe
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
     <style dangerouslySetInnerHTML={{ __html: VIEWER_CSS }} />
     <div class="crumbs">
-      <a href="/">{t("Mes compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a> › <a href={`/tasks/${tk.id}`}>{t("Manche {n}", { n: tk.number })}</a>
+      <a href="/">{t("Compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a> › <a href={`/tasks/${tk.id}`}>{t("Manche {n}", { n: tk.number })}</a>
     </div>
     <h1>
       {pilotName} <span class="muted">· {pilotKey}</span>

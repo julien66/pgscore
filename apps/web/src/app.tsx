@@ -54,7 +54,7 @@ export interface AppConfig {
   adminEmails?: string[];
 }
 
-type Env = { Variables: { user: User } };
+type Env = { Variables: { user: User | null } };
 
 const MAX_UPLOAD = 200 * 1024 * 1024;
 
@@ -168,13 +168,19 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     return c.redirect("/");
   });
 
-  // --- Tout le reste demande d'être connecté -----------------------------------------------
+  app.get("/login", (c) => (sessionUser(db, getCookie(c, SESSION_COOKIE)) ? c.redirect("/") : loginPage(c)));
+
+  // --- Consultation libre, modifications après connexion -------------------------------------
+  // Les compétitions, manches et classements se consultent sans compte ; créer ou modifier demande d'être connecté.
+  const needsLogin = (c: Context<Env>) => c.req.method !== "GET" || /\/(edit|new)$/.test(c.req.path);
   app.use("*", async (c, next) => {
-    const user = sessionUser(db, getCookie(c, SESSION_COOKIE));
-    if (!user) return c.req.method === "GET" ? loginPage(c) : c.redirect("/");
+    const user = sessionUser(db, getCookie(c, SESSION_COOKIE)) ?? null;
+    if (!user && needsLogin(c)) return c.redirect("/login");
     c.set("user", user);
     await next();
   });
+  /** Utilisateur connecté, sur les routes qui l'exigent (garanti par le contrôle ci-dessus). */
+  const me = (c: Context<Env>): User => c.get("user")!;
 
   // Tout utilisateur connecté voit toutes les compétitions ; seuls leur créateur et les administrateurs les modifient.
   const competition = (_c: Context<Env>, id: string): CompetitionRow | null => {
@@ -183,7 +189,10 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   };
   const admins = new Set((cfg.adminEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean));
   const isAdmin = (u: User) => Boolean(u.email && admins.has(u.email.toLowerCase()));
-  const canEdit = (c: Context<Env>, comp: CompetitionRow) => comp.owner_id === c.get("user").id || isAdmin(c.get("user"));
+  const canEdit = (c: Context<Env>, comp: CompetitionRow) => {
+    const u = c.get("user");
+    return Boolean(u && (comp.owner_id === u.id || isAdmin(u)));
+  };
   // Garde d'écriture : toute requête autre que GET (réglages, traces, calcul, officialisation, classements…)
   // et les pages d'édition demandent le droit de modifier la compétition concernée.
   const writes = (c: Context<Env>) => c.req.method !== "GET" || /\/(edit|tasks\/new)$/.test(c.req.path);
@@ -214,19 +223,22 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   const notFound = (c: Context<Env>) => c.html(<NotFound user={c.get("user")} />, 404);
 
   app.get("/", (c) => {
+    // Dernier calcul terminé de chaque compétition : l'accueil montre d'abord les plus récemment calculées.
     const rows = db
       .prepare(
-        "SELECT c.*, u.name AS owner_name, u.email AS owner_email FROM competitions c JOIN users u ON u.id = c.owner_id ORDER BY COALESCE(c.start_date, '') DESC, c.id DESC",
+        `SELECT c.*, u.name AS owner_name, u.email AS owner_email,
+                (SELECT MAX(r.finished_at) FROM runs r JOIN tasks tk ON tk.id = r.task_id WHERE tk.competition_id = c.id AND r.status = 'done') AS scored_at
+           FROM competitions c JOIN users u ON u.id = c.owner_id
+          ORDER BY COALESCE(c.start_date, '') DESC, c.id DESC`,
       )
-      .all() as unknown as Array<CompetitionRow & { owner_name: string | null; owner_email: string | null }>;
-    const me = c.get("user").id;
-    return c.html(
-      <HomePage
-        user={c.get("user")}
-        mine={rows.filter((r) => r.owner_id === me)}
-        others={rows.filter((r) => r.owner_id !== me).map((r) => ({ ...r, owner: r.owner_name || r.owner_email || "" }))}
-      />,
-    );
+      .all() as unknown as Array<CompetitionRow & { owner_name: string | null; owner_email: string | null; scored_at: number | null }>;
+    const user = c.get("user");
+    const recent = rows
+      .filter((r) => r.scored_at && r.owner_id !== user?.id)
+      .sort((a, b) => b.scored_at! - a.scored_at!)
+      .slice(0, 30)
+      .map((r) => ({ ...r, owner: r.owner_name || "", scoredAt: r.scored_at! }));
+    return c.html(<HomePage user={user} mine={user ? rows.filter((r) => r.owner_id === user.id) : []} recent={recent} />);
   });
 
   // --- Compétitions ------------------------------------------------------------------------
@@ -283,7 +295,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
-          c.get("user").id,
+          me(c).id,
           name,
           String(f.location ?? "").trim() || null,
           String(f.start_date ?? "") || null,
@@ -722,7 +734,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     try {
-      addDecision(db, x.t.id, c.get("user").id, await c.req.parseBody());
+      addDecision(db, x.t.id, me(c).id, await c.req.parseBody());
     } catch (e) {
       if (e instanceof FormError) return taskPage(c, x.t, x.comp, { error: e.message });
       throw e;
@@ -755,7 +767,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const count = { added: 0, replaced: 0, same: 0 };
     db.exec("BEGIN");
     for (const { g, sha256 } of stored) {
-      count[saveTrack(db, x.t.id, c.get("user").id, { pilotKey: pilotKeyFromFilename(g.filename), pilotName: igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
+      count[saveTrack(db, x.t.id, me(c).id, { pilotKey: pilotKeyFromFilename(g.filename), pilotName: igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
     }
     db.exec("COMMIT");
     return c.redirect(`/tasks/${x.t.id}/edit?${new URLSearchParams(Object.entries(count).filter(([, n]) => n).map(([k, n]) => [k, String(n)]))}`);
@@ -784,7 +796,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const g = igcs[0]!;
     const note = typeof f.note === "string" && f.note.trim() ? f.note.trim().slice(0, 500) : null;
     const sha256 = tracks.put(g.bytes);
-    const how = saveTrack(db, x.t.id, c.get("user").id, { pilotKey: tr.pilot_key, pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
+    const how = saveTrack(db, x.t.id, me(c).id, { pilotKey: tr.pilot_key, pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
     if (how === "same") return taskPage(c, x.t, x.comp, { edit: true, notice: t("Ce fichier est déjà la trace de {pilot} : rien n'a changé.", { pilot: tr.pilot_name ?? tr.pilot_key }) });
     return c.redirect(`/tasks/${x.t.id}/edit?replaced=1`);
   });
@@ -805,7 +817,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   app.post("/tasks/:id/tracks/:trackId/delete", (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
-    removeTrack(db, x.t.id, Number(c.req.param("trackId")), c.get("user").id);
+    removeTrack(db, x.t.id, Number(c.req.param("trackId")), me(c).id);
     return c.redirect(`/tasks/${x.t.id}/edit#tracks`);
   });
 
@@ -815,7 +827,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     // Depuis la page (fetch), le calcul démarre sans recharger : on renvoie seulement le bloc « Calcul ».
     const inPlace = c.req.header("x-requested-with") === "fetch";
     try {
-      startRun(db, tracks, x.t.id, c.get("user").id);
+      startRun(db, tracks, x.t.id, me(c).id);
     } catch (e) {
       if (inPlace) return c.json({ error: (e as Error).message }, 400);
       return taskPage(c, x.t, x.comp, { error: (e as Error).message });
