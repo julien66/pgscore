@@ -1231,6 +1231,7 @@ const pts = (v: number | null | undefined) => (v === null || v === undefined ? "
 const GapSummary: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r, settings }) => {
   const g = r.gap;
   const v = g.validity;
+  const winner = Math.max(0, ...r.pilots.map((p) => p.total ?? 0));
   return (
     <div class="gap">
       <div>
@@ -1239,6 +1240,9 @@ const GapSummary: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r, 
         <div class="small">
           décollage {fr(v.launch, 3)} × distance {fr(v.distance, 3)} × temps {fr(v.time, 3)}
           {v.stopped !== null ? ` × arrêt ${fr(v.stopped, 3)}` : ""}
+        </div>
+        <div class="small">
+          <strong>validité FTV {fr(winner / 10, 1)} %</strong> (vainqueur {pts(winner)} / 1000), celle du classement général
         </div>
       </div>
       <div>
