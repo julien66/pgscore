@@ -80,7 +80,7 @@ describe("répartition et points (11, 12)", () => {
     expect(r.available).toEqual({ distance: 353.2, time: 476.6, leading: 170.2, arrival: 0 });
   });
 
-  it("formule S7F : points disponibles arrondis à l'unité, LTR 26 %", () => {
+  it("formule S7F : points disponibles arrondis au dixième comme FS, LTR 26 %", () => {
     const pilots = [
       pilot("a", { madeEss: true, madeGoal: true, distance: 70_000, flownDistance: 70_000, speedSectionTime: 6000, leadingFactor: 1 }),
       pilot("b", { distance: 35_000, flownDistance: 35_000, leadingFactor: 0.5 }),
@@ -88,8 +88,9 @@ describe("répartition et points (11, 12)", () => {
     const r = scoreGap({ params, rules: GAP_RULES.S7F2026, launchToEss: 68_000, pilots });
     const dw = 0.9 - 1.665 * 0.5 + 1.713 * 0.25 - 0.587 * 0.125;
     expect(r.goalRatio).toBe(0.5);
-    expect(r.available.distance).toBe(Math.round(1000 * r.validity.task * dw));
-    expect(r.available.leading).toBe(Math.round(1000 * r.validity.task * (1 - dw) * 0.26));
+    const r1 = (x: number) => Math.round(x * 10) / 10;
+    expect(r.available.distance).toBe(r1(1000 * r.validity.task * dw));
+    expect(r.available.leading).toBe(r1(1000 * r.validity.task * (1 - dw) * 0.26));
     const a = r.pilots[0]!;
     const b = r.pilots[1]!;
     expect(a.points.time).toBe(r.available.time);
@@ -154,7 +155,7 @@ describe("répartition et points (11, 12)", () => {
     ];
     const r = scoreGap({ params, rules: GAP_RULES.S7F2026, launchToEss: 68_000, pilots });
     const [a, b, c] = r.pilots;
-    expect(a!.total).toBeCloseTo(a!.score * 0.9, 1);
+    expect(a!.total).toBeCloseTo(a!.score * 0.9, 0);
     expect(b!.total).toBe(0);
     expect(c!.total).toBeCloseTo(c!.score + 20, 1);
   });

@@ -14,7 +14,7 @@ export interface GapRules {
   distanceWeight: { d: number; c: number; b: number; a: number };
   /** Leading Time Ratio par défaut (11), entre 0 et 0,26. */
   leadingTimeRatio: number;
-  /** Décimales des points disponibles : 0 dans le S7F (arrondi à l'unité), 1 pour la PWCA. */
+  /** Décimales des points disponibles : au dixième, comme FS (GAP2026) et SVL (PWCA). */
   availableDecimals: number;
   /** Meilleur temps pris parmi les pilotes au goal seulement (S7F 12.2.1) ; sinon parmi ceux à l'ESS. */
   bestTimeFromGoal: boolean;
@@ -24,7 +24,7 @@ export const GAP_RULES: Record<GapProfile, GapRules> = {
   S7F2026: {
     distanceWeight: { d: 0.9, c: -1.665, b: 1.713, a: -0.587 },
     leadingTimeRatio: 0.26,
-    availableDecimals: 0,
+    availableDecimals: 1,
     bestTimeFromGoal: true,
   },
   // Formule GAP_PWCA_2026 de SVL : coefficients arrondis, LTR de 26,3158 %, points disponibles au dixième,

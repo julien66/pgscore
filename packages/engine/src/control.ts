@@ -368,6 +368,8 @@ function remainingFrom(task: Task, validated: ZoneValidation[], sssIdx: number):
   const tps = task.turnpoints;
   const goalIdx = tps.length - 1;
   const steps = validated.map((v) => ({ time: v.time, next: v.index + 1 }));
+  const goalZone = tps[goalIdx]!.zone;
+  const goalRadius = goalZone.kind === "cylinder" ? goalZone.radius : 0;
   const zonesFrom = (next: number): RouteZone[] =>
     tps.slice(next).map((t, k) => ({
       centre: { lat: t.zone.waypoint.lat, lon: t.zone.waypoint.lon },
@@ -383,7 +385,8 @@ function remainingFrom(task: Task, validated: ZoneValidation[], sssIdx: number):
     if (next > goalIdx) return 0;
     let route = cache.get(next);
     if (!route) cache.set(next, (route = new RouteFrom(zonesFrom(next), centre)));
-    return route.distance(p);
+    // Comme la distance de la manche (7.1), la distance restante va jusqu'au bord d'un goal cylindre.
+    return Math.max(0, route.distance(p) - goalRadius);
   };
 }
 

@@ -1,5 +1,6 @@
 /** Traductions es : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Comme FS et SVL (sans facteur distance)": "Como FS y SVL (sin factor de distancia)",
   "Importer une compétition existante": "Importar una competición existente",
   "Archive pgscore (ZIP) ou fichier FS (.fsdb, seul ou en ZIP avec ses traces) : la compétition est créée avec ses manches, ses pilotes et ses traces.": "Archivo pgscore (ZIP) o fichero FS (.fsdb, solo o en ZIP con sus tracks): la competición se crea con sus mangas, pilotos y tracks.",
   "Ou créer une compétition vide": "O crear una competición vacía",
@@ -289,7 +290,6 @@ const dict: Record<string, string> = {
   "espace aérien {name}": "espacio aéreo {name}",
   "S7F 2026 (texte FAI)": "S7F 2026 (texto FAI)",
   "PWCA 2026 (comme SVL)": "PWCA 2026 (como SVL)",
-  "PWCA (comme SVL)": "PWCA (como SVL)",
   "S7A 2026 : 0 à 100 % des points entre 0 et 100 m": "S7A 2026: del 0 al 100 % de los puntos entre 0 y 100 m",
   "PWCA « soft » : 1000 points à 100 m": "PWCA «soft»: 1000 puntos a 100 m",
   "PWCA « hard » : 1000 points à 50 m": "PWCA «hard»: 1000 puntos a 50 m",

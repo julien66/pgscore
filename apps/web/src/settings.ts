@@ -37,7 +37,7 @@ export const GAP_PROFILES: Record<GapProfile, string> = {
 
 export const LEADING_PROFILES: Record<LeadingProfile, string> = {
   S7F2026: N_("S7F 2026 (texte FAI)"),
-  PWCA: N_("PWCA (comme SVL)"),
+  PWCA: N_("Comme FS et SVL (sans facteur distance)"),
 };
 
 export const PENALTY_RULES: Record<AirspacePenaltyRule, string> = {

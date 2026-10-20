@@ -83,7 +83,7 @@ function settingsFromFormula(f: XmlEl | undefined, comp: XmlEl, warnings: string
     nominalTime: Math.round(num(a.nom_time, DEFAULT_SETTINGS.nominalTime / 3600) * 3600),
     ftvFactor: num(a.ftv_factor ?? comp.attrs.ftv_factor, 0),
     gapProfile: pwc ? "PWCA" : "S7F2026",
-    leadingProfile: pwc ? "PWCA" : "S7F2026",
+    leadingProfile: "PWCA",
     airspacePenaltyRule: pwc ? "pwca-soft" : "s7a",
     timeZone: zoneFromOffset(comp.attrs.utc_offset, warnings),
   };

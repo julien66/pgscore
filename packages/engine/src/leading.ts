@@ -178,8 +178,8 @@ function timeOfDay(hms: string, sameDay: number): number {
 /**
  * Variante de calcul du leading.
  * - "S7F2026" : texte du S7F 2026 (12.3), avec le facteur distance restante et √LCmin.
- * - "PWCA" : ce que fait SVL (logiciel de la PWCA), retrouvé sur les 6 manches de Baixo Guandu 2026
- *   à 0,1 point près : pas de facteur distance restante, LC divisé par 1800 seulement,
+ * - "PWCA" : ce que font SVL (PWCA) et FS (CIVL), retrouvé à 0,1 point près sur Baixo Guandu 2026
+ *   et sur la manche 1 du French Open 2026 : pas de facteur distance restante, LC divisé par 1800 seulement,
  *   et LeadingFactor divisé par LCmin au lieu de √LCmin.
  */
 export type LeadingProfile = "S7F2026" | "PWCA";
