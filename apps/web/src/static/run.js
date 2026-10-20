@@ -52,6 +52,16 @@
       xhr.send(new FormData(f));
     });
   }
+  // Import depuis civlcomps.org : envoi normal du formulaire, avec un message d'attente.
+  for (const f of document.querySelectorAll("form.civl-import")) {
+    f.addEventListener("submit", () => {
+      f.querySelector("button").disabled = true;
+      const status = document.createElement("div");
+      status.className = "upl small";
+      status.innerHTML = `<p><span class="spin"></span> ${f.dataset.busy}</p><div class="bar busy"><div></div></div>`;
+      f.after(status);
+    });
+  }
   // Bloc replié ciblé par l'adresse (#decisions…) : on l'ouvre.
   const openHash = () => {
     const target = location.hash && document.getElementById(location.hash.slice(1));

@@ -229,6 +229,15 @@ describe("interface web", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM competition_rankings").get() as { n: number }).n).toBe(1);
   });
 
+  it("propose l'import civlcomps et refuse une adresse d'un autre site", async () => {
+    const { req } = setup();
+    await req("/auth/dev", { method: "POST", body: new URLSearchParams({ email: "orga@example.org", name: "Orga" }) });
+    expect(await (await req("/competitions/new")).text()).toContain('name="civl_url"');
+    const r = await req("/competitions/import", { method: "POST", body: new URLSearchParams({ civl_url: "https://example.org/event/x/results" }) });
+    expect(r.status).toBe(302);
+    expect(decodeURIComponent(r.headers.get("location")!)).toContain("civlcomps.org");
+  });
+
   it("refuse une manche illisible", async () => {
     const { req } = setup();
     const { compUrl } = await createCompetitionAndTask(req);
