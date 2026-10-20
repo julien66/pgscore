@@ -752,7 +752,6 @@ const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: s
     {rankings.map((r) => (
       <a href={boardUrl(c, { r: r.id })} class={`swap${current === r.id ? " on" : ""}`}>
         {t(r.name)}
-        {r.count !== undefined ? <span class="muted small"> {r.count}</span> : null}
       </a>
     ))}
     <a href={boardUrl(c, { create: true })} class={`swap${create ? " on" : ""}`}>
