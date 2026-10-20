@@ -97,6 +97,27 @@ describe("fichiers IGC hors de la base", () => {
     expect((await req(`${url}/pilots/42`)).status).toBe(200);
   });
 
+  it("recalcule toutes les manches de la compétition et montre l'avancement", async () => {
+    const { db, req, url } = await minimalTask();
+    await req(`${url}/tracks`, { method: "POST", body: upload("42.igc", IGC) });
+    const compId = (db.prepare("SELECT competition_id FROM tasks").get() as { competition_id: number }).competition_id;
+    const r = await req(`/competitions/${compId}/runs`, { method: "POST" });
+    expect(r.headers.get("location")).toBe(`/competitions/${compId}`);
+    const page = await (await req(`/competitions/${compId}`)).text();
+    expect(page).toContain('id="comp-runs"');
+    let runs: Array<{ status: string; number: number }> = [];
+    for (let i = 0; i < 100; i++) {
+      runs = await (await req(`/competitions/${compId}/runs.json`)).json();
+      if (runs.every((x) => x.status === "done" || x.status === "error")) break;
+      await new Promise((res) => setTimeout(res, 50));
+    }
+    expect(runs).toMatchObject([{ number: 1, status: "done" }]);
+    // Calculs finis : plus de bloc d'attente, et le bouton reste là pour relancer.
+    const after = await (await req(`/competitions/${compId}`)).text();
+    expect(after).not.toContain('id="comp-runs"');
+    expect(after).toContain("Recalculer toutes les manches");
+  });
+
   it("remplace la trace d'un pilote et garde l'ancienne version", async () => {
     const { db, req, url } = await minimalTask();
     await req(`${url}/tracks`, { method: "POST", body: upload("42.igc", IGC) });

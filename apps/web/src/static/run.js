@@ -38,7 +38,7 @@
         status.innerHTML = `<p><span class="spin"></span> ${T("Envoi des fichiers : {pct} %", { pct })} <span class="muted">${T("({done} sur {total})", { done: size(e.loaded), total: size(e.total || total) })}</span></p><div class="bar"><div style="width:${pct}%"></div></div>`;
       };
       xhr.upload.onload = () => {
-        status.innerHTML = `<p><span class="spin"></span> ${T("Fichiers reçus. Lecture des archives, contrôle des fichiers IGC et enregistrement des traces…")}</p><div class="bar busy"><div></div></div>`;
+        status.innerHTML = `<p><span class="spin"></span> ${f.dataset.busy || T("Fichiers reçus. Lecture des archives, contrôle des fichiers IGC et enregistrement des traces…")}</p><div class="bar busy"><div></div></div>`;
       };
       xhr.onload = () => {
         // Succès : le serveur redirige vers la page de la manche avec le bilan de l'envoi.

@@ -19,7 +19,7 @@ import {
 } from "./auth.js";
 import type { CompetitionRow, Db, RunRow, TaskRow, TrackRow, User } from "./db.js";
 import { collectIgc, decodeQrImage, decodeText, nameKey, pilotKeyForTrack } from "./files.js";
-import { isRunning, startRun } from "./runner.js";
+import { isRunning, startRun, startRuns } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
 import { pilotVersions, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
 import { addDecision, deleteDecision, listDecisions, touchScoring } from "./decisions.js";
@@ -114,7 +114,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
 
   // Scripts de l'interface, lus au démarrage.
   const scripts = Object.fromEntries(
-    ["viewer.js", "run.js", "taskmap.js", "basemaps.js", "competition.js"].map((f) => [f, readFileSync(new URL(`./static/${f}`, import.meta.url), "utf8")]),
+    ["viewer.js", "run.js", "taskmap.js", "basemaps.js", "competition.js", "comp-runs.js"].map((f) => [f, readFileSync(new URL(`./static/${f}`, import.meta.url), "utf8")]),
   );
   // Contrôle de santé pour l'hébergeur : le serveur répond et la base est lisible.
   app.get("/healthz", (c) => {
@@ -357,6 +357,10 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   app.post("/competitions/import", async (c) => {
     try {
       const r = importAny(me(c).id, await readImport(c));
+      // Les manches importées avec leurs traces sont calculées tout de suite, l'une après l'autre ;
+      // la page de la compétition montre l'avancement.
+      const taskIds = (db.prepare("SELECT id FROM tasks WHERE competition_id = ? ORDER BY number, id").all(r.id) as Array<{ id: number }>).map((x) => x.id);
+      startRuns(db, tracks, taskIds, me(c).id);
       const msg = [
         t("Compétition importée : {tasks} manches, {pilots} pilotes, {tracks} traces.", { tasks: r.tasks, pilots: r.pilots, tracks: r.tracks }),
         r.missingTracks ? t("{n} traces sans fichier dans l'archive n'ont pas été reprises.", { n: r.missingTracks }) : "",
@@ -479,6 +483,10 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         c={comp}
         v={extra.v ?? rowValues(comp)}
         tasks={tasks}
+        runs={(() => {
+          const runs = latestRuns(comp.id);
+          return runs.some((r) => r.status === "queued" || r.status === "running") ? runs : null;
+        })()}
         board={{
           s: x.s,
           pilots: x.pilots,
@@ -518,6 +526,31 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const msg = c.req.query("msg");
     const error = c.req.query("error");
     return competitionPage(c, comp, { edit: true, ...(error ? { error } : {}), ...(msg ? { notice: msg } : c.req.query("ok") ? { notice: t("Enregistré.") } : {}) });
+  });
+
+  // Dernier calcul de chaque manche : relu par la page de la compétition pendant les calculs lancés après un import.
+  const latestRuns = (compId: number) =>
+    db
+      .prepare(
+        `SELECT t.id AS task_id, t.number, r.status, r.step, r.done, r.total, r.error FROM tasks t
+         JOIN runs r ON r.id = (SELECT MAX(id) FROM runs WHERE task_id = t.id)
+         WHERE t.competition_id = ? ORDER BY t.number, t.id`,
+      )
+      .all(compId) as Array<{ task_id: number; number: number; status: string; step: string | null; done: number; total: number; error: string | null }>;
+  app.get("/competitions/:id/runs.json", (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    return c.json(latestRuns(comp.id));
+  });
+
+  // Recalcul de toutes les manches (après un changement de réglage) : l'une après l'autre, avancement sur la page.
+  app.post("/competitions/:id/runs", (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    const ids = (db.prepare("SELECT id FROM tasks WHERE competition_id = ? ORDER BY number, id").all(comp.id) as Array<{ id: number }>).map((x) => x.id);
+    const started = startRuns(db, tracks, ids, me(c).id);
+    if (!started.length && !ids.some((id) => isRunning(id))) return competitionPage(c, comp, { error: t("Aucune manche avec des traces à calculer.") });
+    return c.redirect(`/competitions/${comp.id}`);
   });
 
   app.get("/competitions/:id", (c) => {

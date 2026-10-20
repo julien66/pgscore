@@ -61,6 +61,7 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 .tm-leg span{display:inline-block;background:rgba(17,24,39,.85);color:#fff;font:600 11px/16px system-ui;padding:1px 6px;border-radius:8px;white-space:nowrap}
 .upl{margin-top:8px}.upl p{margin:4px 0}
 .list li.task{flex-wrap:wrap;row-gap:2px}.list .task-rk{flex-basis:100%;color:var(--muted)}.list form.official{margin-left:auto}.list form.official .check{color:var(--muted)}
+.list.runs li{display:block}.list.runs .bar{margin-top:6px}
 .lead-warn{color:var(--warn);cursor:help;margin-right:4px}
 table.pilots td{padding:3px 4px}table.pilots input[type=text],table.pilots select{padding:4px 6px;font-size:13px}
 table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{width:190px}table.pilots tr.new td{background:var(--chip)}
@@ -391,7 +392,13 @@ export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValue
     </div>
     <h1>{t("Nouvelle compétition")}</h1>
     <ErrorBox message={error} />
-    <form method="post" action="/competitions/import" enctype="multipart/form-data" class="card">
+    <form
+      method="post"
+      action="/competitions/import"
+      enctype="multipart/form-data"
+      class="card upload"
+      data-busy={t("Archive reçue. Lecture de la compétition et rangement des traces : cela peut prendre une minute pour une grosse archive, puis le calcul des manches démarre.")}
+    >
       <h2><Ic n="upload" c="blue" />{t("Importer une compétition existante")}</h2>
       <p class="small muted">{t("Archive pgscore (ZIP) ou fichier FS (.fsdb, seul ou en ZIP avec ses traces) : la compétition est créée avec ses manches, ses pilotes et ses traces.")}</p>
       <div class="row">
@@ -402,6 +409,7 @@ export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValue
         </button>
       </div>
     </form>
+    <script src="/static/run.js" />
     <h2 class="mt">{t("Ou créer une compétition vide")}</h2>
     <form method="post" action="/competitions" enctype="multipart/form-data" class="card">
       <CompetitionFields v={v} />
@@ -433,7 +441,9 @@ export const CompetitionPage: FC<{
   canEdit: boolean;
   /** Super-administrateur : peut supprimer la compétition. */
   canDelete?: boolean;
-}> = ({ user, c, v, tasks, board, pilots, airspaceCount, error, notice, edit, canEdit, canDelete }) => (
+  /** Calculs en cours ou en attente (après un import) : dernier calcul de chaque manche. */
+  runs?: CompRun[] | null;
+}> = ({ user, c, v, tasks, board, pilots, airspaceCount, error, notice, edit, canEdit, canDelete, runs }) => (
   <Layout title={edit ? `${t("Éditer")} · ${c.name}` : c.name} user={user}>
     <div class="crumbs">
       <a href="/">{t("Compétitions")}</a>
@@ -453,6 +463,7 @@ export const CompetitionPage: FC<{
     </nav>
     <ErrorBox message={error} />
     {notice ? <div class="note">{notice}</div> : null}
+    {runs ? <CompRuns c={c} runs={runs} /> : null}
     {edit && canEdit ? (
       <>
         <CompetitionEdit c={c} v={v} pilots={pilots} airspaceCount={airspaceCount} open={Boolean(error)} />
@@ -483,16 +494,57 @@ export const CompetitionPage: FC<{
   </Layout>
 );
 
+export interface CompRun {
+  task_id: number;
+  number: number;
+  status: string;
+  step: string | null;
+  done: number;
+  total: number;
+  error: string | null;
+}
+
+/** Avancement des calculs lancés après un import ; comp-runs.js le met à jour et recharge la page à la fin. */
+const CompRuns: FC<{ c: CompetitionRow; runs: CompRun[] }> = ({ c, runs }) => (
+  <div class="card" id="comp-runs" data-url={`/competitions/${c.id}/runs.json`}>
+    <h2><span class="spin" /> {t("Calcul des manches")}</h2>
+    <p class="small muted runs-head">
+      {t("Calcul des manches : {done} sur {total}. Vous pouvez rester sur cette page, les résultats s'afficheront à la fin.", {
+        done: runs.filter((r) => r.status === "done").length,
+        total: runs.length,
+      })}
+    </p>
+    <ul class="list runs">
+      {runs.map((r) => (
+        <li>
+          <strong>{t("Manche {n}", { n: r.number })}</strong> <span class="small muted">{r.status === "done" ? t("calculée") : r.status === "queued" ? t("en attente") : t("calcul en cours")}</span>
+        </li>
+      ))}
+    </ul>
+    <script src="/static/comp-runs.js" />
+  </div>
+);
+
 const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }> = ({ c, tasks, board }) => (
   <>
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <h2><Ic n="route" c="blue" />{t("Manches")}</h2>
         {board.canEdit ? (
-          <a class="btn primary" href={`/competitions/${c.id}/tasks/new`}>
-            <Bi n="plus" />
-            {t("Nouvelle manche")}
-          </a>
+          <div class="row">
+            {tasks.length ? (
+              <form method="post" action={`/competitions/${c.id}/runs`} title={t("Relance le calcul de chaque manche qui a des traces, l'une après l'autre, avec les réglages actuels.")}>
+                <button>
+                  <Bi n="refresh" />
+                  {t("Recalculer toutes les manches")}
+                </button>
+              </form>
+            ) : null}
+            <a class="btn primary" href={`/competitions/${c.id}/tasks/new`}>
+              <Bi n="plus" />
+              {t("Nouvelle manche")}
+            </a>
+          </div>
         ) : null}
       </div>
       {tasks.length ? (

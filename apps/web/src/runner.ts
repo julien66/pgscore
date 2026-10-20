@@ -27,6 +27,35 @@ export function startRun(db: Db, tracks: TrackStore, taskId: number, userId: num
   return runId;
 }
 
+/**
+ * Calcule plusieurs manches l'une après l'autre (après un import) : chacune est mise en attente tout de
+ * suite, pour que la page l'affiche, puis calculée à son tour. Les manches sans trace ou déjà en
+ * calcul sont laissées de côté. Rend les manches lancées.
+ */
+export function startRuns(db: Db, tracks: TrackStore, taskIds: number[], userId: number): number[] {
+  const queued: Array<{ taskId: number; runId: number }> = [];
+  for (const taskId of taskIds) {
+    if (running.has(taskId)) continue;
+    const total = (db.prepare("SELECT COUNT(*) n FROM tracks WHERE task_id = ?").get(taskId) as { n: number }).n;
+    if (!total) continue;
+    const r = db.prepare("INSERT INTO runs (task_id, status, done, total, started_by, started_at) VALUES (?, 'queued', 0, ?, ?, ?)").run(taskId, total, userId, Date.now());
+    running.add(taskId);
+    queued.push({ taskId, runId: Number(r.lastInsertRowid) });
+  }
+  void (async () => {
+    for (const { taskId, runId } of queued) {
+      try {
+        // Durée du calcul comptée depuis son vrai départ, pas depuis la mise en attente.
+        db.prepare("UPDATE runs SET started_at = ? WHERE id = ?").run(Date.now(), runId);
+        await execute(db, tracks, taskId, runId);
+      } finally {
+        running.delete(taskId);
+      }
+    }
+  })();
+  return queued.map((q) => q.taskId);
+}
+
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number): Promise<void> {
