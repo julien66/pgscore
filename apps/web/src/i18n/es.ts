@@ -1,13 +1,13 @@
 /** Traductions es : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Version complète": "Versión completa",
+  "Version courte": "Versión corta",
   "Télécharger le tableau (CSV, ouvrable dans Excel)": "Descargar la tabla (CSV, se abre en Excel)",
   "Imprimer / PDF": "Imprimir / PDF",
   "Imprimer ou enregistrer en PDF (A4 portrait, détail déplié)": "Imprimir o guardar en PDF (A4 vertical, detalle desplegado)",
   "Sponsor": "Patrocinador",
   "Matériel": "Material",
   "Afficher ou masquer le détail sportif": "Mostrar u ocultar el detalle deportivo",
-  "◂ détail": "◂ detalle",
-  "▸ masquer": "▸ ocultar",
   "en gras, la part retenue d'une manche comptée en partie ; barré, le score de la manche non retenu": "en negrita, la parte retenida de una manga contada en parte; tachado, la puntuación de la manga no retenida",
   "{n} pilote au goal": "{n} piloto en goal",
   "{n} pilotes au goal": "{n} pilotos en goal",

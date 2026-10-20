@@ -66,18 +66,18 @@ table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{
 .tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--muted)}.tabs a.on{background:var(--card);border-color:var(--line);color:var(--text);font-weight:600;margin-bottom:-1px}
 [data-swap].loading{opacity:.55;transition:opacity .15s}
 .tabs a.tab-end{margin-left:auto}
-table.rk.sport-hidden .sp{display:none}table.rk .sp-open{display:none}table.rk:not(.sport-hidden) .sp-open{display:inline}table.rk:not(.sport-hidden) .sp-closed{display:none}
+table.rk.sport-hidden .sp{display:none}.sp-toggle .sp-open{display:none}html.sport-open .sp-toggle .sp-open{display:inline}html.sport-open .sp-toggle .sp-closed{display:none}.rk-bar{display:flex;justify-content:flex-end;margin:4px 0}
 @page{size:A4 portrait;margin:8mm}
 .print-head{display:none}
-body.printing{background:#fff;color:#000;font-size:10px}body.printing header,body.printing .no-print,body.printing .print-me nav.tabs,body.printing .print-me h2,body.printing .print-me .note,body.printing .print-me .print-rk,body.printing .print-me .sp-toggle{display:none!important}
+body.printing{background:#fff;color:#000;font-size:10px}body.printing header,body.printing .no-print,body.printing .print-me nav.tabs,body.printing .print-me h2,body.printing .print-me .note,body.printing .print-me .print-rk,body.printing .print-me .rk-bar{display:none!important}
 body.printing main{max-width:none;width:194mm;padding:0;margin:0}body.printing .print-me{border:0;padding:0;margin:0;background:none}
 body.printing .print-head{display:block;margin:0 0 6px}body.printing .print-head strong{font-size:14px}body.printing .print-head span{color:#555;margin-left:8px}
 body.printing .print-me>p{font-size:8px;margin:2px 0}body.printing .scroll{overflow:visible}body.printing table.rk{width:auto;font-size:8px;color:#000}body.printing table.rk th,body.printing table.rk td{padding:1.5px 3px;border-color:#ccc}
 body.printing table.rk th{font-size:7px;color:#333}body.printing table.rk .sp{display:table-cell!important}body.printing table.rk a{color:#000}
 body.printing table.rk td.small,body.printing table.rk td.small *{font-size:7px}body.printing table.rk td.sponsor{min-width:30mm;max-width:40mm}body.printing table.rk td.gear{white-space:nowrap}body.printing table.rk .muted,body.printing table.rk .sub{color:#555}
 body.printing table.rk tr{break-inside:avoid}body.printing table.rk thead{display:table-header-group}
-@media print{header,.print-rk,a.act,.acts{display:none}.card{border:0}.scroll{overflow:visible}}
-td.gear{line-height:1.25}table td.sponsor{white-space:normal;min-width:160px;max-width:260px;overflow-wrap:anywhere;line-height:1.25}.sp-toggle{font-size:11px;text-transform:none;letter-spacing:0;color:var(--accent)}
+@media print{header,.print-rk,a.act,.acts,.rk-bar{display:none}.card{border:0}.scroll{overflow:visible}}
+td.gear{line-height:1.25}table td.sponsor{white-space:normal;min-width:160px;max-width:260px;overflow-wrap:anywhere;line-height:1.25}button.link.sp-toggle{font-size:13px;color:var(--accent)}
 .details h3{font-size:16px;margin:22px 0 6px}.details ul{margin:4px 0 10px;padding-left:20px}
 table.calc{margin:4px 0 8px}table.calc th{width:190px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text);vertical-align:top}
 table.calc td.how{white-space:normal;color:var(--muted);font-size:13px}table.calc td.val{width:110px;vertical-align:top;font-variant-numeric:tabular-nums}
@@ -719,16 +719,17 @@ const PrintButton: FC = () => (
   </button>
 );
 
-/** En-tête du total, avec le bouton qui déplie ou replie le détail sportif (colonnes .sp). */
-const TotalHead: FC = () => (
-  <th class="n total-h">
+/** Bascule version courte / version complète (colonnes .sp), posée en haut et en bas à droite du tableau. */
+const SportToggle: FC = () => (
+  <div class="rk-bar">
     <button type="button" class="link sp-toggle" title={t("Afficher ou masquer le détail sportif")}>
-      <span class="sp-closed">{t("◂ détail")}</span>
-      <span class="sp-open">{t("▸ masquer")}</span>
-    </button>{" "}
-    {t("Total")}
-  </th>
+      <span class="sp-closed">{t("Version complète")}</span>
+      <span class="sp-open">{t("Version courte")}</span>
+    </button>
+  </div>
 );
+
+const TotalHead: FC = () => <th class="n">{t("Total")}</th>;
 
 export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: number; rid?: number; registry?: PilotRow[] }> = ({ c, s, limit, rid, registry = [] }) => {
   const r = s.ranking;
@@ -750,6 +751,7 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
   return (
     <>
       <StandingsInfo s={s} />
+      <SportToggle />
       <div class="scroll">
         <table class="rk sport-hidden">
           <thead>
@@ -798,6 +800,7 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
           </tbody>
         </table>
       </div>
+      <SportToggle />
       <p class="small mt">
         {limit && r.pilots.length > limit ? (
           <>
@@ -1918,6 +1921,7 @@ const TaskResults: FC<{
   if (only && !shown.length) return <p class="muted">{t("Aucun pilote de ce classement dans les résultats de la manche.")}</p>;
   return (
     <>
+      <SportToggle />
       <div class="scroll">
         <table class="rk sport-hidden">
           <thead>
@@ -1969,6 +1973,7 @@ const TaskResults: FC<{
           </tbody>
         </table>
       </div>
+      <SportToggle />
       <p class="small muted mt">
         {t("Heures locales ; vitesse sur la section de vitesse ({d} km).", { d: km(speedSection) })}{" "}
         <span class="acts">

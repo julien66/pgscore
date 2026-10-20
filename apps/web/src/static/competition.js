@@ -16,10 +16,11 @@
   } catch {}
   const applySport = () => {
     for (const tb of document.querySelectorAll("table.rk")) tb.classList.toggle("sport-hidden", !sportOpen);
+    document.documentElement.classList.toggle("sport-open", sportOpen);
   };
   applySport();
   document.addEventListener("click", (ev) => {
-    const b = ev.target.closest && ev.target.closest("table.rk .sp-toggle");
+    const b = ev.target.closest && ev.target.closest(".sp-toggle");
     if (!b) return;
     sportOpen = !sportOpen;
     try {

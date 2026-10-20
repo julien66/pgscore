@@ -1,13 +1,13 @@
 /** Traductions de : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Version complète": "Vollständige Ansicht",
+  "Version courte": "Kurze Ansicht",
   "Télécharger le tableau (CSV, ouvrable dans Excel)": "Tabelle herunterladen (CSV, in Excel zu öffnen)",
   "Imprimer / PDF": "Drucken / PDF",
   "Imprimer ou enregistrer en PDF (A4 portrait, détail déplié)": "Drucken oder als PDF speichern (A4 hoch, Details ausgeklappt)",
   "Sponsor": "Sponsor",
   "Matériel": "Ausrüstung",
   "Afficher ou masquer le détail sportif": "Sportliche Details ein- oder ausblenden",
-  "◂ détail": "◂ Details",
-  "▸ masquer": "▸ ausblenden",
   "en gras, la part retenue d'une manche comptée en partie ; barré, le score de la manche non retenu": "fett: der gewertete Anteil eines teilweise gezählten Tasks; durchgestrichen: das nicht gewertete Task-Ergebnis",
   "{n} pilote au goal": "{n} Pilot im Goal",
   "{n} pilotes au goal": "{n} Piloten im Goal",
