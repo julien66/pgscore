@@ -79,7 +79,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
 
   // Scripts de l'interface, lus au démarrage.
   const scripts = Object.fromEntries(
-    ["viewer.js", "run.js", "taskmap.js", "basemaps.js"].map((f) => [f, readFileSync(new URL(`./static/${f}`, import.meta.url), "utf8")]),
+    ["viewer.js", "run.js", "taskmap.js", "basemaps.js", "competition.js"].map((f) => [f, readFileSync(new URL(`./static/${f}`, import.meta.url), "utf8")]),
   );
   // Contrôle de santé pour l'hébergeur : le serveur répond et la base est lisible.
   app.get("/healthz", (c) => {
@@ -569,7 +569,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     if (!x) return notFound(c);
     const f = await c.req.parseBody();
     db.prepare("UPDATE tasks SET official = ? WHERE id = ?").run(f.official === "1" ? 1 : 0, x.t.id);
-    return c.redirect(`/tasks/${x.t.id}#run-card`);
+    if (c.req.header("x-requested-with") === "fetch") return c.body(null, 204);
+    return c.redirect(f.back === "competition" ? `/competitions/${x.comp.id}#standings` : `/tasks/${x.t.id}`);
   });
 
   app.get("/tasks/:id/run-card", (c) => {

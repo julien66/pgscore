@@ -55,6 +55,7 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 .tm-num span{display:flex;min-width:22px;padding:0 4px;box-sizing:border-box;width:max-content;height:22px;border-radius:50%;color:#fff;font:600 12px/22px system-ui;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .tm-leg span{display:inline-block;background:rgba(17,24,39,.85);color:#fff;font:600 11px/16px system-ui;padding:1px 6px;border-radius:8px;white-space:nowrap}
 .upl{margin-top:8px}.upl p{margin:4px 0}
+.list form.official{margin-left:auto}.list form.official .check{color:var(--muted)}
 .ftv-part{font-weight:600}.ftv-raw{color:var(--muted);font-size:12px;margin-left:4px}.ftv-out{color:var(--muted)}
 th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
 .center{max-width:420px;margin:60px auto;text-align:center}
@@ -318,7 +319,15 @@ export const CompetitionPage: FC<{
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
-                {t.official ? <span class="chip t-dec">officielle</span> : null}
+                <form method="post" action={`/tasks/${t.id}/official`} class="official">
+                  <input type="hidden" name="back" value="competition" />
+                  <label class="check">
+                    <input type="checkbox" name="official" value="1" checked={t.official === 1} /> officielle
+                  </label>
+                  <noscript>
+                    <button class="link">Enregistrer</button>
+                  </noscript>
+                </form>
               </li>
             );
           })}
@@ -356,6 +365,7 @@ export const CompetitionPage: FC<{
         <button class="primary">Enregistrer</button>
       </p>
     </form>
+    <script src="/static/competition.js" />
   </Layout>
 );
 
@@ -400,7 +410,7 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
       <>
         <p class="muted">
           {s.tasks.length
-            ? "Aucune manche officielle calculée : cochez « Manche officielle » dans le bloc Calcul d'une manche pour qu'elle compte."
+            ? "Aucune manche officielle calculée : cochez « officielle » dans la liste des manches pour qu'une manche compte."
             : "Pas encore de manche."}
         </p>
       </>
@@ -855,20 +865,6 @@ export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; set
       <RunStatus run={run} tz={tz} taskId={t.id} />
       {stale && !running && results ? (
         <div class="note">Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.</div>
-      ) : null}
-      {results ? (
-        <form method="post" action={`/tasks/${t.id}/official`} class="row note">
-          <input type="hidden" name="official" value={t.official ? "0" : "1"} />
-          {t.official ? (
-            <span>
-              <span class="chip t-dec">officielle</span> Le dernier calcul de cette manche compte au{" "}
-              <a href={`/competitions/${t.competition_id}#standings`}>classement général</a>.
-            </span>
-          ) : (
-            <span>Cette manche ne compte pas encore au classement général.</span>
-          )}
-          <button class={t.official ? "" : "primary"}>{t.official ? "Retirer du classement général" : "Manche officielle"}</button>
-        </form>
       ) : null}
       {results ? <Results r={results} tz={tz} settings={settings} taskId={t.id} /> : null}
     </>
