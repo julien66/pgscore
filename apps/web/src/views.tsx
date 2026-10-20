@@ -27,7 +27,7 @@ label{display:block;font-size:13px;color:var(--muted);margin-bottom:3px}
 input[type=text],input[type=number],input[type=date],input[type=email],select,textarea{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--text);font:inherit}
 textarea{font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:70px}
 .check{display:flex;gap:8px;align-items:center;color:var(--text);font-size:14px}
-button,.btn{display:inline-block;padding:8px 14px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;cursor:pointer}
+button,.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;cursor:pointer}
 button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 button.link{border:0;background:none;color:var(--muted);padding:0;font-size:13px}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.mt{margin-top:12px}
@@ -85,6 +85,15 @@ const ICONS = {
   gavel: '<path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/>',
   calc: '<rect width="16" height="20" x="4" y="2" rx="2"/><path d="M8 6h8"/><path d="M16 14v4"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/>',
   filter: '<path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  save: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+  play: '<path d="M6 3l14 9-14 9z"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  userPlus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/>',
+  userMinus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/>',
+  login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
+  refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
   key: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
 } as const;
 const ICON_COLORS = { blue: "#2563eb", amber: "#d97706", green: "#16a34a", red: "#dc2626", purple: "#7c3aed", teal: "#0d9488", gray: "#64748b", pink: "#db2777" } as const;
@@ -96,6 +105,12 @@ export const Ic: FC<{ n: keyof typeof ICONS; c: keyof typeof ICON_COLORS }> = ({
     )}
   </span>
 );
+
+/** Icône d'un bouton, de la couleur du texte. */
+export const Bi: FC<{ n: keyof typeof ICONS }> = ({ n }) =>
+  raw(
+    `<svg class="bi" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`,
+  );
 
 export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; refresh?: number }>> = ({ title, user, refresh, children }) => (
   <>
@@ -146,6 +161,7 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
       {providers.map((p) => (
         <p>
           <a class="btn primary" href={p.href}>
+            <Bi n="login" />
             {p.label}
           </a>
         </p>
@@ -162,7 +178,10 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
           <label class="mt">Nom</label>
           <input type="text" name="name" value="Organisateur test" />
           <p>
-            <button class="primary">Entrer</button>
+            <button class="primary">
+              <Bi n="login" />
+              Entrer
+            </button>
           </p>
         </form>
       ) : null}
@@ -175,6 +194,7 @@ export const HomePage: FC<{ user: User; competitions: CompetitionRow[] }> = ({ u
     <div class="row" style="justify-content:space-between">
       <h1>Mes compétitions</h1>
       <a class="btn primary" href="/competitions/new">
+        <Bi n="plus" />
         Nouvelle compétition
       </a>
     </div>
@@ -310,7 +330,10 @@ export const NewCompetitionPage: FC<{ user: User; v: CompetitionFormValues; erro
       <label>Fichier OpenAir (facultatif, modifiable ensuite)</label>
       <input type="file" name="airspace" accept=".txt,.air,.openair" />
       <p class="mt">
-        <button class="primary">Créer la compétition</button>
+        <button class="primary">
+          <Bi n="plus" />
+          Créer la compétition
+        </button>
       </p>
     </form>
   </Layout>
@@ -340,6 +363,7 @@ export const CompetitionPage: FC<{
       <div class="row" style="justify-content:space-between">
         <h2><Ic n="route" c="blue" />Manches</h2>
         <a class="btn primary" href={`/competitions/${c.id}/tasks/new`}>
+          <Bi n="plus" />
           Nouvelle manche
         </a>
       </div>
@@ -394,7 +418,10 @@ export const CompetitionPage: FC<{
       )}
       <form method="post" action={`/competitions/${c.id}/airspace`} enctype="multipart/form-data" class="row">
         <input type="file" name="airspace" accept=".txt,.air,.openair" required />
-        <button>{c.airspace_name ? "Remplacer" : "Envoyer"}</button>
+        <button>
+          <Bi n="upload" />
+          {c.airspace_name ? "Remplacer" : "Envoyer"}
+        </button>
       </form>
       <p class="small muted">Limites lues en AMSL ; niveaux de vol convertis à 1013,25 hPa puis abaissés de 100 m. Les limites AGL sont ignorées.</p>
     </div>
@@ -403,7 +430,10 @@ export const CompetitionPage: FC<{
       <h2><Ic n="sliders" c="gray" />Compétition</h2>
       <CompetitionFields v={v} />
       <p class="mt">
-        <button class="primary">Enregistrer</button>
+        <button class="primary">
+          <Bi n="save" />
+          Enregistrer
+        </button>
       </p>
     </form>
     <script src="/static/competition.js" />
@@ -446,7 +476,10 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[] }> = ({ c, pilots 
       </summary>
       <form method="post" action={`/competitions/${c.id}/pilots/import`} enctype="multipart/form-data" class="row">
         <input type="file" name="file" accept=".fsdb,.xml,.csv,.txt" required />
-        <button>Importer</button>
+        <button>
+          <Bi n="upload" />
+          Importer
+        </button>
         {pilots.length ? <a href={`/competitions/${c.id}/pilots.csv`}>Exporter en CSV</a> : null}
       </form>
       <p class="small muted">
@@ -486,7 +519,10 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[] }> = ({ c, pilots 
           </table>
         </div>
         <p class="mt">
-          <button class="primary">Enregistrer les pilotes</button>
+          <button class="primary">
+            <Bi n="save" />
+            Enregistrer les pilotes
+          </button>
         </p>
       </form>
     </details>
@@ -664,7 +700,10 @@ const RankingForm: FC<{ c: CompetitionRow; r: Ranking | null }> = ({ c, r }) => 
         );
       })}
       <p class="mt">
-        <button class="primary">{r ? "Enregistrer la règle" : "Créer le classement"}</button>
+        <button class="primary">
+          <Bi n={r ? "save" : "plus"} />
+          {r ? "Enregistrer la règle" : "Créer le classement"}
+        </button>
       </p>
     </form>
   );
@@ -681,9 +720,11 @@ const RankingPilots: FC<{ c: CompetitionRow; r: Ranking; pilots: PilotRow[] }> =
         <form method="post" action={action} class="row">
           <input type="text" name="pilot" placeholder="N° du pilote" class="in-s" required style="width:120px" />
           <button name="how" value="include">
+            <Bi n="userPlus" />
             Ajouter au classement
           </button>
           <button name="how" value="exclude">
+            <Bi n="userMinus" />
             Retirer du classement
           </button>
         </form>
@@ -760,7 +801,10 @@ export const StandingsPage: FC<{
               <h2 class="mt">Ajouts et retraits à la main</h2>
               <RankingPilots c={c} r={current} pilots={pilots} />
               <form method="post" action={`/competitions/${c.id}/rankings/${current.row.id}/delete`} class="mt">
-                <button>Supprimer ce classement</button>
+                <button>
+                  <Bi n="trash" />
+                  Supprimer ce classement
+                </button>
               </form>
             </details>
           ) : null}
@@ -809,7 +853,10 @@ export const NewTaskPage: FC<{ user: User; c: CompetitionRow; number: number; er
       <label class="mt">Ou texte du QR code (commence par XCTSK:)</label>
       <textarea name="text" placeholder="XCTSK:{...}"></textarea>
       <p class="mt">
-        <button class="primary">Créer la manche</button>
+        <button class="primary">
+          <Bi n="plus" />
+          Créer la manche
+        </button>
       </p>
     </form>
   </Layout>
@@ -927,7 +974,10 @@ export const TaskPage: FC<{
             <input type="text" name="taskEndTime" placeholder="dernier posé" value={loc(task.taskEndTime)} />
           </div>
           <div style="align-self:end">
-            <button>Enregistrer</button>
+            <button>
+              <Bi n="save" />
+              Enregistrer
+            </button>
           </div>
         </form>
         </details>
@@ -937,7 +987,10 @@ export const TaskPage: FC<{
         <h2><Ic n="pulse" c="green" />Traces ({tracks.length})</h2>
         <form method="post" action={`/tasks/${t.id}/tracks`} enctype="multipart/form-data" class="row upload">
           <input type="file" name="files" accept=".igc,.zip" multiple required />
-          <button>Envoyer</button>
+          <button>
+            <Bi n="upload" />
+            Envoyer
+          </button>
           <span class="small muted">
             Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro en fin de nom de fichier ; une trace envoyée pour un pilote
             qui en a déjà une la remplace. Pour un fichier nommé autrement, utilisez « Remplacer » sur la ligne du pilote.
@@ -978,7 +1031,10 @@ export const TaskPage: FC<{
                           <form method="post" action={`/tasks/${t.id}/tracks/${tr.id}/replace`} enctype="multipart/form-data" class="upload">
                             <input type="file" name="file" accept=".igc,.zip" required />
                             <input type="text" name="note" placeholder="Raison (facultatif) : trace reçue après coup, autre instrument…" maxlength={500} />
-                            <button>Remplacer la trace</button>
+                            <button>
+                              <Bi n="refresh" />
+                              Remplacer la trace
+                            </button>
                           </form>
                         </details>
                         <form method="post" action={`/tasks/${t.id}/tracks/${tr.id}/delete`}>
@@ -1113,7 +1169,10 @@ export const TaskPage: FC<{
             <input type="text" name="reason" required placeholder="Aide à un pilote accidenté" />
           </div>
           <div style="align-self:end">
-            <button>Ajouter</button>
+            <button>
+              <Bi n="plus" />
+              Ajouter
+            </button>
           </div>
         </form>
       </details>
@@ -1145,6 +1204,7 @@ export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; set
         <h2><Ic n="calc" c="blue" />Calcul</h2>
         <form method="post" action={`/tasks/${t.id}/runs`} id="run-form">
           <button class="primary" disabled={running || !tracks}>
+            {running ? <span class="spin" /> : <Bi n="play" />}
             {running ? "Calcul en cours…" : "Lancer le calcul"}
           </button>
         </form>

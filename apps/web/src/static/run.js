@@ -76,6 +76,7 @@
     if (form) form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const b = form.querySelector("button");
+      const label = b.innerHTML;
       b.disabled = true;
       b.innerHTML = '<span class="spin"></span> Démarrage du calcul…';
       try {
@@ -83,7 +84,7 @@
         if (res.ok) return swap(await res.text());
         const err = await res.json().catch(() => ({}));
         b.disabled = false;
-        b.textContent = "Lancer le calcul";
+        b.innerHTML = label;
         card.insertAdjacentHTML("beforeend", `<div class="err">${esc(err.error || "Le calcul n'a pas pu démarrer.")}</div>`);
       } catch (e) {
         form.submit();
