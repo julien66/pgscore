@@ -154,6 +154,23 @@ export const MIGRATIONS: Migration[] = [
      weight_max REAL,
      UNIQUE (competition_id, pilot_key)
    );`,
+  // Classements extraits du général (féminin, serial…) : règle sur les données pilotes, plus des
+  // pilotes ajoutés ou retirés à la main.
+  `CREATE TABLE competition_rankings (
+     id INTEGER PRIMARY KEY,
+     competition_id INTEGER NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+     name TEXT NOT NULL,
+     rule TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   );
+   CREATE TABLE ranking_overrides (
+     ranking_id INTEGER NOT NULL REFERENCES competition_rankings(id) ON DELETE CASCADE,
+     pilot_key TEXT NOT NULL,
+     included INTEGER NOT NULL,
+     PRIMARY KEY (ranking_id, pilot_key)
+   );
+   INSERT INTO competition_rankings (competition_id, name, rule, created_at)
+     SELECT id, 'Féminin', '{"conditions":[{"field":"gender","op":"in","value":"F"}]}', created_at FROM competitions;`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {
@@ -227,6 +244,15 @@ export interface PilotRow {
   harness_brand: string | null;
   harness_model: string | null;
   weight_max: number | null;
+}
+
+export interface RankingRow {
+  id: number;
+  competition_id: number;
+  name: string;
+  /** Règle en JSON (RankingRule). */
+  rule: string;
+  created_at: number;
 }
 
 export interface DecisionRow {

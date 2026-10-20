@@ -174,6 +174,51 @@ describe("interface web", () => {
     expect(await (await req(`${compUrl}/pilots.csv`)).text()).toContain("50,Nouveau Pilote,,,,,,,,,105");
   });
 
+  it("extrait le classement féminin et les classements créés par l'organisateur", async () => {
+    const { req, db } = setup();
+    const { compUrl, taskUrl } = await createCompetitionAndTask(req);
+    const taskId = Number(taskUrl.split("/").pop());
+    const results = {
+      pilots: [
+        { id: "12", name: "trace 12", total: 1000 },
+        { id: "7", name: "trace 7", total: 800 },
+        { id: "9", name: "trace 9", total: 640.5 },
+        { id: "3", name: "trace 3", total: 300 },
+      ],
+      gap: { validity: { task: 1 }, available: { distance: 400, time: 350, leading: 250, arrival: 0 } },
+    };
+    db.prepare("INSERT INTO runs (task_id, status, results, started_at, finished_at) VALUES (?, 'done', ?, ?, ?)").run(taskId, JSON.stringify(results), Date.now() + 1000, Date.now() + 2000);
+    await req(`${taskUrl}/official`, { method: "POST", body: new URLSearchParams({ official: "1" }) });
+    const csv = "numero;nom;genre;voile;classe;ptv\n12;Ana;F;Ozone Zeno 2;EN-D;95\n7;Bruno;M;Gin Leopard;EN-C;110\n9;Chloé;F;Ozone Rush 6;EN-B;85\n3;Dan;M;Ozone Enzo 3;CCC;100\n";
+    const f = new FormData();
+    f.append("file", new Blob([csv]), "inscrits.csv");
+    await req(`${compUrl}/pilots/import`, { method: "POST", body: f });
+    // Le classement féminin existe d'office ; c'est le seul.
+    const rk = db.prepare("SELECT id, name FROM competition_rankings").all() as Array<{ id: number; name: string }>;
+    expect(rk.map((r) => r.name)).toEqual(["Féminin"]);
+    const fem = await (await req(`${compUrl}/standings.csv?r=${rk[0]!.id}`)).text();
+    expect(fem.split("\n").slice(1, 3).map((l) => l.split(",").slice(0, 3).join(","))).toEqual(["1,12,Ana", "2,9,Chloé"]);
+    // Serial : EN-C ou EN-D, poids ≤ 110 ; puis Dan ajouté à la main et Ana retirée.
+    const rc = await req(`${compUrl}/rankings`, {
+      method: "POST",
+      body: new URLSearchParams({ name: "Serial", field1: "glider_class", op1: "in", value1: "EN-C, en d", field2: "weight_max", op2: "lte", value2: "110" }),
+    });
+    const serialUrl = rc.headers.get("location")!.split("&")[0]!;
+    const rid = serialUrl.split("r=")[1]!;
+    const lines = async () => (await (await req(`${compUrl}/standings.csv?r=${rid}`)).text()).trim().split("\n").slice(1).map((l) => l.split(",").slice(0, 2).join(","));
+    expect(await lines()).toEqual(["1,12", "2,7"]);
+    await req(`${compUrl}/rankings/${rid}/pilots`, { method: "POST", body: new URLSearchParams({ pilot: "3", how: "include" }) });
+    await req(`${compUrl}/rankings/${rid}/pilots`, { method: "POST", body: new URLSearchParams({ pilot: "12", how: "exclude" }) });
+    expect(await lines()).toEqual(["1,7", "2,3"]);
+    const page = await (await req(serialUrl)).text();
+    expect(page).toContain("EN-C, en d et ptv max (kg) ≤ 110");
+    expect(page).toContain("revenir à la règle");
+    const bad = await req(`${compUrl}/rankings`, { method: "POST", body: new URLSearchParams({ name: "X", field1: "weight_max", op1: "in", value1: "90" }) });
+    expect(bad.status).toBe(400);
+    await req(`${compUrl}/rankings/${rid}/delete`, { method: "POST" });
+    expect((db.prepare("SELECT COUNT(*) AS n FROM competition_rankings").get() as { n: number }).n).toBe(1);
+  });
+
   it("refuse une manche illisible et l'accès aux compétitions des autres", async () => {
     const { req } = setup();
     const { compUrl } = await createCompetitionAndTask(req);

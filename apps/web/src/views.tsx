@@ -7,6 +7,7 @@ import { GAP_PROFILES, LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
 import type { Standings } from "./standings.js";
 import { PILOT_COLUMNS } from "./pilots.js";
+import { describeRule, RULE_FIELDS, RULE_OPS, type Ranking } from "./rankings.js";
 
 const CSS = `
 :root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5d6678;--line:#dde1e8;--accent:#1f6feb;--accent-ink:#fff;--ok:#1a7f37;--warn:#9a6700;--bad:#cf222e;--chip:#eef1f5}
@@ -60,6 +61,8 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 .lead-warn{color:var(--warn);cursor:help;margin-right:4px}
 table.pilots td{padding:3px 4px}table.pilots input[type=text],table.pilots select{padding:4px 6px;font-size:13px}
 table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{width:190px}table.pilots tr.new td{background:var(--chip)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs a{padding:6px 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--muted)}.tabs a.on{background:var(--card);border-color:var(--line);color:var(--text);font-weight:600;margin-bottom:-1px}
+.cond{margin-top:6px}.cond select{width:auto}.cond input{max-width:280px}
 .ftv-part{font-weight:600}.ftv-raw{color:var(--muted);font-size:12px;margin-left:4px}.ftv-out{color:var(--muted)}
 th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
 .center{max-width:420px;margin:60px auto;text-align:center}
@@ -291,10 +294,11 @@ export const CompetitionPage: FC<{
   tasks: TaskRow[];
   standings: Standings;
   pilots: PilotRow[];
+  rankings: Array<{ id: number; name: string }>;
   airspaceCount: number | null;
   error?: string | null;
   notice?: string | null;
-}> = ({ user, c, v, tasks, standings, pilots, airspaceCount, error, notice }) => (
+}> = ({ user, c, v, tasks, standings, pilots, rankings, airspaceCount, error, notice }) => (
   <Layout title={c.name} user={user}>
     <div class="crumbs">
       <a href="/">Mes compétitions</a>
@@ -344,6 +348,7 @@ export const CompetitionPage: FC<{
 
     <div class="card" id="standings">
       <h2>Classement général</h2>
+      <RankingTabs c={c} rankings={rankings} current={null} />
       <StandingsTable c={c} s={standings} limit={10} />
     </div>
 
@@ -492,8 +497,9 @@ const FtvCell: FC<{ ts: { score: number; fraction: number; counted: number } | u
   );
 };
 
-export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: number }> = ({ c, s, limit }) => {
+export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: number; rid?: number }> = ({ c, s, limit, rid }) => {
   const r = s.ranking;
+  const q = rid ? `?r=${rid}` : "";
   if (!s.ranked.length)
     return (
       <>
@@ -505,6 +511,7 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
       </>
     );
   const pilots = limit ? r.pilots.slice(0, limit) : r.pilots;
+  if (rid && !pilots.length) return <p class="muted">Aucun pilote classé dans ce classement.</p>;
   const info = new Map(r.tasks.map((t) => [t.key, t]));
   return (
     <>
@@ -550,27 +557,183 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
       <p class="small mt">
         {limit && r.pilots.length > limit ? (
           <>
-            <a href={`/competitions/${c.id}/standings`}>Voir les {r.pilots.length} pilotes</a> ·{" "}
+            <a href={`/competitions/${c.id}/standings${q}`}>Voir les {r.pilots.length} pilotes</a> ·{" "}
           </>
         ) : null}
-        <a href={`/competitions/${c.id}/standings.csv`}>Exporter en CSV</a>
+        <a href={`/competitions/${c.id}/standings.csv${q}`}>Exporter en CSV</a>
         {r.ftvFactor > 0 ? " · en gras, la part retenue d'une manche comptée en partie ; entre parenthèses et en gris, le score de la manche non retenu" : ""}
       </p>
     </>
   );
 };
 
-export const StandingsPage: FC<{ user: User; c: CompetitionRow; s: Standings }> = ({ user, c, s }) => (
-  <Layout title={`Classement général · ${c.name}`} user={user}>
-    <div class="crumbs">
-      <a href="/">Mes compétitions</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
-    </div>
-    <h1>Classement général</h1>
-    <div class="card">
-      <StandingsTable c={c} s={s} />
-    </div>
-  </Layout>
+/** Onglets des classements : général, puis les classements extraits. */
+const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: string; count?: number }>; current: number | null; create?: boolean }> = ({
+  c,
+  rankings,
+  current,
+  create,
+}) => (
+  <nav class="tabs">
+    <a href={`/competitions/${c.id}/standings`} class={current === null && !create ? "on" : ""}>
+      Général
+    </a>
+    {rankings.map((r) => (
+      <a href={`/competitions/${c.id}/standings?r=${r.id}`} class={current === r.id ? "on" : ""}>
+        {r.name}
+        {r.count !== undefined ? <span class="muted small"> {r.count}</span> : null}
+      </a>
+    ))}
+    <a href={`/competitions/${c.id}/standings?new=1`} class={create ? "on" : ""}>
+      + Nouveau classement
+    </a>
+  </nav>
 );
+
+/** Règle d'un classement : nom et jusqu'à quatre conditions. */
+const RankingForm: FC<{ c: CompetitionRow; r: Ranking | null }> = ({ c, r }) => {
+  const conds = r?.rule.conditions ?? [];
+  return (
+    <form method="post" action={r ? `/competitions/${c.id}/rankings/${r.row.id}` : `/competitions/${c.id}/rankings`}>
+      <div class="grid">
+        <div>
+          <label>Nom du classement</label>
+          <input type="text" name="name" value={r?.row.name ?? ""} placeholder="Serial, Lightweight, Sport…" required />
+        </div>
+      </div>
+      <p class="small muted mt">
+        Pilotes retenus : ceux qui vérifient toutes les conditions remplies (données du bloc Pilotes). Plusieurs valeurs séparées par des virgules :
+        « EN-C, EN-D ». Sans condition, le classement ne contient que les pilotes ajoutés à la main.
+      </p>
+      {[1, 2, 3, 4].map((i) => {
+        const k = conds[i - 1];
+        return (
+          <div class="row cond">
+            <select name={`field${i}`}>
+              <option value="">—</option>
+              {Object.entries(RULE_FIELDS).map(([f, label]) => (
+                <option value={f} selected={k?.field === f}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <select name={`op${i}`}>
+              {Object.entries(RULE_OPS).map(([o, label]) => (
+                <option value={o} selected={(k?.op ?? "in") === o}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <input type="text" name={`value${i}`} value={k?.value ?? ""} placeholder={i === 1 ? "F" : ""} />
+          </div>
+        );
+      })}
+      <p class="mt">
+        <button class="primary">{r ? "Enregistrer la règle" : "Créer le classement"}</button>
+      </p>
+    </form>
+  );
+};
+
+/** Ajouts et retraits à la main dans un classement extrait. */
+const RankingPilots: FC<{ c: CompetitionRow; r: Ranking; pilots: PilotRow[] }> = ({ c, r, pilots }) => {
+  const names = new Map(pilots.map((p) => [p.pilot_key, p.name]));
+  const action = `/competitions/${c.id}/rankings/${r.row.id}/pilots`;
+  const manual = [...r.overrides].sort((a, b) => Number(a[0]) - Number(b[0]) || a[0].localeCompare(b[0]));
+  return (
+    <>
+      <div class="row">
+        <form method="post" action={action} class="row">
+          <input type="text" name="pilot" placeholder="N° du pilote" class="in-s" required style="width:120px" />
+          <button name="how" value="include">
+            Ajouter au classement
+          </button>
+          <button name="how" value="exclude">
+            Retirer du classement
+          </button>
+        </form>
+      </div>
+      {manual.length ? (
+        <ul class="list">
+          {manual.map(([key, inc]) => (
+            <li>
+              <span class={`chip ${inc ? "t-bonus" : "t-pen"}`}>{inc ? "ajouté" : "retiré"}</span>
+              <span>
+                {key} {names.get(key) ?? ""}
+              </span>
+              <form method="post" action={action} style="margin-left:auto">
+                <input type="hidden" name="pilot" value={key} />
+                <button class="link" name="how" value="reset">
+                  revenir à la règle
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="small muted">Aucun ajout ni retrait à la main.</p>
+      )}
+    </>
+  );
+};
+
+export const StandingsPage: FC<{
+  user: User;
+  c: CompetitionRow;
+  s: Standings;
+  overall: Standings;
+  pilots: PilotRow[];
+  rankings: Array<{ r: Ranking; count: number }>;
+  current: Ranking | null;
+  create: boolean;
+  error?: string | null;
+  notice?: string | null;
+}> = ({ user, c, s, pilots, rankings, current, create, error, notice }) => {
+  const title = create ? "Nouveau classement" : current ? `Classement ${current.row.name.toLowerCase()}` : "Classement général";
+  const count = current ? rankings.find((x) => x.r.row.id === current.row.id)!.count : 0;
+  return (
+    <Layout title={`${title} · ${c.name}`} user={user}>
+      <div class="crumbs">
+        <a href="/">Mes compétitions</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
+      </div>
+      <h1>{title}</h1>
+      <ErrorBox message={error} />
+      {notice ? <div class="note">{notice}</div> : null}
+      <RankingTabs c={c} rankings={rankings.map((x) => ({ id: x.r.row.id, name: x.r.row.name, count: x.count }))} current={current?.row.id ?? null} create={create} />
+      {create ? (
+        <div class="card">
+          <RankingForm c={c} r={null} />
+        </div>
+      ) : (
+        <>
+          {current ? (
+            <p class="small muted">
+              {describeRule(current.rule)} · {count} pilote{count > 1 ? "s" : ""} inscrit{count > 1 ? "s" : ""} dans ce classement,{" "}
+              {s.ranking.pilots.length} classé{s.ranking.pilots.length > 1 ? "s" : ""}. Même total qu'au général (mêmes manches, même FTV), rang recalculé.
+              {!pilots.length ? " Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition." : ""}
+            </p>
+          ) : null}
+          <div class="card">
+            <StandingsTable c={c} s={s} rid={current?.row.id} />
+          </div>
+          {current ? (
+            <details class="card fold" id="ranking-settings">
+              <summary>
+                <h2>Règle et pilotes de ce classement</h2>
+              </summary>
+              <RankingForm c={c} r={current} />
+              <h2 class="mt">Ajouts et retraits à la main</h2>
+              <RankingPilots c={c} r={current} pilots={pilots} />
+              <form method="post" action={`/competitions/${c.id}/rankings/${current.row.id}/delete`} class="mt">
+                <button>Supprimer ce classement</button>
+              </form>
+            </details>
+          ) : null}
+        </>
+      )}
+    </Layout>
+  );
+};
 
 export const NewTaskPage: FC<{ user: User; c: CompetitionRow; number: number; error?: string | null; date?: string }> = ({
   user,

@@ -89,3 +89,13 @@ export function standingsCsv(s: Standings): string {
   ]);
   return [head, ...rows].map((r) => r.map(q).join(",")).join("\n") + "\n";
 }
+
+/** Classement extrait : les pilotes choisis, avec leur total du général, renumérotés. */
+export function extractStandings(s: Standings, keys: Set<string>): Standings {
+  const pilots = s.ranking.pilots.filter((p) => keys.has(p.pilot)).map((p) => ({ ...p }));
+  pilots.forEach((p, i) => {
+    const prev = pilots[i - 1];
+    p.rank = prev && prev.total === p.total ? prev.rank : i + 1;
+  });
+  return { ...s, ranking: { ...s.ranking, pilots } };
+}

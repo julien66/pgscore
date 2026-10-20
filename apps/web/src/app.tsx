@@ -20,7 +20,8 @@ import { pilotVersions, removeTrack, saveTrack, taskHasFile, trackHistory } from
 import { addDecision, deleteDecision, listDecisions, touchScoring } from "./decisions.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
-import { competitionStandings, lastScoringChange, standingsCsv } from "./standings.js";
+import { competitionStandings, extractStandings, lastScoringChange, standingsCsv } from "./standings.js";
+import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRankings, rankingMembers, setOverride, updateRanking } from "./rankings.js";
 import { listPilots, pilotsCsv, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
 import { vendorFile } from "./vendor.js";
@@ -236,6 +237,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
           air?.text ?? null,
           Date.now(),
         );
+      addDefaultRankings(db, Number(r.lastInsertRowid));
       return c.redirect(`/competitions/${r.lastInsertRowid}`);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
@@ -261,6 +263,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         tasks={tasks}
         standings={competitionStandings(db, comp)}
         pilots={listPilots(db, comp.id)}
+        rankings={listRankings(db, comp.id).map((r) => ({ id: r.row.id, name: r.row.name }))}
         airspaceCount={count}
         error={extra.error ?? null}
         notice={extra.notice ?? null}
@@ -342,19 +345,107 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     });
   });
 
+  /** Classement affiché : le général, ou un classement extrait (?r=id). */
+  const standingsOf = (comp: CompetitionRow, rid: string | undefined) => {
+    const all = competitionStandings(db, comp);
+    const pilots = listPilots(db, comp.id);
+    const rankings = listRankings(db, comp.id);
+    const members = new Map(rankings.map((r) => [r.row.id, rankingMembers(r, pilots)]));
+    const current = rid ? (rankings.find((r) => r.row.id === Number(rid)) ?? null) : null;
+    const s = current ? extractStandings(all, members.get(current.row.id)!) : all;
+    return { all, s, pilots, rankings, members, current };
+  };
+
+  const standingsPage = (c: Context<Env>, comp: CompetitionRow, rid: string | undefined, extra: { error?: string; notice?: string; create?: boolean } = {}) => {
+    const x = standingsOf(comp, rid);
+    if (rid && !x.current) return notFound(c);
+    return c.html(
+      <StandingsPage
+        user={c.get("user")}
+        c={comp}
+        s={x.s}
+        overall={x.all}
+        pilots={x.pilots}
+        rankings={x.rankings.map((r) => ({ r, count: x.members.get(r.row.id)!.size }))}
+        current={x.current}
+        create={extra.create ?? false}
+        error={extra.error ?? null}
+        notice={extra.notice ?? null}
+      />,
+      extra.error ? 400 : 200,
+    );
+  };
+
   app.get("/competitions/:id/standings", (c) => {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
-    return c.html(<StandingsPage user={c.get("user")} c={comp} s={competitionStandings(db, comp)} />);
+    return standingsPage(c, comp, c.req.query("r"), { create: c.req.query("new") === "1", notice: c.req.query("msg") });
   });
 
   app.get("/competitions/:id/standings.csv", (c) => {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
-    return c.body(standingsCsv(competitionStandings(db, comp)), 200, {
+    const x = standingsOf(comp, c.req.query("r"));
+    if (c.req.query("r") && !x.current) return notFound(c);
+    const slug = x.current ? x.current.row.name.normalize("NFD").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase() : "general";
+    return c.body(standingsCsv(x.s), 200, {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="classement-general.csv"`,
+      "content-disposition": `attachment; filename="classement-${slug}.csv"`,
     });
+  });
+
+  // --- Classements extraits --------------------------------------------------------------
+  const toRanking = (comp: CompetitionRow, rid: number, msg?: string) =>
+    `/competitions/${comp.id}/standings?r=${rid}${msg ? `&msg=${encodeURIComponent(msg)}` : ""}`;
+
+  app.post("/competitions/:id/rankings", async (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    const f = await c.req.parseBody();
+    try {
+      return c.redirect(toRanking(comp, createRanking(db, comp.id, f), "Classement créé."));
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return standingsPage(c, comp, undefined, { error: e.message, create: true });
+    }
+  });
+
+  app.post("/competitions/:id/rankings/:rid", async (c) => {
+    const comp = competition(c, c.req.param("id"));
+    const r = comp ? getRanking(db, comp.id, Number(c.req.param("rid"))) : null;
+    if (!comp || !r) return notFound(c);
+    const f = await c.req.parseBody();
+    try {
+      updateRanking(db, r, f);
+      return c.redirect(toRanking(comp, r.row.id, "Classement enregistré."));
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return standingsPage(c, comp, String(r.row.id), { error: e.message });
+    }
+  });
+
+  app.post("/competitions/:id/rankings/:rid/delete", (c) => {
+    const comp = competition(c, c.req.param("id"));
+    const r = comp ? getRanking(db, comp.id, Number(c.req.param("rid"))) : null;
+    if (!comp || !r) return notFound(c);
+    deleteRanking(db, r);
+    return c.redirect(`/competitions/${comp.id}/standings?msg=${encodeURIComponent(`Classement « ${r.row.name} » supprimé.`)}`);
+  });
+
+  app.post("/competitions/:id/rankings/:rid/pilots", async (c) => {
+    const comp = competition(c, c.req.param("id"));
+    const r = comp ? getRanking(db, comp.id, Number(c.req.param("rid"))) : null;
+    if (!comp || !r) return notFound(c);
+    const f = await c.req.parseBody();
+    const how = String(f.how ?? "");
+    try {
+      if (how !== "include" && how !== "exclude" && how !== "reset") throw new FormError("Action inconnue.");
+      setOverride(db, r, String(f.pilot ?? ""), how);
+      return c.redirect(toRanking(comp, r.row.id));
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return standingsPage(c, comp, String(r.row.id), { error: e.message });
+    }
   });
 
   app.post("/competitions/:id/airspace", async (c) => {

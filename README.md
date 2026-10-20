@@ -40,6 +40,7 @@ Interface, début :
 - [x] Points GAP de la manche : validités, répartition, points distance/temps/leading, pénalités, manches arrêtées (S7F 10 à 13), formule S7F 2026 ou PWCA 2026 (vérifiée sur 7 manches PWCA, ~480 pilotes au dixième de point)
 - [x] Classement général (FTV, S7F 15–16) : manches marquées officielles, export CSV
 - [x] Pilotes inscrits : import FSDB (FS) ou CSV, tableau modifiable, export CSV
-- [ ] Classements extraits (féminin, serial, poids…) et classement des nations
+- [x] Classements extraits du général : féminin d'office, autres par règle (classe de voile, PTV…) avec ajouts et retraits à la main
+- [ ] Classement des nations
 - [x] Décisions de l'organisateur : bonus, pénalités, goal accordé, ABS, DNF, décollé sans trace
 - [ ] Plusieurs organisateurs par compétition, résultats publics
