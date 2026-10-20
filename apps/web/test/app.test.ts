@@ -126,7 +126,7 @@ describe("interface web", () => {
       Date.now() + 2000,
     );
     let comp = await (await req(compUrl)).text();
-    expect(comp).toContain("Classement général");
+    expect(comp).toContain("Classements");
     expect(comp).toContain("Aucune manche officielle calculée");
     expect((await req(`${taskUrl}/official`, { method: "POST", body: new URLSearchParams({ official: "1" }) })).status).toBe(302);
     comp = await (await req(compUrl)).text();
