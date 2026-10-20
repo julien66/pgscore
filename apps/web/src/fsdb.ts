@@ -143,8 +143,7 @@ function rankingFromCategory(cat: XmlEl, participants: XmlEl[], warnings: string
     else exact = false;
   }
   if (exact) return { name, rule: { conditions: conds }, overrides: [] };
-  // Critère sans équivalent (attribut personnalisé « ca:… ») : on évalue la catégorie sur les inscriptions
-  // et on garde ses membres comme ajouts à la main.
+  // Critère sans équivalent (attribut personnalisé « ca:… ») : on évalue la catégorie sur les inscriptions.
   const value = (p: XmlEl, attr: string) => (attr.startsWith("ca:") ? (fsdbCustom(p)[normKey(attr.slice(3))] ?? "") : (p.attrs[attr] ?? ""));
   const ok = (p: XmlEl) =>
     sels.every((s) => {
@@ -160,9 +159,48 @@ function rankingFromCategory(cat: XmlEl, participants: XmlEl[], warnings: string
       return true;
     });
   const members = participants.filter(ok).map((p) => p.attrs.id ?? "").filter(Boolean);
+  // Nationalité en toutes lettres (« ca:Nationality equals France ») : on la traduit en code pays, celui des
+  // pilotes concernés, si la règle ainsi obtenue retrouve exactement les mêmes pilotes que FS.
+  const rule = nationRule(sels, participants, value);
+  if (rule) {
+    const fsSet = new Set(members);
+    const byRule = participants.filter((p) => rule.conditions.every((c) => matchCondition(p, c))).map((p) => p.attrs.id ?? "");
+    if (byRule.length === fsSet.size && byRule.every((id) => fsSet.has(id))) return { name, rule, overrides: [] };
+  }
   warnings.push(t("Catégorie « {name} » : critère sans équivalent dans pgscore, ses {n} pilotes sont ajoutés à la main au classement.", { name, n: members.length }));
   return { name, rule: { conditions: [] } as RankingRule, overrides: members.map((pilot_key) => ({ pilot_key, included: true })) };
 }
+const NATION_ATTRS = new Set(["nationality", "nation", "country", "nationalite", "pays"]);
+
+/** Règle équivalente quand les critères sont le sexe, le code pays ou une nationalité en toutes lettres. */
+function nationRule(
+  sels: Array<Record<string, string>>,
+  participants: XmlEl[],
+  value: (p: XmlEl, attr: string) => string,
+): RankingRule | null {
+  const conditions: RuleCondition[] = [];
+  for (const s of sels) {
+    const attr = s.attributeName ?? "";
+    const cmp = (s.comparator ?? "").toLowerCase();
+    if (attr === "female" && cmp === "equals") conditions.push({ field: "gender", op: "in", value: s.requiredValue === "1" ? "F" : "M" });
+    else if (attr === "nat_code_3166_a3" && cmp === "equals") conditions.push({ field: "nation", op: "in", value: (s.requiredValue ?? "").toUpperCase() });
+    else if (attr.startsWith("ca:") && NATION_ATTRS.has(normKey(attr.slice(3))) && cmp === "equals") {
+      const want = (s.requiredValue ?? "").toLowerCase();
+      const codes = new Set(participants.filter((p) => value(p, attr).toLowerCase() === want).map((p) => (p.attrs.nat_code_3166_a3 ?? "").toUpperCase()).filter(Boolean));
+      if (codes.size !== 1) return null;
+      conditions.push({ field: "nation", op: "in", value: [...codes][0]! });
+    } else return null;
+  }
+  return { conditions };
+}
+
+const matchCondition = (p: XmlEl, c: RuleCondition): boolean =>
+  c.field === "gender"
+    ? (p.attrs.female === "1" ? "F" : "M") === c.value
+    : c.field === "nation"
+      ? (p.attrs.nat_code_3166_a3 ?? "").toUpperCase() === c.value
+      : false;
+
 const normKey = (s: string) =>
   s
     .normalize("NFD")

@@ -141,6 +141,19 @@ describe("échange avec FS (FSDB)", () => {
     expect(fromComp.a.tasks[0]!.task.bonusGlideRatio).toBe(4);
   });
 
+  it("traduit une catégorie par nationalité en toutes lettres en règle sur le code pays", () => {
+    let xml = FSDB.toString("utf8").replace('<FsCustomAttribute name="GCat" value="Serial" />', '<FsCustomAttribute name="GCat" value="Serial" /><FsCustomAttribute name="Nationality" value="France" />');
+    xml = xml.replace(
+      "<FsCompCategories>",
+      '<FsCompCategories><FsCompCategory name="France"><FsCompCategorySelectors><FsCompCategorySelector attributeName="ca:Nationality" comparator="equals" requiredValue="France" /></FsCompCategorySelectors></FsCompCategory>',
+    );
+    const { a, warnings } = fsdbToArchive(new Uint8Array(Buffer.from(xml, "utf8")));
+    const fr = a.rankings.find((r) => r.name === "France")!;
+    expect(fr.rule.conditions).toEqual([{ field: "nation", op: "in", value: "FRA" }]);
+    expect(fr.overrides).toEqual([]);
+    expect(warnings.join(" ")).not.toContain("« France »");
+  });
+
   it("distingue une archive pgscore d'un FSDB", () => {
     expect(looksLikeFsdb(new Uint8Array(FSDB))).toBe(true);
     expect(looksLikeFsdb(zipSync({ "competition.json": strToU8("{}"), "x.fsdb": strToU8("<Fs/>") }))).toBe(false);
