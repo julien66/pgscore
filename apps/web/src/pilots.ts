@@ -1,3 +1,4 @@
+import { child, children, parseXml, type XmlEl } from "./xml.js";
 import type { Db, PilotRow } from "./db.js";
 import { FormError } from "./settings.js";
 import { N_, t } from "./i18n.js";
@@ -134,57 +135,60 @@ export function pilotsFromCsv(text: string): PilotFields[] {
   });
 }
 
-const xmlAttrs = (tag: string): Record<string, string> => {
-  const out: Record<string, string> = {};
-  for (const m of tag.matchAll(/([\w:.-]+)\s*=\s*("([^"]*)"|'([^']*)')/g)) out[m[1]!.toLowerCase()] = decodeXml(m[3] ?? m[4] ?? "");
-  return out;
-};
-const decodeXml = (s: string) =>
-  s
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
-
 /**
- * Pilotes d'un fichier FSDB (base du logiciel FS de la CIVL) : éléments <FsParticipant>, avec id, name,
- * female, nat_code_3166_a3, glider, CIVLID et éventuellement des <FsCustomAttribute name value>.
+ * Pilotes d'un fichier FSDB (base du logiciel FS de la CIVL) : éléments <FsParticipant> de la compétition
+ * (pas ceux des manches ni des résultats), avec id, name, female, nat_code_3166_a3, glider, sponsor, CIVLID,
+ * et les <FsCustomAttribute> des inscriptions civlcomps (Wing Manufacturer, Wing Model, PG Certification,
+ * Harness Manufacturer, Harness Model…).
  */
 export function pilotsFromFsdb(text: string): PilotFields[] {
-  const parts = [...text.matchAll(/<FsParticipant\b([^>]*?)(\/>|>([\s\S]*?)<\/FsParticipant>)/g)];
+  let doc;
+  try {
+    doc = parseXml(text);
+  } catch (e) {
+    throw new FormError(t("FSDB illisible : {error}", { error: (e as Error).message }));
+  }
+  const comp = child(child(doc, "Fs"), "FsCompetition");
+  const parts = children(child(comp, "FsParticipants"), "FsParticipant");
   if (!parts.length) throw new FormError(t("Aucun pilote (<FsParticipant>) dans ce fichier FSDB."));
-  return parts.map((m, n) => {
-    const a = xmlAttrs(m[1]!);
-    const custom: Record<string, string> = {};
-    for (const c of (m[3] ?? "").matchAll(/<FsCustomAttribute\b([^>]*)\/?>/g)) {
-      const x = xmlAttrs(c[1]!);
-      if (x.name) custom[norm(x.name)] = x.value ?? "";
-    }
-    const pick = (...keys: string[]) => keys.map((k) => a[k] ?? custom[norm(k)]).find((v) => v !== undefined && v !== "") ?? "";
-    const glider = splitBrand(pick("glider"));
-    const harness = splitBrand(pick("harness", "sellette"));
-    const female = pick("female");
+  return parts.map((p, n) => {
     try {
-      return cleanPilot({
-        pilot_key: pick("id"),
-        name: pick("name"),
-        gender: female === "" ? null : female === "1" || female.toLowerCase() === "true" ? "F" : "M",
-        nation: pick("nat_code_3166_a3", "nation", "nat"),
-        civl_id: pick("civlid", "civl_id", "fai_id"),
-        glider_brand: pick("glider_brand") || glider.brand,
-        glider_model: pick("glider_model") || glider.model,
-        glider_class: pick("glider_class", "class", "certification", "en"),
-        harness_brand: pick("harness_brand") || harness.brand,
-        harness_model: pick("harness_model") || harness.model,
-        weight_max: pick("ptv", "ptv max", "max weight", "weight"),
-        sponsor: pick("sponsor", "team"),
-      });
+      return fsdbPilot(p);
     } catch (e) {
       throw new FormError(t("Pilote n° {n} du FSDB : {error}", { n: n + 1, error: (e as Error).message }));
     }
+  });
+}
+
+/** Attributs personnalisés d'un <FsParticipant> (nom normalisé → valeur). */
+export function fsdbCustom(p: XmlEl): Record<string, string> {
+  const custom: Record<string, string> = {};
+  for (const c of children(child(p, "FsCustomAttributes"), "FsCustomAttribute")) if (c.attrs.name) custom[norm(c.attrs.name)] = c.attrs.value ?? "";
+  return custom;
+}
+
+export function fsdbPilot(p: XmlEl): PilotFields {
+  const a = p.attrs;
+  const custom = fsdbCustom(p);
+  const pick = (...keys: string[]) => keys.map((k) => a[k] ?? custom[norm(k)]).find((v) => v !== undefined && v.trim() !== "")?.trim() ?? "";
+  // « glider » contient parfois voile et sellette : « Ozone Zeno 2 / Ozone Submarine ».
+  const [gliderText, harnessText] = pick("glider").split(" / ");
+  const glider = splitBrand(gliderText ?? "");
+  const harness = splitBrand(pick("harness", "sellette") || (harnessText ?? ""));
+  const female = pick("female");
+  return cleanPilot({
+    pilot_key: pick("id"),
+    name: pick("name"),
+    gender: female === "" ? null : female === "1" || female.toLowerCase() === "true" ? "F" : "M",
+    nation: pick("nat_code_3166_a3", "nation", "nat"),
+    civl_id: pick("CIVLID", "civlid", "civl_id", "fai_id"),
+    glider_brand: pick("glider_brand", "wing manufacturer") || glider.brand,
+    glider_model: pick("glider_model", "wing model") || glider.model,
+    glider_class: pick("glider_class", "class", "pg certification", "certification", "en").replace(/^EN_/, "EN-"),
+    harness_brand: pick("harness_brand", "harness manufacturer") || harness.brand,
+    harness_model: pick("harness_model", "harness model") || harness.model,
+    weight_max: pick("ptv", "ptv max", "max weight", "weight"),
+    sponsor: pick("sponsor", "team"),
   });
 }
 

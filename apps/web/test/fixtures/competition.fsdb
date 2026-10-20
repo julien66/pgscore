@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Fs version="3.5" comment="Test fixture, no personal data">
+  <FsCompetition id="1" name="Coupe de test FS" location="France" from="2026-08-15" to="2026-08-16" utc_offset="2" discipline="pg" ftv_factor="0.25">
+    <FsScoreFormula id="GAP2026" min_dist="7" nom_dist="40" nom_time="1" nom_launch="0.96" nom_goal="0.2" day_quality_override="0" bonus_gr="4" jump_the_gun_factor="0" jump_the_gun_max="0" normalize_1000_before_day_quality="0" time_points_if_not_in_goal="0.8" use_1000_points_for_max_day_quality="0" use_arrival_position_points="0" use_arrival_time_points="0" use_departure_points="0" use_difficulty_for_distance_points="0" use_distance_points="1" use_leading_points="1" use_time_points="1" scoring_altitude="GPS" final_glide_decelerator="none" no_final_glide_decelerator_reason="" min_time_span_for_valid_task="60" score_back_time="5" use_proportional_leading_weight_if_not_in_goal="1" leading_weight_factor="1" turnpoint_radius_tolerance="0.001" ftv_factor="0.25" />
+    <FsCompetitionNotes><![CDATA[Fichier de test.]]></FsCompetitionNotes>
+    <FsParticipants>
+      <FsParticipant id="12" name="Ana Essai" nat_code_3166_a3="FRA" female="1" glider="Ozone Enzo 3 / Ozone Submarine" sponsor="Air3" CIVLID="99001">
+        <FsCustomAttributes>
+          <FsCustomAttribute name="Wing Manufacturer" value="Ozone" />
+          <FsCustomAttribute name="Wing Model" value="Enzo 3" />
+          <FsCustomAttribute name="PG Certification" value="CCC" />
+          <FsCustomAttribute name="Harness Manufacturer" value="Woody Valley" />
+          <FsCustomAttribute name="Harness Model" value="X-Rated 7" />
+          <FsCustomAttribute name="GCat" value="Serial" />
+        </FsCustomAttributes>
+      </FsParticipant>
+      <FsParticipant id="7" name="Bruno Essai" nat_code_3166_a3="ITA" female="0" glider="Gin Boomerang 12" sponsor="" CIVLID="99002">
+        <FsCustomAttributes>
+          <FsCustomAttribute name="Wing Manufacturer" value="Gin" />
+          <FsCustomAttribute name="Wing Model" value="Boomerang 12" />
+          <FsCustomAttribute name="PG Certification" value="EN_D" />
+        </FsCustomAttributes>
+      </FsParticipant>
+    </FsParticipants>
+    <FsTasks>
+      <FsTask id="1" name="Task 1" tracklog_folder="tracks\T01">
+        <FsScoreFormula id="GAP2026" min_dist="7" nom_dist="40" nom_time="1" nom_launch="0.96" nom_goal="0.2" score_back_time="5" ftv_factor="0.25" />
+        <FsTaskDefinition ss="2" es="4" goal="CIRCLE" qnh_setting="1013.25" leading_time_ratio="0.18">
+          <FsTurnpoint id="D01" lat="46.123450" lon="13.087650" altitude="1200" radius="400" open="2026-08-15T11:00:00+02:00" close="2026-08-15T18:00:00+02:00" />
+          <FsTurnpoint id="B02" lat="46.200000" lon="13.100000" altitude="800" radius="4000" open="2026-08-15T13:30:00+02:00" close="2026-08-15T18:00:00+02:00" />
+          <FsTurnpoint id="B03" lat="46.300000" lon="13.200000" altitude="700" radius="2000" open="2026-08-15T13:30:00+02:00" close="2026-08-15T18:00:00+02:00" />
+          <FsTurnpoint id="B04" lat="46.350000" lon="13.250000" altitude="600" radius="1000" open="2026-08-15T13:30:00+02:00" close="2026-08-15T18:00:00+02:00" />
+          <FsTurnpoint id="A05" lat="46.400000" lon="13.300000" altitude="300" radius="200" open="2026-08-15T13:30:00+02:00" close="2026-08-15T18:00:00+02:00" />
+          <FsStartGate open="2026-08-15T13:30:00+02:00" />
+          <FsTaskShortestPath />
+        </FsTaskDefinition>
+        <FsTaskState task_state="REGULAR" score_back_time="5" cancel_reason="" stop_time="2026-08-15T18:00:00+02:00" />
+        <FsParticipants>
+          <FsParticipant id="12">
+            <FsFlightData distance="42.5" bonus_distance="42.5" started_ss="2026-08-15T13:30:00+02:00" finished_ss="2026-08-15T15:12:34+02:00" tracklog_filename="12.igc" reachedGoal="1" />
+            <FsResult rank="1" points="1000" distance="42.5" ss_time="01:42:34" />
+          </FsParticipant>
+          <FsParticipant id="7">
+            <FsFlightData distance="30.1" bonus_distance="30.1" started_ss="2026-08-15T13:30:00+02:00" finished_ss="" tracklog_filename="" reachedGoal="0" />
+            <FsResultPenalty penalty="0.05" penalty_points="10" penalty_reason="Retard au briefing" />
+            <FsResult rank="2" points="500" distance="30.1" ss_time="" />
+          </FsParticipant>
+        </FsParticipants>
+        <FsTaskResults>
+          <FsTaskResult id="overall" title="Overall" filter_from_category="">
+            <FsTaskScoreParams task_distance="42.5" no_of_pilots_present="2" no_of_pilots_flying="2" day_quality="1" />
+          </FsTaskResult>
+        </FsTaskResults>
+      </FsTask>
+    </FsTasks>
+    <FsCompCategories>
+      <FsCompCategory name="Femme" use_filter="True" filter_from="Overall" ftv_factor="0.25">
+        <FsCompCategorySelectors>
+          <FsCompCategorySelector attributeName="female" comparator="equals" requiredValue="1" />
+        </FsCompCategorySelectors>
+      </FsCompCategory>
+      <FsCompCategory name="Serial" use_filter="True" filter_from="Overall" ftv_factor="0.25">
+        <FsCompCategorySelectors>
+          <FsCompCategorySelector attributeName="ca:GCat" comparator="contains" requiredValue="Serial" />
+        </FsCompCategorySelectors>
+      </FsCompCategory>
+    </FsCompCategories>
+  </FsCompetition>
+</Fs>

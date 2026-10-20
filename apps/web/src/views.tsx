@@ -262,8 +262,8 @@ export const HomePage: FC<{ user: User | null; mine: HomeComp[]; recent: HomeCom
         <div class="card">
           {mine.length ? <CompList list={mine} /> : <p class="muted">{t("Pas encore de compétition. Créez-en une pour y ajouter des manches.")}</p>}
           <form method="post" action="/competitions/import" enctype="multipart/form-data" class="row mt">
-            <span class="small muted">{t("Importer une compétition exportée de pgscore (archive ZIP) :")}</span>
-            <input type="file" name="file" accept=".zip,.json" required />
+            <span class="small muted">{t("Importer une compétition : archive pgscore (ZIP) ou fichier FS (.fsdb, seul ou en ZIP avec ses traces) :")}</span>
+            <input type="file" name="file" accept=".zip,.json,.fsdb" required />
             <button>
               <Bi n="upload" />
               {t("Importer")}
@@ -520,6 +520,15 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }>
         {t("sans les traces")}
       </a>{" "}
       · <a href="/api">{t("API")}</a>
+      <br />
+      {t("Pour FS (format FSDB) :")}{" "}
+      <a class="act" href={`/api/competitions/${c.id}/fsdb`}>
+        <Bi n="download" /> {t("fichier .fsdb")}
+      </a>{" "}
+      ·{" "}
+      <a class="act" href={`/api/competitions/${c.id}/fsdb.zip`}>
+        {t("avec les traces (ZIP)")}
+      </a>
     </p>
     <script src="/static/competition.js" />
   </>
@@ -2368,6 +2377,12 @@ export const ApiDocPage: FC<{ user: User | null; baseUrl: string }> = ({ user, b
         <pre class="code">{`curl -H "Authorization: Bearer ${K}" --data-binary @gemona.pgscore.zip \\\n     -H "Content-Type: application/zip" ${baseUrl}/api/competitions/import`}</pre>
         <p class="small muted">
           {t("Crée une nouvelle compétition qui vous appartient, résultats compris (sans relancer de calcul). Réponse : id, adresse, nombre de manches, pilotes et traces. L'empreinte de chaque fichier IGC est vérifiée.")}
+        </p>
+
+        <h2>{t("Échanger avec FS (format FSDB)")}</h2>
+        <pre class="code">{`curl -o gemona.fsdb ${baseUrl}/api/competitions/12/fsdb\ncurl -o gemona.fsdb.zip ${baseUrl}/api/competitions/12/fsdb.zip   # ${t("avec les traces")}\ncurl -H "Authorization: Bearer ${K}" --data-binary @comp.fsdb \\\n     -H "Content-Type: application/xml" ${baseUrl}/api/competitions/import`}</pre>
+        <p class="small muted">
+          {t("Le même point d'import reconnaît le FSDB (fichier .fsdb seul, ou ZIP contenant le .fsdb et ses dossiers de traces). Sont reprises : la compétition, la formule, les pilotes, les catégories (en classements), les manches et les pénalités saisies. Les résultats calculés par FS ne sont pas repris : le calcul est relancé dans pgscore.")}
         </p>
 
         <h2>{t("Autres actions")}</h2>

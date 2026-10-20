@@ -30,7 +30,8 @@ import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRanki
 import { listPilots, pilotsCsv, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
 import { vendorFile } from "./vendor.js";
-import { exportCompetition, importCompetition } from "./archive.js";
+import { exportCompetition, importCompetition, writeArchive } from "./archive.js";
+import { competitionFsdb, competitionFsdbZip, fsdbToArchive, looksLikeFsdb } from "./fsdb.js";
 import { readFileSync } from "node:fs";
 import {
   AccountPage,
@@ -301,6 +302,30 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       "content-disposition": `attachment; filename="${slug(comp.name)}${withTracks ? "" : "-sans-traces"}.pgscore.zip"`,
     });
   });
+  app.get("/api/competitions/:id/fsdb", (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return c.json({ error: t("Compétition introuvable.") }, 404);
+    return c.body(competitionFsdb(db, comp), 200, {
+      "content-type": "application/xml; charset=utf-8",
+      "content-disposition": `attachment; filename="${slug(comp.name)}.fsdb"`,
+    });
+  });
+  app.get("/api/competitions/:id/fsdb.zip", (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return c.json({ error: t("Compétition introuvable.") }, 404);
+    const zip = competitionFsdbZip(db, tracks, comp, `${slug(comp.name)}.fsdb`);
+    return c.body(zip as Uint8Array<ArrayBuffer>, 200, {
+      "content-type": "application/zip",
+      "content-disposition": `attachment; filename="${slug(comp.name)}.fsdb.zip"`,
+    });
+  });
+  /** Import d'une archive pgscore ou d'un fichier FSDB, reconnu à son contenu. */
+  const importAny = (userId: number, bytes: Uint8Array) => {
+    if (!looksLikeFsdb(bytes)) return importCompetition(db, tracks, userId, bytes);
+    const { a, files, warnings } = fsdbToArchive(bytes);
+    const r = writeArchive(db, tracks, userId, a, files);
+    return { ...r, warnings: [...warnings, ...(r.warnings ?? [])] };
+  };
   const readImport = async (c: Context<Env>): Promise<Uint8Array> => {
     if (Number(c.req.header("content-length") ?? 0) > MAX_IMPORT) throw new FormError(t("Archive trop grosse (1 Go au plus)."));
     if ((c.req.header("content-type") ?? "").startsWith("multipart/form-data")) {
@@ -312,7 +337,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   };
   app.post("/api/competitions/import", async (c) => {
     try {
-      const r = importCompetition(db, tracks, me(c).id, await readImport(c));
+      const r = importAny(me(c).id, await readImport(c));
       return c.json({ ...r, url: `${cfg.baseUrl}/competitions/${r.id}` }, 201);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
@@ -322,10 +347,11 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   // Même import depuis la page d'accueil (formulaire).
   app.post("/competitions/import", async (c) => {
     try {
-      const r = importCompetition(db, tracks, me(c).id, await readImport(c));
+      const r = importAny(me(c).id, await readImport(c));
       const msg = [
         t("Compétition importée : {tasks} manches, {pilots} pilotes, {tracks} traces.", { tasks: r.tasks, pilots: r.pilots, tracks: r.tracks }),
         r.missingTracks ? t("{n} traces sans fichier dans l'archive n'ont pas été reprises.", { n: r.missingTracks }) : "",
+        ...(r.warnings ?? []),
       ]
         .filter(Boolean)
         .join(" ");

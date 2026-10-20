@@ -189,13 +189,24 @@ function cleanRule(rule: unknown, where: string): RankingRule {
  * fichier manque dans l'archive sont ignorées (et comptées) ; un fichier dont l'empreinte ne correspond
  * pas fait échouer l'import. Tout est écrit en une transaction.
  */
-export function importCompetition(
-  db: Db,
-  store: TrackStore,
-  userId: number,
-  bytes: Uint8Array,
-): { id: number; tasks: number; pilots: number; tracks: number; missingTracks: number; results: number } {
+export function importCompetition(db: Db, store: TrackStore, userId: number, bytes: Uint8Array): ImportReport {
   const { a, files } = readArchive(bytes);
+  return writeArchive(db, store, userId, a, files);
+}
+
+export interface ImportReport {
+  id: number;
+  tasks: number;
+  pilots: number;
+  tracks: number;
+  missingTracks: number;
+  results: number;
+  /** Ce qui n'a pas pu être repris tel quel (import FSDB). */
+  warnings?: string[];
+}
+
+/** Écrit une compétition décrite comme une archive (fichiers IGC rangés sous leur chemin dans `files`). */
+export function writeArchive(db: Db, store: TrackStore, userId: number, a: CompetitionArchive, files: Record<string, Uint8Array>): ImportReport {
   const c = a.competition;
   const pilots = (a.pilots ?? []).map((p, i) => {
     try {

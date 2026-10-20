@@ -2,7 +2,7 @@ import { locale, t } from "./i18n.js";
 
 /** Heures : la manche est en UTC (comme XCTrack), l'affichage et la saisie en heure locale du site. */
 
-function offsetMinutes(utcMs: number, timeZone: string): number {
+export function offsetMinutes(utcMs: number, timeZone: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hourCycle: "h23",
