@@ -904,7 +904,7 @@ const StandingsBoard: FC<{ c: CompetitionRow; b: Board }> = ({ c, b }) => {
               {!pilots.length ? ` ${t("Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition.")}` : ""}
             </p>
           ) : null}
-          <StandingsTable c={c} s={s} rid={current?.row.id} limit={b.all ? undefined : 10} />
+          <StandingsTable c={c} s={s} rid={current?.row.id} />
           {current ? (
             <details class="fold" id="ranking-settings" open={Boolean(b.error)}>
               <summary>{t("Règle et pilotes de ce classement")}</summary>
