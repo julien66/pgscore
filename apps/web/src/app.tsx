@@ -367,7 +367,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       return c.redirect(`/competitions/${r.id}?msg=${encodeURIComponent(msg)}`);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
-      return c.redirect(`/?error=${encodeURIComponent(e.message)}`);
+      return c.redirect(`/competitions/new?error=${encodeURIComponent(e.message)}`);
     }
   });
 
@@ -423,7 +423,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   };
 
   app.get("/competitions/new", (c) =>
-    c.html(<NewCompetitionPage user={c.get("user")} v={{ name: "", location: "", start_date: "", end_date: "", settings: DEFAULT_SETTINGS }} />),
+    c.html(<NewCompetitionPage user={c.get("user")} v={{ name: "", location: "", start_date: "", end_date: "", settings: DEFAULT_SETTINGS }} error={c.req.query("error") ?? null} />),
   );
 
   app.post("/competitions", async (c) => {

@@ -285,14 +285,6 @@ export const HomePage: FC<{ user: User | null; mine: HomeComp[]; recent: HomeCom
         {notice ? <div class="note">{notice}</div> : null}
         <div class="card">
           {mine.length ? <CompList list={mine} /> : <p class="muted">{t("Pas encore de compétition. Créez-en une pour y ajouter des manches.")}</p>}
-          <form method="post" action="/competitions/import" enctype="multipart/form-data" class="row mt">
-            <span class="small muted">{t("Importer une compétition : archive pgscore (ZIP) ou fichier FS (.fsdb, seul ou en ZIP avec ses traces) :")}</span>
-            <input type="file" name="file" accept=".zip,.json,.fsdb" required />
-            <button>
-              <Bi n="upload" />
-              {t("Importer")}
-            </button>
-          </form>
         </div>
       </>
     ) : null}
@@ -408,6 +400,18 @@ export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValue
     </div>
     <h1>{t("Nouvelle compétition")}</h1>
     <ErrorBox message={error} />
+    <form method="post" action="/competitions/import" enctype="multipart/form-data" class="card">
+      <h2><Ic n="upload" c="blue" />{t("Importer une compétition existante")}</h2>
+      <p class="small muted">{t("Archive pgscore (ZIP) ou fichier FS (.fsdb, seul ou en ZIP avec ses traces) : la compétition est créée avec ses manches, ses pilotes et ses traces.")}</p>
+      <div class="row">
+        <input type="file" name="file" accept=".zip,.json,.fsdb" required />
+        <button class="primary">
+          <Bi n="upload" />
+          {t("Importer")}
+        </button>
+      </div>
+    </form>
+    <h2 class="mt">{t("Ou créer une compétition vide")}</h2>
     <form method="post" action="/competitions" enctype="multipart/form-data" class="card">
       <CompetitionFields v={v} />
       <h2 class="mt"><Ic n="shield" c="red" />{t("Espace aérien")}</h2>

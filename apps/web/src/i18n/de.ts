@@ -1,5 +1,8 @@
 /** Traductions de : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Importer une compétition existante": "Bestehenden Wettbewerb importieren",
+  "Archive pgscore (ZIP) ou fichier FS (.fsdb, seul ou en ZIP avec ses traces) : la compétition est créée avec ses manches, ses pilotes et ses traces.": "pgscore-Archiv (ZIP) oder FS-Datei (.fsdb, allein oder als ZIP mit den Tracks): Der Wettbewerb wird mit seinen Tasks, Piloten und Tracks angelegt.",
+  "Ou créer une compétition vide": "Oder einen leeren Wettbewerb anlegen",
   "Seul un administrateur peut supprimer une compétition.": "Nur ein Administrator kann einen Wettbewerb löschen.",
   "Recopiez exactement le nom de la compétition pour la supprimer.": "Geben Sie den genauen Namen des Wettbewerbs ein, um ihn zu löschen.",
   "Compétition « {name} » supprimée.": "Wettbewerb „{name}“ gelöscht.",
