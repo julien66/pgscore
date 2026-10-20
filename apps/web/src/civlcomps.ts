@@ -172,6 +172,9 @@ export interface CivlPilotRow {
   rank: string;
   /** Heure de départ (SS) du pilote, telle qu'affichée. */
   start: string | null;
+  /** Somme des colonnes de points (distance, leading, temps…) et total publié, s'ils sont lisibles. */
+  pointsSum: number | null;
+  total: number | null;
 }
 
 export interface CivlTaskPage {
@@ -215,6 +218,16 @@ const num = (s: string | undefined) => {
   const n = Number(String(s ?? "").replace(/[^\d.+-]/g, ""));
   return Number.isFinite(n) ? n : NaN;
 };
+
+/** Colonnes « … Points » et « Total » d'une ligne de résultats. */
+function pointsOf(headers: string[], r: string[]): { pointsSum: number | null; total: number | null } {
+  const cols = headers.map((h, i) => (/Points$/i.test(h) ? i : -1)).filter((i) => i >= 0);
+  const iTotal = headers.indexOf("Total");
+  const total = iTotal >= 0 && r[iTotal] !== "" ? Number(r[iTotal]) : NaN;
+  if (!cols.length || !Number.isFinite(total)) return { pointsSum: null, total: null };
+  const sum = cols.reduce((acc, i) => acc + (Number(r[i]) || 0), 0);
+  return { pointsSum: sum, total };
+}
 
 export function parseTaskPage(html: string): CivlTaskPage {
   const tables = htmlTables(html);
@@ -281,6 +294,7 @@ export function parseTaskPage(html: string): CivlTaskPage {
         sponsor: c("Sponsor") >= 0 ? (r[c("Sponsor")] ?? "") : "",
         rank: r[0] ?? "",
         start: c("SS") >= 0 ? hm(r[c("SS")]) : null,
+        ...pointsOf(res.headers, r),
       });
     }
   }
@@ -359,7 +373,8 @@ export function fitToStats(turnpoints: TaskTurnpoint[], stats: Record<string, st
   const goal = turnpoints[last]!;
   const cyl = goal.zone;
   if (cyl.kind !== "cylinder") return;
-  const line = { kind: "goal-line" as const, waypoint: cyl.waypoint, length: GOAL_LINE_LENGTH };
+  // FS donne la demi-longueur de la ligne dans le rayon.
+  const line = { kind: "goal-line" as const, waypoint: cyl.waypoint, length: 2 * cyl.radius };
   const roles = turnpoints.map((x) => x.role);
   const tol = (d: number) => Math.max(50, d * 0.001);
   let best: { err: number; ess: number; zone: typeof cyl | typeof line } | null = null;
@@ -515,6 +530,21 @@ export async function civlToArchive(
       if (p.percent) decisions.push({ ...base, kind: "penalty-percent", value: Math.round(p.percent * 100) / 100 });
       if (p.points > 0) decisions.push({ ...base, kind: "penalty", value: p.points });
       if (p.points < 0) decisions.push({ ...base, kind: "bonus", value: -p.points });
+    }
+
+    // Pénalités que FS a appliquées sans les lister (petites pénalités d'espace aérien…) : le total publié est
+    // plus bas que la somme des points, une fois les pénalités listées déduites.
+    for (const r of page.pilots) {
+      if (r.pointsSum === null || r.total === null) continue;
+      let expected = r.pointsSum;
+      for (const d of decisions.filter((x) => x.pilot_key === r.key)) {
+        if (d.kind === "penalty-percent") expected -= (r.pointsSum * (d.value ?? 0)) / 100;
+        if (d.kind === "penalty") expected -= d.value ?? 0;
+        if (d.kind === "bonus") expected += d.value ?? 0;
+      }
+      const missing = Math.round((Math.max(0, expected) - r.total) * 10) / 10;
+      if (missing >= 0.2 && r.total > 0)
+        decisions.push({ pilot_key: r.key, pilot_name: r.name, kind: "penalty", value: missing, reason: t("Pénalité appliquée par FS, non détaillée sur civlcomps.org"), created_at: Date.now() });
     }
 
     // Absents et non partis, comme les a notés l'organisateur (leur trace éventuelle ne compte pas).

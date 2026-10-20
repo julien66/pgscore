@@ -689,5 +689,6 @@ const dict: Record<string, string> = {
   "Ou depuis civlcomps.org : adresse de la page de résultats de l'événement. Les manches, les pilotes, les pénalités, les absents et les traces publiées sont repris ; vérifiez ensuite le type de goal de chaque manche, que civlcomps ne publie pas.": "O desde civlcomps.org: dirección de la página de resultados del evento. Se importan las mangas, los pilotos, las penalizaciones, las ausencias y los tracks publicados; compruebe después el tipo de gol de cada manga, que civlcomps no publica.",
   "La compétition est créée avec ses manches, ses pilotes et ses traces, puis les points sont calculés.": "La competición se crea con sus mangas, pilotos y tracks, y luego se calculan los puntos.",
   "L'import depuis civlcomps.org est réservé aux administrateurs.": "La importación desde civlcomps.org está reservada a los administradores.",
+  "Pénalité appliquée par FS, non détaillée sur civlcomps.org": "Penalización aplicada por FS, sin detalle en civlcomps.org",
 };
 export default dict;
