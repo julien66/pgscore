@@ -206,7 +206,10 @@ export interface ImportReport {
 }
 
 /** Écrit une compétition décrite comme une archive (fichiers IGC rangés sous leur chemin dans `files`). */
-export function writeArchive(db: Db, store: TrackStore, userId: number, a: CompetitionArchive, files: Record<string, Uint8Array>): ImportReport {
+/** Fichier d'une archive : ses octets, ou une trace déjà rangée dans le dossier des traces (gros imports). */
+export type ArchiveFile = Uint8Array | { stored: string; size: number };
+
+export function writeArchive(db: Db, store: TrackStore, userId: number, a: CompetitionArchive, files: Record<string, ArchiveFile>): ImportReport {
   const c = a.competition;
   const pilots = (a.pilots ?? []).map((p, i) => {
     try {
@@ -239,7 +242,7 @@ export function writeArchive(db: Db, store: TrackStore, userId: number, a: Compe
     const tracks = (tk.tracks ?? []).map((tr) => {
       if (!str(tr?.pilot_key) || !/^[0-9a-f]{64}$/.test(String(tr.sha256))) bad(t("trace de la manche {n}", { n }));
       const data = files[tr.file ?? `tracks/m${n}/${tr.sha256}.igc`];
-      if (data && createHash("sha256").update(data).digest("hex") !== tr.sha256)
+      if (data && (data instanceof Uint8Array ? createHash("sha256").update(data).digest("hex") : data.stored) !== tr.sha256)
         bad(t("le fichier de la trace {pilot} (manche {n}) ne correspond pas à son empreinte", { pilot: tr.pilot_key, n }));
       return { tr, data };
     });
@@ -297,8 +300,8 @@ export function writeArchive(db: Db, store: TrackStore, userId: number, a: Compe
           missing++;
           continue;
         }
-        store.put(data);
-        insTrack.run(taskId, String(tr.pilot_key), str(tr.pilot_name), String(tr.filename || `${tr.pilot_key}.igc`), tr.sha256, data.length, Number(tr.uploaded_at) || now, userId, str(tr.note));
+        const size = data instanceof Uint8Array ? (store.put(data), data.length) : data.size;
+        insTrack.run(taskId, String(tr.pilot_key), str(tr.pilot_name), String(tr.filename || `${tr.pilot_key}.igc`), tr.sha256, size, Number(tr.uploaded_at) || now, userId, str(tr.note));
         trackCount++;
       }
       if (tk.result?.results) {

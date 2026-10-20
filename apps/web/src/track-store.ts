@@ -31,7 +31,7 @@ export class TrackStore {
       mkdirSync(join(this.dir, sha256.slice(0, 2)), { recursive: true });
       // Écriture dans un fichier temporaire puis renommage : jamais de fichier à moitié écrit.
       const tmp = `${path}.${randomBytes(6).toString("hex")}.tmp`;
-      writeFileSync(tmp, gzipSync(bytes, { level: 9 }));
+      writeFileSync(tmp, gzipSync(bytes, { level: 6 }));
       renameSync(tmp, path);
     }
     return sha256;

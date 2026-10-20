@@ -331,7 +331,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   /** Import d'une archive pgscore ou d'un fichier FSDB, reconnu à son contenu. */
   const importAny = (userId: number, bytes: Uint8Array) => {
     if (!looksLikeFsdb(bytes)) return importCompetition(db, tracks, userId, bytes);
-    const { a, files, warnings } = fsdbToArchive(bytes);
+    const { a, files, warnings } = fsdbToArchive(bytes, tracks);
     const r = writeArchive(db, tracks, userId, a, files);
     return { ...r, warnings: [...warnings, ...(r.warnings ?? [])] };
   };

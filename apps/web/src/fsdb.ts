@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
 import { BONUS_GLIDE_RATIO, type PilotResult, type TaskScoring, type TaskTurnpoint } from "@pgscore/engine";
-import { ARCHIVE_FORMAT, ARCHIVE_VERSION, competitionArchive, type ArchiveTask, type CompetitionArchive } from "./archive.js";
+import { ARCHIVE_FORMAT, ARCHIVE_VERSION, competitionArchive, type ArchiveFile, type ArchiveTask, type CompetitionArchive } from "./archive.js";
 import type { CompetitionRow, Db } from "./db.js";
 import { t } from "./i18n.js";
 import { fsdbCustom, fsdbPilot, type PilotFields } from "./pilots.js";
@@ -237,18 +237,36 @@ export function looksLikeFsdb(bytes: Uint8Array): boolean {
  * Lit un .fsdb (ou un ZIP qui le contient avec les dossiers de traces) et le décrit comme une archive
  * pgscore, prête à être écrite par writeArchive.
  */
-export function fsdbToArchive(bytes: Uint8Array): { a: CompetitionArchive; files: Record<string, Uint8Array>; warnings: string[] } {
+/**
+ * Lit un FSDB (XML seul ou ZIP avec ses traces). Avec `store`, chaque trace du ZIP est décompressée puis
+ * rangée une à une : une grosse archive (plusieurs centaines de traces) ne tient jamais entière en mémoire.
+ */
+export function fsdbToArchive(bytes: Uint8Array, store?: TrackStore): { a: CompetitionArchive; files: Record<string, ArchiveFile>; warnings: string[] } {
   let text: string;
-  let zipFiles: Record<string, Uint8Array> = {};
-  if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+  const zipNames: string[] = [];
+  const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
+  const unzipOne = (name: string): Uint8Array => {
     try {
-      zipFiles = unzipSync(bytes, { filter: (f) => !f.name.startsWith("__MACOSX/") });
+      return unzipSync(bytes, { filter: (f) => f.name === name })[name]!;
     } catch (e) {
       throw new FormError(t("Archive illisible : {error}", { error: (e as Error).message }));
     }
-    const fsdb = Object.keys(zipFiles).filter((k) => /\.fsdb$/i.test(k));
+  };
+  if (isZip) {
+    try {
+      // Premier passage : la liste des fichiers seulement, sans rien décompresser.
+      unzipSync(bytes, {
+        filter: (f) => {
+          if (!f.name.startsWith("__MACOSX/")) zipNames.push(f.name);
+          return false;
+        },
+      });
+    } catch (e) {
+      throw new FormError(t("Archive illisible : {error}", { error: (e as Error).message }));
+    }
+    const fsdb = zipNames.filter((k) => /\.fsdb$/i.test(k));
     if (fsdb.length !== 1) throw new FormError(t("Le ZIP doit contenir un seul fichier .fsdb (trouvés : {n}).", { n: fsdb.length }));
-    text = strFromU8(zipFiles[fsdb[0]!]!);
+    text = strFromU8(unzipOne(fsdb[0]!));
   } else text = strFromU8(bytes);
   let doc: XmlEl;
   try {
@@ -270,8 +288,8 @@ export function fsdbToArchive(bytes: Uint8Array): { a: CompetitionArchive; files
   const names = new Map(pilots.map((p) => [p.pilot_key, p.name]));
   // Traces du ZIP par nom de fichier (FS les range dans tracks\T01, tracks\T02…).
   const igcByName = new Map<string, string[]>();
-  for (const k of Object.keys(zipFiles)) if (/\.igc$/i.test(k)) igcByName.set(base(k), [...(igcByName.get(base(k)) ?? []), k]);
-  const files: Record<string, Uint8Array> = {};
+  for (const k of zipNames) if (/\.igc$/i.test(k)) igcByName.set(base(k), [...(igcByName.get(base(k)) ?? []), k]);
+  const files: Record<string, ArchiveFile> = {};
   let missing = 0;
 
   const fsTasks = children(child(comp, "FsTasks"), "FsTask");
@@ -299,17 +317,17 @@ export function fsdbToArchive(bytes: Uint8Array): { a: CompetitionArchive; files
         if (pts < 0) decisions.push({ pilot_key: key, pilot_name: names.get(key) ?? null, kind: "bonus", value: -pts, reason, created_at: Date.now() });
       }
       const fname = child(p, "FsFlightData")?.attrs.tracklog_filename;
-      if (!fname || !Object.keys(zipFiles).length) continue;
+      if (!fname || !isZip) continue;
       const candidates = igcByName.get(base(fname)) ?? [];
       const path = candidates.find((c) => base(c.split(/[\\/]/).slice(-2, -1)[0] ?? "") === folder) ?? candidates[0];
       if (!path) {
         missing++;
         continue;
       }
-      const data = zipFiles[path]!;
-      const sha256 = createHash("sha256").update(data).digest("hex");
+      const data = unzipOne(path);
+      const sha256 = store ? store.put(data) : createHash("sha256").update(data).digest("hex");
       const file = `tracks/m${n}/${sha256}.igc`;
-      files[file] = data;
+      files[file] = store ? { stored: sha256, size: data.length } : data;
       tracks.push({ pilot_key: key, pilot_name: names.get(key) ?? null, filename: base(fname) === fname.toLowerCase() ? fname : fname.split(/[\\/]/).pop()!, sha256, size: data.length, uploaded_at: Date.now(), note: null, file });
     }
     // Pilotes présents au décollage : seule entrée de calcul reprise des résultats de FS.
@@ -330,7 +348,7 @@ export function fsdbToArchive(bytes: Uint8Array): { a: CompetitionArchive; files
     };
   });
   if (missing) warnings.push(t("{n} traces citées par le FSDB sont absentes du ZIP.", { n: missing }));
-  if (!Object.keys(zipFiles).length && fsTasks.length)
+  if (!isZip && fsTasks.length)
     warnings.push(t("FSDB seul : les traces ne sont pas dedans. Envoyez un ZIP avec le .fsdb et ses dossiers de traces pour les reprendre."));
   const rankings = children(child(comp, "FsCompCategories"), "FsCompCategory")
     .map((c) => rankingFromCategory(c, participants, warnings))
