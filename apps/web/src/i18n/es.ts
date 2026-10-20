@@ -1,5 +1,6 @@
 /** Traductions es : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "en gras, la part retenue d'une manche comptée en partie ; barré, le score de la manche non retenu": "en negrita, la parte retenida de una manga contada en parte; tachado, la puntuación de la manga no retenida",
   "{n} pilote au goal": "{n} piloto en goal",
   "{n} pilotes au goal": "{n} pilotos en goal",
   "FTV {pct} %": "FTV {pct} %",

@@ -620,24 +620,18 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
 
 /** Ce qui compte au classement général, en une ligne. */
 const StandingsInfo: FC<{ s: Standings }> = ({ s }) => {
-  const r = s.ranking;
   const notOfficial = s.tasks.filter((x) => !x.official).map((x) => x.t.number);
   const notCalculated = s.tasks.filter((x) => x.official && x.calculatedAt === null).map((x) => x.t.number);
   const stale = s.ranked.filter((x) => x.stale).map((x) => x.t.number);
   const list = (n: number[]) => n.map((x) => `M${x}`).join(", ");
   return (
     <>
-      <p class="small muted">
-        {r.ftvFactor > 0
-          ? t("FTV {ftv} % : chaque pilote garde ses meilleures performances jusqu'à une validité totale de {total} ({points} points possibles).", {
-              ftv: fr(r.ftvFactor * 100, 0),
-              total: fr(r.fixedTotalValidity, 3),
-              points: fr(r.fixedTotalValidity * 1000, 1),
-            })
-          : t("Sans FTV (facteur 0 %) : somme des points de chaque manche, sur {points} points possibles.", { points: fr(r.fixedTotalValidity * 1000, 1) })}
-        {notOfficial.length ? ` ${t("Pas encore officielles, donc non comptées : {list}.", { list: list(notOfficial) })}` : ""}
-        {notCalculated.length ? ` ${t("Officielles mais pas encore calculées : {list}.", { list: list(notCalculated) })}` : ""}
-      </p>
+      {notOfficial.length || notCalculated.length ? (
+        <p class="small muted">
+          {notOfficial.length ? `${t("Pas encore officielles, donc non comptées : {list}.", { list: list(notOfficial) })} ` : ""}
+          {notCalculated.length ? t("Officielles mais pas encore calculées : {list}.", { list: list(notCalculated) }) : ""}
+        </p>
+      ) : null}
       {stale.length ? (
         <div class="note">{t("Des changements ne sont pas encore calculés pour {list} : relancez le calcul de ces manches.", { list: list(stale) })}</div>
       ) : null}
@@ -650,11 +644,13 @@ const FtvCell: FC<{ ts: { score: number; fraction: number; counted: number } | u
   if (!ts) return <td class="n ftv-out">{included ? "0,0" : ""}</td>;
   if (!included) return <td class="n ftv-out">{pts(ts.score)}</td>;
   if (ts.fraction >= 1) return <td class="n">{pts(ts.score)}</td>;
-  if (ts.fraction <= 0) return <td class="n ftv-out" title={t("Non retenue (FTV)")}>({pts(ts.score)})</td>;
+  if (ts.fraction <= 0) return <td class="n ftv-out" title={t("Non retenue (FTV)")}>
+        <s>{pts(ts.score)}</s>
+      </td>;
   return (
     <td class="n" title={t("Retenue à {pct} % (FTV)", { pct: fr(ts.fraction * 100, 1) })}>
       <span class="ftv-part">{pts(ts.counted)}</span>
-      <span class="ftv-raw">({pts(ts.score)})</span>
+      <s class="ftv-raw">{pts(ts.score)}</s>
     </td>
   );
 };
@@ -735,7 +731,7 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
         ) : null}
         <a href={`/competitions/${c.id}/standings.csv${q}`}>{t("Exporter en CSV")}</a>
         {r.ftvFactor > 0
-          ? ` · ${t("en gras, la part retenue d'une manche comptée en partie ; entre parenthèses et en gris, le score de la manche non retenu")}`
+          ? ` · ${t("en gras, la part retenue d'une manche comptée en partie ; barré, le score de la manche non retenu")}`
           : ""}
       </p>
     </>
