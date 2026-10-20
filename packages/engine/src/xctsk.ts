@@ -57,6 +57,17 @@ function buildTask(
   if (raw.length < 2) throw new XctskError("Une manche doit compter au moins deux balises.");
   const lastIndex = raw.length - 1;
 
+  // Sans SSS (tâche saisie sans départ, distance libre) : le départ est la première balise après le
+  // décollage, comme pour une manche où l'on part dès le décollage.
+  if (!raw.some((x) => x.type === "sss") && raw.length >= 2) {
+    const first = raw[0]!.type === "takeoff" || (raw[0]!.type === "none" && raw.length > 2) ? 1 : 0;
+    if (first < lastIndex && raw[first]!.type === "none") {
+      raw = raw.map((x, i) => (i === 0 && first === 1 && x.type === "none" ? { ...x, type: "takeoff" as const } : i === first ? { ...x, type: "sss" as const } : x));
+    } else if (raw[0]!.type === "takeoff" && raw[0]!.radius > 0) {
+      // Pas de balise libre avant l'ESS ou le goal : le cylindre du décollage sert de départ.
+      raw = raw.map((x, i) => (i === 0 ? { ...x, type: "sss" as const } : x));
+    }
+  }
   const turnpoints: TaskTurnpoint[] = raw.map((r, i) => {
     let role: TurnpointRole;
     if (i === lastIndex) role = "goal";

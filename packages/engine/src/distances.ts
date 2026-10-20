@@ -1,5 +1,6 @@
 import type { Task, TaskTurnpoint } from "./task.js";
 import { findTaskAreaCentre } from "./projection.js";
+import { distance } from "./geo.js";
 import { optimizeRoute, type OptimizedRoute, type RouteZone } from "./route.js";
 
 export interface TaskDistances {
@@ -43,19 +44,33 @@ export function taskDistances(task: Task, options: TaskDistanceOptions = {}): Ta
   const ess = essIdx >= 0 ? essIdx : goalIdx;
   const centre = findTaskAreaCentre(tps.map((t) => t.zone.waypoint));
 
-  const full = optimizeRoute(
-    tps.map((t, i) => toZone(t, isPointRole(t) || i === goalIdx)),
-    centre,
-  );
-  const goal = tps[goalIdx]!;
-  const task_ = full.distance - (goal.zone.kind === "cylinder" ? goal.zone.radius * k : 0);
+  /**
+   * Route jusqu'à la dernière zone de `list`, comptée jusqu'à son bord (S7F 7.1 : jusqu'au centre, moins
+   * le rayon). Quand on arrive de l'intérieur du cylindre (goal de 40 km autour du décollage, ESS
+   * concentrique à la balise d'avant), « centre moins rayon » serait négatif : on va alors jusqu'au
+   * bord le plus proche, en sortant du cylindre.
+   */
+  const routeToEdge = (list: TaskTurnpoint[]): { route: OptimizedRoute; distance: number } => {
+    const last = list.at(-1)!;
+    const r = radiusOf(last) * k;
+    const viaCentre = optimizeRoute(
+      list.map((t, i) => toZone(t, isPointRole(t) || i === list.length - 1)),
+      centre,
+    );
+    const before = viaCentre.points.at(-2);
+    if (r > 0 && before && distance(before, last.zone.waypoint) < r) {
+      const viaEdge = optimizeRoute(list.map((t) => toZone(t, isPointRole(t))), centre);
+      return { route: viaEdge, distance: viaEdge.distance };
+    }
+    return { route: viaCentre, distance: viaCentre.distance - r };
+  };
+  const toGoal = routeToEdge(tps);
+  const full = toGoal.route;
+  const task_ = toGoal.distance;
 
-  const toEss = optimizeRoute(
-    tps.slice(0, ess + 1).map((t, i) => toZone(t, isPointRole(t) || i === ess)),
-    centre,
-  );
-  const launchToEss = toEss.distance - radiusOf(tps[ess]!) * k;
-  const preStart = toEss.legs.slice(0, sssIdx).reduce((s, v) => s + v, 0);
+  const toEss = routeToEdge(tps.slice(0, ess + 1));
+  const launchToEss = toEss.distance;
+  const preStart = toEss.route.legs.slice(0, sssIdx).reduce((s, v) => s + v, 0);
 
   return { task: task_, launchToEss, speedSection: launchToEss - preStart, route: full };
 }

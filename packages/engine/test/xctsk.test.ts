@@ -32,9 +32,13 @@ describe("lecture .xctsk", () => {
     if (tp2.kind === "cylinder") expect(tp2.radius).toBe(12000);
   });
 
-  it("refuse une manche sans départ", () => {
-    const noSss = { ...pwcaT1, turnpoints: pwcaT1.turnpoints.map((t) => ({ ...t, type: undefined })) };
-    expect(() => parseXctsk(JSON.stringify(noSss))).toThrow(/départ/);
+  it("déduit le départ quand la manche n'en a pas", () => {
+    const noSss = {
+      ...pwcaT1,
+      turnpoints: pwcaT1.turnpoints.map((t, i) => ({ ...t, type: i === 0 ? "TAKEOFF" : undefined })),
+    };
+    const task = parseXctsk(JSON.stringify(noSss));
+    expect(task.turnpoints[1].role).toBe("sss");
   });
 
   it("encode et décode les entiers polyline", () => {

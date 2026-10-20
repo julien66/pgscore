@@ -386,7 +386,11 @@ function remainingFrom(task: Task, validated: ZoneValidation[], sssIdx: number):
     let route = cache.get(next);
     if (!route) cache.set(next, (route = new RouteFrom(zonesFrom(next), centre)));
     // Comme la distance de la manche (7.1), la distance restante va jusqu'au bord d'un goal cylindre.
-    return Math.max(0, route.distance(p) - goalRadius);
+    const r = route.route(p);
+    const lastLeg = r.legs.at(-1) ?? 0;
+    // Arrivée par l'intérieur du goal (goal de 40 km autour du décollage) : il reste à en sortir.
+    if (goalRadius > 0 && lastLeg < goalRadius) return Math.max(0, r.distance - lastLeg + (goalRadius - lastLeg));
+    return Math.max(0, r.distance - goalRadius);
   };
 }
 
