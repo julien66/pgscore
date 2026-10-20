@@ -218,10 +218,14 @@ export function scoreGap(input: GapTaskInput): GapTaskScore {
   const lw = goalRatio === 0 ? 1 - dw : (1 - dw) * ltr;
   const weights: GapPoints = { distance: dw, leading: lw, arrival: 0, time: 1 - dw - lw };
   const avail = (w: number) => round(1000 * task * w, rules.availableDecimals);
+  // Le temps prend le reste : arrondies chacune de leur côté, les trois parts pouvaient faire 1001
+  // (ou 1000,1 au dixième) ; ainsi leur somme reste égale à 1000 × validité, arrondie.
+  const distanceAvail = avail(weights.distance);
+  const leadingAvail = avail(weights.leading);
   const available: GapPoints = {
-    distance: avail(weights.distance),
-    time: avail(weights.time),
-    leading: avail(weights.leading),
+    distance: distanceAvail,
+    time: Math.max(0, round(avail(1) - distanceAvail - leadingAvail, rules.availableDecimals)),
+    leading: leadingAvail,
     arrival: 0,
   };
   // Sans pilote à l'ESS, pas de points de temps (Figure 13) ; sans goal (13.4.5, 1), ils ne sont pas reversés.

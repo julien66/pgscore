@@ -97,6 +97,29 @@ describe("répartition et points (11, 12)", () => {
     expect(b.points.leading).toBeCloseTo(r.available.leading / 2, 1);
   });
 
+  it("jamais plus de 1000 points : le temps prend le reste des arrondis (S7F et PWCA)", () => {
+    let wouldOverflow = 0;
+    for (const rules of [GAP_RULES.S7F2026, GAP_RULES.PWCA])
+      for (let n = 2; n <= 40; n++)
+        for (let inGoal = 1; inGoal <= n; inGoal++) {
+          // Le vainqueur fait tout : meilleure distance, meilleur temps, meilleur leading.
+          const pilots = Array.from({ length: n }, (_, i) =>
+            i < inGoal
+              ? pilot(String(i), { madeEss: true, madeGoal: true, distance: 70_000, flownDistance: 70_000, speedSectionTime: 4800 + i * 60, leadingFactor: i ? 0.5 : 1 })
+              : pilot(String(i), { distance: 30_000, flownDistance: 30_000, leadingFactor: 0.2 }),
+          );
+          const r = scoreGap({ params, rules, launchToEss: 68_000, pilots });
+          const f = 10 ** rules.availableDecimals;
+          const separate = ["distance", "time", "leading"].reduce((a, k) => a + Math.round(1000 * r.validity.task * r.weights[k as "distance"] * f) / f, 0);
+          if (separate > 1000 + 1e-9) wouldOverflow++;
+          const sum = r.available.distance + r.available.time + r.available.leading;
+          expect(sum).toBeCloseTo(Math.round(1000 * r.validity.task * f) / f, 6);
+          expect(Math.max(...r.pilots.map((p) => p.total))).toBeLessThanOrEqual(1000);
+        }
+    // Le cas signalé (1001 en S7F, 1000,1 en PWCA) existe bien dans ce balayage.
+    expect(wouldOverflow).toBeGreaterThan(0);
+  });
+
   it("sans pilote au goal, le reste va au leading, et pas de points de temps", () => {
     const r = scoreGap({
       params,
