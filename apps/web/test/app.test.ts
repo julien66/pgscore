@@ -183,10 +183,10 @@ describe("interface web", () => {
     const taskId = Number(taskUrl.split("/").pop());
     const results = {
       pilots: [
-        { id: "12", name: "trace 12", total: 1000 },
-        { id: "7", name: "trace 7", total: 800 },
-        { id: "9", name: "trace 9", total: 640.5 },
-        { id: "3", name: "trace 3", total: 300 },
+        { id: "12", name: "trace 12", total: 1000, airspace: [], distance: 0 },
+        { id: "7", name: "trace 7", total: 800, airspace: [], distance: 0 },
+        { id: "9", name: "trace 9", total: 640.5, airspace: [], distance: 0 },
+        { id: "3", name: "trace 3", total: 300, airspace: [], distance: 0 },
       ],
       gap: { validity: { task: 1 }, available: { distance: 400, time: 350, leading: 250, arrival: 0 } },
     };
@@ -213,6 +213,10 @@ describe("interface web", () => {
     await req(`${compUrl}/rankings/${rid}/pilots`, { method: "POST", body: new URLSearchParams({ pilot: "3", how: "include" }) });
     await req(`${compUrl}/rankings/${rid}/pilots`, { method: "POST", body: new URLSearchParams({ pilot: "12", how: "exclude" }) });
     expect(await lines()).toEqual(["1,7", "2,3"]);
+    // Même classement à la manche : ses pilotes, rang recalculé, et un lien depuis la liste des manches.
+    const taskCsv = (await (await req(`${taskUrl}/results.csv?r=${rid}`)).text()).trim().split("\n").slice(1).map((l) => l.split(",").slice(0, 2).join(","));
+    expect(taskCsv).toEqual(["1,7", "2,3"]);
+    expect(await (await req(compUrl)).text()).toContain(`${taskUrl}?r=${rid}#results`);
     const page = await (await req(serialUrl)).text();
     expect(page).toContain("EN-C, en d et ptv max (kg) ≤ 110");
     expect(page).toContain("revenir à la règle");

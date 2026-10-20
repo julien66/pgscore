@@ -572,7 +572,18 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     }
   });
 
+  /** Classements extraits de la compétition, et les pilotes de celui demandé (?r=). */
+  const taskRankings = (comp: CompetitionRow, rid: string | undefined) => {
+    const rankings = listRankings(db, comp.id);
+    const r = rid ? rankings.find((x) => x.row.id === Number(rid)) : undefined;
+    return {
+      list: rankings.map((x) => ({ id: x.row.id, name: x.row.name })),
+      current: r ? { id: r.row.id, members: rankingMembers(r, listPilots(db, comp.id)) } : null,
+    };
+  };
+
   const taskPage = (c: Context<Env>, t: TaskRow, comp: CompetitionRow, extra: { error?: string; notice?: string; edit?: boolean } = {}) => {
+    const rk = taskRankings(comp, c.req.query("r"));
     const task = JSON.parse(t.task) as Task;
     const tracks = db
       .prepare("SELECT * FROM tracks WHERE task_id = ? ORDER BY CAST(pilot_key AS INTEGER), pilot_key")
@@ -594,6 +605,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         done={
           (db.prepare("SELECT * FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1").get(t.id) as unknown as RunRow | undefined) ?? null
         }
+        rankings={rk.list}
+        ranking={rk.current}
         running={isRunning(t.id) || run?.status === "running" || run?.status === "queued"}
         error={extra.error ?? null}
         notice={extra.notice ?? null}
@@ -833,7 +846,10 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       | { results: string }
       | undefined;
     if (!run) return notFound(c);
-    const csv = resultsCsv(JSON.parse(run.results) as TaskScoring, parseSettings(x.comp.params).timeZone);
+    const scoring = JSON.parse(run.results) as TaskScoring;
+    const rk = taskRankings(x.comp, c.req.query("r"));
+    if (rk.current) scoring.pilots = scoring.pilots.filter((p) => rk.current!.members.has(p.id));
+    const csv = resultsCsv(scoring, parseSettings(x.comp.params).timeZone);
     return c.body(csv, 200, {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="manche-${x.t.number}.csv"`,

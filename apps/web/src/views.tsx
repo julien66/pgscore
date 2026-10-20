@@ -59,12 +59,12 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 .tm-num span{display:flex;min-width:22px;padding:0 4px;box-sizing:border-box;width:max-content;height:22px;border-radius:50%;color:#fff;font:600 12px/22px system-ui;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .tm-leg span{display:inline-block;background:rgba(17,24,39,.85);color:#fff;font:600 11px/16px system-ui;padding:1px 6px;border-radius:8px;white-space:nowrap}
 .upl{margin-top:8px}.upl p{margin:4px 0}
-.list form.official{margin-left:auto}.list form.official .check{color:var(--muted)}
+.list .task-rk{margin-left:auto;color:var(--muted)}.list form.official{margin-left:12px}.list form.official .check{color:var(--muted)}
 .lead-warn{color:var(--warn);cursor:help;margin-right:4px}
 table.pilots td{padding:3px 4px}table.pilots input[type=text],table.pilots select{padding:4px 6px;font-size:13px}
 table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{width:190px}table.pilots tr.new td{background:var(--chip)}
 .tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--muted)}.tabs a.on{background:var(--card);border-color:var(--line);color:var(--text);font-weight:600;margin-bottom:-1px}
-#standings.loading{opacity:.55;transition:opacity .15s}
+[data-swap].loading{opacity:.55;transition:opacity .15s}
 .cond{margin-top:6px}.cond select{width:auto}.cond input{max-width:280px}
 .ftv-part{font-weight:600}.ftv-raw{color:var(--muted);font-size:12px;margin-left:4px}.ftv-out{color:var(--muted)}
 th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
@@ -411,6 +411,15 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }>
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
+                <span class="small task-rk">
+                  <a href={`/tasks/${tk.id}#results`}>{t("Général")}</a>
+                  {board.rankings.map((x) => (
+                    <>
+                      {" · "}
+                      <a href={`/tasks/${tk.id}?r=${x.r.row.id}#results`}>{t(x.r.row.name)}</a>
+                    </>
+                  ))}
+                </span>
                 <form method="post" action={`/tasks/${tk.id}/official`} class="official">
                   <input type="hidden" name="back" value="competition" />
                   <label class="check">
@@ -429,7 +438,7 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }>
       )}
     </div>
 
-    <div class="card" id="standings">
+    <div class="card" id="standings" data-swap>
       <h2><Ic n="trophy" c="amber" />{t("Classements")}</h2>
       <StandingsBoard c={c} b={board} />
     </div>
@@ -969,11 +978,14 @@ export const TaskPage: FC<{
   run: RunRow | null;
   /** Dernier calcul terminé : ses résultats restent affichés pendant un nouveau calcul. */
   done: RunRow | null;
+  /** Classements extraits de la compétition, et celui affiché dans les résultats (?r=). */
+  rankings: Array<{ id: number; name: string }>;
+  ranking: { id: number; members: Set<string> } | null;
   running: boolean;
   error?: string | null;
   notice?: string | null;
   edit?: boolean;
-}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, running, error, notice, edit }) => {
+}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, rankings, ranking, running, error, notice, edit }) => {
   const tz = settings.timeZone;
   const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, tk.date, tz) : "");
   const results = done?.results ? (JSON.parse(done.results) as TaskScoring) : null;
@@ -1299,8 +1311,20 @@ export const TaskPage: FC<{
         </details>
       </div>
 
-      <div class="card" id="results">
+      <div class="card" id="results" data-swap>
         <h2><Ic n="trophy" c="amber" />{t("Résultats")}</h2>
+        {results && rankings.length ? (
+          <nav class="tabs">
+            <a href={`/tasks/${tk.id}#results`} class={`swap${ranking ? "" : " on"}`}>
+              {t("Général")}
+            </a>
+            {rankings.map((x) => (
+              <a href={`/tasks/${tk.id}?r=${x.id}#results`} class={`swap${ranking?.id === x.id ? " on" : ""}`}>
+                {t(x.name)}
+              </a>
+            ))}
+          </nav>
+        ) : null}
         {running ? (
           <div class="note">
             <span class="spin" /> {t("Calcul en cours.")} <a href={`/tasks/${tk.id}/edit#run-card`}>{t("Suivre le calcul")}</a>
@@ -1317,7 +1341,7 @@ export const TaskPage: FC<{
             <p class="small muted">
               <RunStatus run={done} tz={settings.timeZone} taskId={tk.id} inline />
             </p>
-            <Results r={results} tz={settings.timeZone} settings={settings} taskId={tk.id} />
+            <Results r={results} tz={settings.timeZone} settings={settings} taskId={tk.id} only={ranking?.members} rid={ranking?.id} />
           </>
         ) : running ? null : (
           <p class="muted">
@@ -1335,6 +1359,7 @@ export const TaskPage: FC<{
           <script src="/vendor/leaflet/leaflet.js" />
           <script src="/static/basemaps.js" />
           <script src="/static/taskmap.js" />
+          <script src="/static/competition.js" />
         </>
       )}
       <script src="/static/run.js" />
@@ -1554,7 +1579,16 @@ const GapSummary: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r, 
   );
 };
 
-const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; taskId: number }> = ({ r, tz, settings, taskId }) => {
+const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; taskId: number; only?: Set<string>; rid?: number }> = ({
+  r,
+  tz,
+  settings,
+  taskId,
+  only,
+  rid,
+}) => {
+  // Classement extrait : seulement ses pilotes, rang recalculé ; les points restent ceux de la manche.
+  const shown = only ? r.pilots.filter((p) => only.has(p.id)) : r.pilots;
   const stopped = r.pilots.some((p) => p.stop);
   const counts = (s: string) => r.pilots.filter((p) => p.status === s).length;
   // Calcul fait avant l'arrivée des points GAP : il faut le relancer.
@@ -1583,7 +1617,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
           </>
         ) : null}{" "}
         · {t("leading {profile}", { profile: t(LEADING_PROFILES[settings.leadingProfile]) })} ·{" "}
-        <a href={`/tasks/${taskId}/results.csv`}>{t("exporter en CSV")}</a>
+        <a href={`/tasks/${taskId}/results.csv${rid ? `?r=${rid}` : ""}`}>{t("exporter en CSV")}</a>
       </p>
       <div class="scroll">
         <table>
@@ -1615,7 +1649,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
             </tr>
           </thead>
           <tbody>
-            {r.pilots.map((p, i) => (
+            {shown.map((p, i) => (
               <tr>
                 <td class="n">{i + 1}</td>
                 <td>{p.id}</td>
@@ -1663,9 +1697,10 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
           </tbody>
         </table>
       </div>
-      {r.pilots.some((p) => p.error) ? (
+      {only && !shown.length ? <p class="muted">{t("Aucun pilote de ce classement dans les résultats de la manche.")}</p> : null}
+      {shown.some((p) => p.error) ? (
         <ul class="small">
-          {r.pilots
+          {shown
             .filter((p) => p.error)
             .map((p) => (
               <li>

@@ -1,5 +1,6 @@
 /** Traductions de : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Aucun pilote de ce classement dans les résultats de la manche.": "Kein Pilot dieser Wertung in den Task-Ergebnissen.",
   "Carte et résultats": "Karte und Ergebnisse",
   "arrêtée à {time}": "gestoppt um {time}",
   "Balises": "Wendepunkte",
