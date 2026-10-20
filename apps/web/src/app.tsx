@@ -866,6 +866,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         notice={extra.notice ?? null}
         edit={extra.edit ?? Boolean(extra.error)}
         canEdit={canEdit(c, comp)}
+        siblings={db.prepare("SELECT id, number, date FROM tasks WHERE competition_id = ? ORDER BY number, id").all(comp.id) as Array<{ id: number; number: number; date: string | null }>}
       />,
       extra.error ? 400 : 200,
     );

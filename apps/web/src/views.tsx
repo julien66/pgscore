@@ -69,6 +69,7 @@ table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{
 [data-swap].loading{opacity:.55;transition:opacity .15s}
 .tabs a.tab-end,.tabs form.tab-end{margin-left:auto}
 .tabs form.tab-end{align-self:center}
+.tabs .task-tabs{display:flex;gap:2px;margin-left:auto;align-self:flex-end}.tabs .task-tabs a{padding:6px 10px}
 table.rk.sport-hidden .sp{display:none}.sp-toggle .sp-open{display:none}html.sport-open .sp-toggle .sp-open{display:inline}html.sport-open .sp-toggle .sp-closed{display:none}.rk-bar{display:flex;justify-content:flex-end;align-items:center;gap:8px 16px;flex-wrap:wrap;margin:4px 0}.rk-bar .acts{margin-right:auto}
 @page{size:A4 portrait;margin:8mm}
 .print-head{display:none}
@@ -1276,7 +1277,9 @@ export const TaskPage: FC<{
   edit?: boolean;
   /** Créateur de la compétition ou administrateur : sinon, lecture seule. */
   canEdit: boolean;
-}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, rankings, ranking, details, registry, running, error, notice, edit: editTab, canEdit, openTracks }) => {
+  /** Toutes les manches de la compétition, pour passer de l'une à l'autre. */
+  siblings?: Array<{ id: number; number: number; date: string | null }>;
+}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, rankings, ranking, details, registry, running, error, notice, edit: editTab, canEdit, openTracks, siblings = [] }) => {
   const edit = Boolean(editTab && canEdit);
   const tz = settings.timeZone;
   const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, tk.date, tz) : "");
@@ -1312,6 +1315,19 @@ export const TaskPage: FC<{
             <Bi n="sliders" />
             {t("Éditer")}
           </a>
+        ) : null}
+        {siblings.length > 1 ? (
+          <span class="task-tabs">
+            {siblings.map((x) => (
+              <a
+                href={`/tasks/${x.id}${edit ? "/edit" : ""}`}
+                class={x.id === tk.id ? "on" : ""}
+                title={`${t("Manche {n}", { n: x.number })}${x.date ? ` · ${dateRange(x.date, null)}` : ""}`}
+              >
+                {t("M{n}", { n: x.number })}
+              </a>
+            ))}
+          </span>
         ) : null}
       </nav>
       <ErrorBox message={error} />
