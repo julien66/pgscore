@@ -1,6 +1,6 @@
 import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
-import type { DecisionKind, LeadingWarning, PilotResult, Task, TaskScoring } from "@pgscore/engine";
+import { GAP_RULES, NOMINAL_GOAL, NOMINAL_LAUNCH, speedFraction, type DecisionKind, type LeadingWarning, type PilotResult, type Task, type TaskScoring } from "@pgscore/engine";
 import type { CompetitionRow, DecisionRow, PilotRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
 import { DECISION_KINDS } from "./decisions.js";
 import { GAP_PROFILES, LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
@@ -65,6 +65,11 @@ table.pilots td{padding:3px 4px}table.pilots input[type=text],table.pilots selec
 table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{width:190px}table.pilots tr.new td{background:var(--chip)}
 .tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--muted)}.tabs a.on{background:var(--card);border-color:var(--line);color:var(--text);font-weight:600;margin-bottom:-1px}
 [data-swap].loading{opacity:.55;transition:opacity .15s}
+.tabs a.tab-end{margin-left:auto}
+.details h3{font-size:16px;margin:22px 0 6px}.details ul{margin:4px 0 10px;padding-left:20px}
+table.calc{margin:4px 0 8px}table.calc th{width:190px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text);vertical-align:top}
+table.calc td.how{white-space:normal;color:var(--muted);font-size:13px}table.calc td.val{width:110px;vertical-align:top;font-variant-numeric:tabular-nums}
+.split{display:flex;height:22px;border-radius:6px;overflow:hidden;margin:8px 0;font-size:12px;color:#fff;font-weight:600}.split span{display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden}
 .cond{margin-top:6px}.cond select{width:auto}.cond input{max-width:280px}
 .ftv-part{font-weight:600}.ftv-raw{color:var(--muted);font-size:12px;margin-left:4px}.ftv-out{color:var(--muted)}
 th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
@@ -981,11 +986,13 @@ export const TaskPage: FC<{
   /** Classements extraits de la compétition, et celui affiché dans les résultats (?r=). */
   rankings: Array<{ id: number; name: string }>;
   ranking: { id: number; members: Set<string> } | null;
+  /** Onglet « Détails de la manche » des résultats (?view=details). */
+  details?: boolean;
   running: boolean;
   error?: string | null;
   notice?: string | null;
   edit?: boolean;
-}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, rankings, ranking, running, error, notice, edit }) => {
+}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, rankings, ranking, details, running, error, notice, edit }) => {
   const tz = settings.timeZone;
   const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, tk.date, tz) : "");
   const results = done?.results ? (JSON.parse(done.results) as TaskScoring) : null;
@@ -1313,9 +1320,9 @@ export const TaskPage: FC<{
 
       <div class="card" id="results" data-swap>
         <h2><Ic n="trophy" c="amber" />{t("Résultats")}</h2>
-        {results && rankings.length ? (
+        {results ? (
           <nav class="tabs">
-            <a href={`/tasks/${tk.id}#results`} class={`swap${ranking ? "" : " on"}`}>
+            <a href={`/tasks/${tk.id}#results`} class={`swap${ranking || details ? "" : " on"}`}>
               {t("Général")}
             </a>
             {rankings.map((x) => (
@@ -1323,6 +1330,10 @@ export const TaskPage: FC<{
                 {t(x.name)}
               </a>
             ))}
+            <a href={`/tasks/${tk.id}?view=details#results`} class={`swap tab-end${details ? " on" : ""}`}>
+              <Bi n="calc" />
+              {t("Détails de la manche")}
+            </a>
           </nav>
         ) : null}
         {running ? (
@@ -1341,7 +1352,11 @@ export const TaskPage: FC<{
             <p class="small muted">
               <RunStatus run={done} tz={settings.timeZone} taskId={tk.id} inline />
             </p>
-            <Results r={results} tz={settings.timeZone} settings={settings} taskId={tk.id} only={ranking?.members} rid={ranking?.id} />
+            {details ? (
+              <TaskDetails r={results} settings={settings} />
+            ) : (
+              <Results r={results} tz={settings.timeZone} settings={settings} taskId={tk.id} only={ranking?.members} rid={ranking?.id} />
+            )}
           </>
         ) : running ? null : (
           <p class="muted">
@@ -1579,6 +1594,237 @@ const GapSummary: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r, 
   );
 };
 
+/** Une ligne d'explication : ce qui est calculé, comment, et la valeur obtenue. */
+const Calc: FC<{ label: string; how?: Child; value: Child }> = ({ label, how, value }) => (
+  <tr>
+    <th>{label}</th>
+    <td class="how">{how}</td>
+    <td class="n val">{value}</td>
+  </tr>
+);
+
+/** Onglet « Détails de la manche » : validité, répartition des points et calcul d'un pilote, expliqués avec les valeurs de la manche. */
+const TaskDetails: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r, settings }) => {
+  const g = r.gap;
+  if (!g) return <div class="note">{t("Ce calcul date d'avant les points GAP : relancez-le pour les obtenir.")}</div>;
+  const v = g.validity;
+  const rules = GAP_RULES[settings.gapProfile];
+  const flying = r.pilots.filter((p) => !p.error && p.status !== "ABS" && p.status !== "DNF");
+  const minD = settings.minimumDistance;
+  const nomD = settings.nominalDistance;
+  const lvr = g.pilotsPresent ? Math.min(1, g.pilotsFlying / (g.pilotsPresent * NOMINAL_LAUNCH)) : 0;
+  const bestFlown = Math.max(0, ...flying.map((p) => p.flownDistance));
+  const sum = flying.reduce((s, p) => s + Math.max(0, p.flownDistance - minD), 0);
+  const area = ((NOMINAL_GOAL + 1) * (nomD - minD) + Math.max(0, NOMINAL_GOAL * (bestFlown - nomD))) / 2;
+  const timeRatio = g.bestTime !== null ? g.bestTime / settings.nominalTime : bestFlown / nomD;
+  const G = g.goalRatio;
+  const { d, c: cc, b, a } = rules.distanceWeight;
+  const dw = g.weights?.distance ?? d + cc * G + b * G ** 2 + a * G ** 3;
+  const lw = g.weights?.leading ?? (G === 0 ? 1 - dw : (1 - dw) * g.leadingTimeRatio);
+  const tw = g.weights?.time ?? 1 - dw - lw;
+  const total = g.available.distance + g.available.time + g.available.leading;
+  const winner = [...r.pilots].sort((x, y) => (y.total ?? 0) - (x.total ?? 0))[0];
+  const lander = [...r.pilots].filter((p) => p.status === "DF" || p.status === "MIND").sort((x, y) => (y.total ?? 0) - (x.total ?? 0))[0];
+  const share = (w: number) => fr(w * 100, 1);
+  const lcFormula =
+    settings.leadingProfile === "S7F2026" ? "1 − ((LC − LCmin)² / √LCmin)^(1/3)" : "1 − ((LC − LCmin)² / LCmin)^(1/3)";
+  const Example: FC<{ p: PilotResult; title: string }> = ({ p, title }) => {
+    const pt = p.points;
+    if (!pt) return null;
+    const timeFrac = p.status === "GOAL" && p.speedSectionTime !== null && g.bestTime ? speedFraction(p.speedSectionTime, g.bestTime) : null;
+    return (
+      <>
+        <h3>{title}</h3>
+        <table class="calc">
+          <tbody>
+            <Calc
+              label={t("Points distance")}
+              how={t("{d} km / meilleure distance {best} km × {avail} points distance", {
+                d: km(p.distance),
+                best: km(g.bestDistance),
+                avail: pts(g.available.distance),
+              })}
+              value={pts(pt.distance)}
+            />
+            <Calc
+              label={t("Points temps")}
+              how={
+                timeFrac !== null
+                  ? t("temps {time}, meilleur temps {best} : part de vitesse {frac} % × {avail} points temps", {
+                      time: duration(p.speedSectionTime),
+                      best: duration(g.bestTime),
+                      frac: fr(timeFrac * 100, 1),
+                      avail: pts(g.available.time),
+                    }) + (g.timePointsReduction ? ` − ${pts(g.timePointsReduction)} (${t("manche arrêtée")})` : "")
+                  : t("pas au goal : pas de points de temps")
+              }
+              value={pts(pt.time)}
+            />
+            <Calc
+              label={t("Points leading")}
+              how={
+                p.leadingFactor !== null && p.leadingCoefficient !== null && r.lcMin !== null
+                  ? t("LC {lc}, LC min {min} : facteur {f} × {avail} points leading", {
+                      lc: fr(p.leadingCoefficient, 4),
+                      min: fr(r.lcMin, 4),
+                      f: fr(p.leadingFactor, 3),
+                      avail: pts(g.available.leading),
+                    })
+                  : t("pas de coefficient de leading")
+              }
+              value={pts(pt.leading)}
+            />
+            {p.penaltyPoints ? <Calc label={t("Pénalité")} how={remark(p, settings.timeZone)} value={`−${pts(p.penaltyPoints)}`} /> : null}
+            <Calc label={t("Total")} value={<strong>{pts(p.total)}</strong>} />
+          </tbody>
+        </table>
+      </>
+    );
+  };
+  return (
+    <div class="details">
+      <GapSummary r={r} settings={settings} />
+
+      <h3>{t("1. Validité de la manche : {v}", { v: fr(v.task, 4) })}</h3>
+      <p class="small muted">
+        {t(
+          "La validité dit à quel point la manche a été une vraie manche de compétition. Les 1000 points sont multipliés par elle : une manche courte, peu volée ou trop rapide vaut moins de 1000 points.",
+        )}
+      </p>
+      <table class="calc">
+        <tbody>
+          <Calc
+            label={t("Décollage")}
+            how={t(
+              "{flying} pilotes ont décollé sur {present} présents. Rapport {lvr} = volants / (présents × 0,96) ; validité = 0,028·x + 2,917·x² − 1,944·x³, au plus 1.",
+              { flying: g.pilotsFlying, present: g.pilotsPresent, lvr: fr(lvr, 3) },
+            )}
+            value={fr(v.launch, 3)}
+          />
+          <Calc
+            label={t("Distance")}
+            how={t(
+              "Somme des distances volées au-delà de la distance minimale ({min} km) : {sum} km pour {n} pilotes, comparée à ce que donnerait une manche nominale ({nom} km, 30 % des pilotes au goal) : {area} km par pilote. Validité = {sum} / ({n} × {area}), au plus 1.",
+              { min: km(minD, 1), sum: km(sum, 1), n: flying.length, nom: km(nomD, 1), area: km(area, 1) },
+            )}
+            value={fr(v.distance, 3)}
+          />
+          <Calc
+            label={t("Temps")}
+            how={
+              g.bestTime !== null
+                ? t("Meilleur temps {best} pour un temps nominal de {nominal} : rapport {x}, au plus 1 ; validité = −0,271 + 2,912·x − 2,098·x² + 0,457·x³.", {
+                    best: duration(g.bestTime),
+                    nominal: duration(settings.nominalTime),
+                    x: fr(Math.min(1, timeRatio), 3),
+                  })
+                : t("Personne à l'ESS : rapport meilleure distance / distance nominale = {x}, au plus 1 ; même formule que pour le temps.", {
+                    x: fr(Math.min(1, timeRatio), 3),
+                  })
+            }
+            value={fr(v.time, 3)}
+          />
+          {v.stopped !== null ? (
+            <Calc
+              label={t("Arrêt")}
+              how={t("Manche arrêtée : validité d'arrêt selon l'écart des distances et le nombre de pilotes encore en vol à l'arrêt (S7F 13.4.3) ; 1 si un pilote a atteint l'ESS.")}
+              value={fr(v.stopped, 3)}
+            />
+          ) : null}
+          <Calc
+            label={t("Validité de la manche")}
+            how={v.stopped !== null ? t("décollage × distance × temps × arrêt") : t("décollage × distance × temps")}
+            value={<strong>{fr(v.task, 4)}</strong>}
+          />
+        </tbody>
+      </table>
+
+      <h3>{t("2. Répartition des points : {total} points disponibles", { total: fr(total, 1) })}</h3>
+      <p class="small muted">
+        {t(
+          "Les points disponibles (1000 × validité) sont partagés entre distance, temps et leading selon la part de pilotes au goal : plus il y a de pilotes au goal, plus la vitesse compte et moins la distance rapporte.",
+        )}
+      </p>
+      <div class="split" aria-hidden="true">
+        <span style={`width:${dw * 100}%;background:#2563eb`}>{t("distance")}</span>
+        <span style={`width:${tw * 100}%;background:#16a34a`}>{tw > 0.08 ? t("temps") : ""}</span>
+        <span style={`width:${lw * 100}%;background:#d97706`}>{lw > 0.08 ? "leading" : ""}</span>
+      </div>
+      <table class="calc">
+        <tbody>
+          <Calc
+            label={t("Ratio de goal")}
+            how={t("{goal} pilotes au goal / {flying} volants", { goal: g.pilotsGoal, flying: g.pilotsFlying })}
+            value={fr(G, 3)}
+          />
+          <Calc
+            label={t("Part distance")}
+            how={`${fr(d, 3)} ${cc < 0 ? "−" : "+"} ${fr(Math.abs(cc), 3)}·G ${b < 0 ? "−" : "+"} ${fr(Math.abs(b), 3)}·G² ${a < 0 ? "−" : "+"} ${fr(Math.abs(a), 3)}·G³`}
+            value={`${share(dw)} %`}
+          />
+          <Calc
+            label={t("Part leading")}
+            how={
+              G === 0
+                ? t("personne au goal : tout le reste va au leading")
+                : t("(1 − part distance) × LTR {ltr} %", { ltr: fr(g.leadingTimeRatio * 100, g.leadingTimeRatio * 100 % 1 ? 2 : 0) })
+            }
+            value={`${share(lw)} %`}
+          />
+          <Calc label={t("Part temps")} how={t("le reste")} value={`${share(tw)} %`} />
+          <Calc
+            label={t("Points disponibles")}
+            how={t("1000 × {v} × part : distance {d} · temps {t} · leading {l}", {
+              v: fr(v.task, 4),
+              d: pts(g.available.distance),
+              t: pts(g.available.time),
+              l: pts(g.available.leading),
+            })}
+            value={<strong>{fr(total, 1)}</strong>}
+          />
+          {g.timePointsReduction ? (
+            <Calc
+              label={t("Manche arrêtée")}
+              how={t("{pts} points de temps retirés à chaque pilote au goal et reversés en distance (S7F 13.4.5).", { pts: pts(g.timePointsReduction) })}
+              value=""
+            />
+          ) : null}
+        </tbody>
+      </table>
+
+      <h3>{t("3. Comment un pilote marque ses points")}</h3>
+      <ul class="small muted">
+        <li>{t("Distance : sa distance divisée par la meilleure distance, multipliée par les points distance disponibles.")}</li>
+        <li>
+          {t("Temps (pilotes au goal seulement) : part de vitesse = 1 − ((temps − meilleur temps) / √meilleur temps)^(5/6), temps en heures. Le plus rapide a tous les points de temps.")}
+        </li>
+        <li>
+          {t("Leading : le coefficient LC mesure le temps passé devant le groupe ; le plus petit LC a tous les points. Facteur = {formula}.", { formula: lcFormula })}
+        </li>
+      </ul>
+      {winner ? <Example p={winner} title={t("Exemple : {name}, vainqueur", { name: winner.name })} /> : null}
+      {lander ? <Example p={lander} title={t("Exemple : {name}, meilleur pilote posé avant le goal", { name: lander.name })} /> : null}
+
+      <h3>{t("4. Données de la manche")}</h3>
+      <table class="calc">
+        <tbody>
+          <Calc label={t("Formule de points")} value={t(GAP_PROFILES[settings.gapProfile])} />
+          <Calc label={t("Leading")} value={t(LEADING_PROFILES[settings.leadingProfile])} />
+          <Calc label={t("Distance nominale (km)")} value={km(nomD, 1)} />
+          <Calc label={t("Distance minimale (km)")} value={km(minD, 1)} />
+          <Calc label={t("Temps nominal (min)")} value={String(settings.nominalTime / 60)} />
+          <Calc label={t("Distance de la manche")} value={`${km(r.distances.task)} km`} />
+          <Calc label={t("Pilotes présents / volants / ESS / goal")} value={`${g.pilotsPresent} / ${g.pilotsFlying} / ${g.pilotsEss} / ${g.pilotsGoal}`} />
+          <Calc label={t("Meilleure distance")} value={`${km(g.bestDistance)} km`} />
+          <Calc label={t("Meilleur temps")} value={duration(g.bestTime) || "–"} />
+          <Calc label={t("LC min")} value={r.lcMin !== null ? fr(r.lcMin, 4) : "–"} />
+          <Calc label="LTR" value={`${fr(g.leadingTimeRatio * 100, 4)} %`} />
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; taskId: number; only?: Set<string>; rid?: number }> = ({
   r,
   tz,
@@ -1596,7 +1842,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
   const leadWarn = r.pilots.filter((p) => p.leadingWarnings?.length).length;
   return (
     <>
-      {withPoints ? <GapSummary r={r} settings={settings} /> : <div class="note">{t("Ce calcul date d'avant les points GAP : relancez-le pour les obtenir.")}</div>}
+      {withPoints ? null : <div class="note">{t("Ce calcul date d'avant les points GAP : relancez-le pour les obtenir.")}</div>}
       <p class="small">
         {t("{goal} au goal · {ess} à l'ESS sans goal · {df} posés · {mind} à la distance minimale", {
           goal: counts("GOAL"),
