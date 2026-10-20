@@ -27,6 +27,50 @@ export interface LeadingTrack {
   /** Heure d'ESS ou d'atterrissage (posés), en secondes de manche, pour maxTime. */
   essTime: number | null;
   outlandingTime: number | null;
+  /** Régularité de la trace pendant la période de leading (du départ à l'ESS, l'atterrissage ou l'arrêt). */
+  quality?: LeadingQuality;
+}
+
+/**
+ * Une trace espacée ou trouée fausse le leading : entre deux fixes, la distance restante reste figée
+ * à sa dernière valeur, donc le coefficient monte (le pilote est désavantagé). La trace qui s'arrête
+ * en vol, elle, fait finir le vol au dernier fix.
+ */
+export interface LeadingQuality {
+  /** Fixes pendant la période de leading. */
+  fixes: number;
+  /** Intervalle médian entre deux fixes et plus grand trou, en secondes. */
+  medianInterval: number;
+  maxGap: number;
+  /** Début du plus grand trou (ms UTC). */
+  maxGapAt: number | null;
+  /** La trace s'arrête avant l'atterrissage, l'ESS, l'arrêt de manche ou la deadline. */
+  endsInFlight: boolean;
+  /** Alertes lisibles ; vide si la trace est bonne. */
+  warnings: string[];
+}
+
+/** Seuils d'alerte : intervalle médian au-delà duquel la trace est jugée espacée, et trou signalé. */
+export const LEADING_SPARSE_INTERVAL = 5;
+export const LEADING_GAP = 60;
+
+export function leadingQuality(times: number[], endsInFlight: boolean): LeadingQuality {
+  const gaps = times.slice(1).map((t, i) => (t - times[i]!) / 1000);
+  const sorted = [...gaps].sort((a, b) => a - b);
+  const medianInterval = sorted.length ? sorted[Math.floor(sorted.length / 2)]! : 0;
+  let maxGap = 0;
+  let maxGapAt: number | null = null;
+  gaps.forEach((g, i) => {
+    if (g > maxGap) [maxGap, maxGapAt] = [g, times[i]!];
+  });
+  const warnings: string[] = [];
+  if (medianInterval > LEADING_SPARSE_INTERVAL) warnings.push(`un point toutes les ${Math.round(medianInterval)} s`);
+  if (maxGap >= LEADING_GAP) {
+    const m = Math.floor(maxGap / 60);
+    warnings.push(`trou de ${m ? `${m} min ` : ""}${String(Math.round(maxGap % 60)).padStart(m ? 2 : 1, "0")} s`);
+  }
+  if (endsInFlight) warnings.push("la trace s'arrête avant l'atterrissage");
+  return { fixes: times.length, medianInterval, maxGap, maxGapAt, endsInFlight, warnings };
 }
 
 /** weight(v) parapente : montée puis descente selon l'avancement v dans la section de vitesse. */
@@ -95,8 +139,10 @@ export function leadingTrack(task: Task, control: FlightControl): LeadingTrack |
   // Dernier fix calculé : la distance restante ne peut pas baisser plus vite que le déplacement
   // depuis ce fix (inégalité triangulaire). Si elle ne peut pas battre le meilleur, on ne la calcule pas.
   let ref: { lat: number; lon: number; next: number; d: number } | null = null;
+  const times: number[] = [control.sssTime];
   for (const f of control.inFlight) {
     if (f.time <= control.sssTime || f.time > endTime) continue;
+    times.push(f.time);
     let next = sssIdx + 1;
     for (const s of steps) if (s.time <= f.time) next = s.next;
     let d: number;
@@ -112,8 +158,10 @@ export function leadingTrack(task: Task, control: FlightControl): LeadingTrack |
     }
   }
   const last = control.inFlight.at(-1);
+  const endsInFlight = !control.madeEss && control.landingTime === null && !control.stopped && last !== undefined && last.time < deadline;
   return {
     samples,
+    quality: leadingQuality(times, endsInFlight),
     madeEss: control.madeEss,
     essTime: control.essTime !== null ? taskTime(control.essTime) : null,
     outlandingTime:

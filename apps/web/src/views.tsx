@@ -56,6 +56,7 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 .tm-leg span{display:inline-block;background:rgba(17,24,39,.85);color:#fff;font:600 11px/16px system-ui;padding:1px 6px;border-radius:8px;white-space:nowrap}
 .upl{margin-top:8px}.upl p{margin:4px 0}
 .list form.official{margin-left:auto}.list form.official .check{color:var(--muted)}
+.lead-warn{color:var(--warn);cursor:help;margin-right:4px}
 .ftv-part{font-weight:600}.ftv-raw{color:var(--muted);font-size:12px;margin-left:4px}.ftv-out{color:var(--muted)}
 th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
 .center{max-width:420px;margin:60px auto;text-align:center}
@@ -1016,6 +1017,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
   const counts = (s: string) => r.pilots.filter((p) => p.status === s).length;
   // Calcul fait avant l'arrivée des points GAP : il faut le relancer.
   const withPoints = Boolean(r.gap);
+  const leadWarn = r.pilots.filter((p) => p.leadingWarnings?.length).length;
   return (
     <>
       {withPoints ? <GapSummary r={r} settings={settings} /> : <div class="note">Ce calcul date d'avant les points GAP : relancez-le pour les obtenir.</div>}
@@ -1023,7 +1025,14 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
         {counts("GOAL")} au goal · {counts("ESS")} à l'ESS sans goal · {counts("DF")} posés · {counts("MIND")} à la distance minimale
         {counts("ERREUR") ? ` · ${counts("ERREUR")} traces en erreur` : ""}
         {counts("DNF") ? ` · ${counts("DNF")} restés au sol` : ""}
-        {counts("ABS") ? ` · ${counts("ABS")} absents` : ""} · leading {LEADING_PROFILES[settings.leadingProfile]} ·{" "}
+        {counts("ABS") ? ` · ${counts("ABS")} absents` : ""}
+        {leadWarn ? (
+          <>
+            {" "}
+            · <span class="lead-warn">⚠</span> {leadWarn} trace{leadWarn > 1 ? "s" : ""} au leading peut-être faussé (trou, points espacés ou arrêt avant l'atterrissage : survolez l'icône)
+          </>
+        ) : null}{" "}
+        · leading {LEADING_PROFILES[settings.leadingProfile]} ·{" "}
         <a href={`/tasks/${taskId}/results.csv`}>exporter en CSV</a>
       </p>
       <div class="scroll">
@@ -1077,7 +1086,14 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                 <td class="n">{duration(p.speedSectionTime)}</td>
                 <td class="n">{km(p.distance)} km</td>
                 {stopped ? <td class="n">{p.stop?.flying ? `${Math.round(p.stop.altitudeAboveGoal)} m` : ""}</td> : null}
-                <td class="n">{p.leadingCoefficient !== null ? p.leadingCoefficient.toFixed(4) : ""}</td>
+                <td class="n">
+                  {p.leadingWarnings?.length ? (
+                    <span class="lead-warn" title={`Leading peut-être faussé : ${p.leadingWarnings.join(", ")}`}>
+                      ⚠
+                    </span>
+                  ) : null}
+                  {p.leadingCoefficient !== null ? p.leadingCoefficient.toFixed(4) : ""}
+                </td>
                 {withPoints ? (
                   <>
                     <td class="n">{pts(p.points?.distance)}</td>
@@ -1115,7 +1131,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
 export function resultsCsv(r: TaskScoring, tz: string): string {
   const head = [
     "rang", "pilote", "nom", "statut", "depart", "ess", "temps_s", "distance_km", "alt_arret_m", "lc", "leading",
-    "pts_distance", "pts_temps", "pts_leading", "penalite_pts", "total", "espace_aerien", "profondeur_m", "penalite", "decisions",
+    "pts_distance", "pts_temps", "pts_leading", "penalite_pts", "total", "espace_aerien", "profondeur_m", "penalite", "decisions", "alerte_leading",
   ];
   const q = (v: unknown) => {
     const s = v === null || v === undefined ? "" : String(v);
@@ -1142,6 +1158,7 @@ export function resultsCsv(r: TaskScoring, tz: string): string {
     p.airspace.length ? Math.max(...p.airspace.map((a) => a.depth)).toFixed(1) : "",
     penalty(p),
     (p.decisions ?? []).map((d) => `${decisionLabel(d.kind, d.value)} : ${d.reason}`).join(" | "),
+    (p.leadingWarnings ?? []).join(" | "),
   ]);
   return [head, ...rows].map((r) => r.map(q).join(",")).join("\n") + "\n";
 }

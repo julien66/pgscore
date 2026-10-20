@@ -98,6 +98,8 @@ export interface PilotResult {
   stop: { flying: boolean; altitudeAboveGoal: number; bonusDistance: number } | null;
   leadingCoefficient: number | null;
   leadingFactor: number | null;
+  /** Alertes sur la trace qui peuvent fausser le leading (trace espacée, trou, arrêt en vol). */
+  leadingWarnings?: string[];
   airspace: AirspaceResult[];
   /** Pénalité d'espace aérien : en points (PWCA) ou en part des points du pilote (S7A, entre 0 et 1). */
   airspacePenalty: { points?: number; fraction?: number } | null;
@@ -206,6 +208,7 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
     }
   }
   const leading = leadingTrack(task, c);
+  if (leading?.quality?.warnings.length) r.leadingWarnings = leading.quality.warnings;
   // Les fixes du vol ne servent plus au classement : on les lâche pour ne pas garder toutes les traces
   // en mémoire pendant le calcul d'une manche (des centaines de Mo pour une centaine de pilotes).
   return { result: r, control: { ...c, inFlight: [] }, leading };

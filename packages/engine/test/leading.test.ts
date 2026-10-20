@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { leadingCoefficient, leadingFactor, leadingWeight, type LeadingTrack } from "../src/index.js";
+import { leadingCoefficient, leadingFactor, leadingQuality, leadingWeight, type LeadingTrack } from "../src/index.js";
 
 describe("points de leading (S7F 2026, 12.3)", () => {
   it("la pondération parapente est nulle aux extrémités et proche de 1 vers 30 %", () => {
@@ -39,5 +39,23 @@ describe("points de leading (S7F 2026, 12.3)", () => {
       outlandingTime: 3600,
     };
     expect(leadingCoefficient(landed, 50, 9000)).toBeGreaterThan(leadingCoefficient(full, 50, 9000));
+  });
+});
+
+describe("régularité de la trace pour le leading", () => {
+  const t0 = Date.UTC(2026, 9, 5, 15, 0, 0);
+  const every = (step: number, n: number, from = t0) => Array.from({ length: n }, (_, i) => from + i * step * 1000);
+
+  it("ne signale rien pour une trace à 1 s", () => {
+    expect(leadingQuality(every(1, 3600), false).warnings).toEqual([]);
+  });
+
+  it("signale une trace espacée, un trou et un arrêt avant l'atterrissage", () => {
+    expect(leadingQuality(every(10, 300), false).warnings).toEqual(["un point toutes les 10 s"]);
+    const holed = [...every(1, 600), ...every(1, 600, t0 + 600_000 + 90 * 60_000)];
+    const q = leadingQuality(holed, true);
+    expect(q.maxGap).toBe(5401);
+    expect(q.maxGapAt).toBe(t0 + 599_000);
+    expect(q.warnings).toEqual(["trou de 90 min 01 s", "la trace s'arrête avant l'atterrissage"]);
   });
 });
