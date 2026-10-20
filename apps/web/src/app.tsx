@@ -18,7 +18,7 @@ import {
   type OidcConfig,
 } from "./auth.js";
 import type { CompetitionRow, Db, RunRow, TaskRow, TrackRow, User } from "./db.js";
-import { collectIgc, decodeQrImage, decodeText, pilotKeyFromFilename } from "./files.js";
+import { collectIgc, decodeQrImage, decodeText, nameKey, pilotKeyForTrack } from "./files.js";
 import { isRunning, startRun } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
 import { pilotVersions, removeTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
@@ -895,9 +895,18 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     // Fichiers écrits sur disque avant la base : une ligne de la base pointe toujours vers un fichier présent.
     const stored = igcs.map((g) => ({ g, sha256: tracks.put(g.bytes) }));
     const count = { added: 0, replaced: 0, same: 0 };
+    // Pilote de chaque trace : nom de fichier, sinon en-tête IGC rapproché des inscrits (traces anonymes).
+    const registry = listPilots(db, x.comp.id);
+    // Traces déjà dans la manche : une trace anonyme ne les remplace pas, elle prend une nouvelle clé.
+    const existing = db.prepare("SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE task_id = ?").all(x.t.id) as Array<{ pilot_key: string; pilot_name: string | null; sha256: string }>;
+    const bySha = new Map(existing.map((e) => [e.sha256, e.pilot_key]));
+    const used = new Map<string, string | null>(existing.map((e) => [e.pilot_key, e.pilot_name ? nameKey(e.pilot_name) : null]));
+    const regName = new Map(registry.map((p) => [p.pilot_key, p.name]));
     db.exec("BEGIN");
     for (const { g, sha256 } of stored) {
-      count[saveTrack(db, x.t.id, me(c).id, { pilotKey: pilotKeyFromFilename(g.filename), pilotName: igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
+      // Fichier déjà présent dans la manche : c'est la même trace, elle garde son pilote.
+      const pilotKey = bySha.get(sha256) ?? pilotKeyForTrack(g.filename, g.text, registry, used);
+      count[saveTrack(db, x.t.id, me(c).id, { pilotKey, pilotName: regName.get(pilotKey) ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
     }
     db.exec("COMMIT");
     return c.redirect(`/tasks/${x.t.id}/edit?${new URLSearchParams(Object.entries(count).filter(([, n]) => n).map(([k, n]) => [k, String(n)]))}`);
