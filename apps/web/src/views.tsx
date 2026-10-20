@@ -958,7 +958,6 @@ export const boardUrl = (c: CompetitionRow, q: { r?: number | null; all?: boolea
 
 const StandingsBoard: FC<{ c: CompetitionRow; b: Board }> = ({ c, b }) => {
   const { s, pilots, rankings, current, create } = b;
-  const count = current ? (rankings.find((x) => x.r.row.id === current.row.id)?.count ?? 0) : 0;
   return (
     <>
       <RankingTabs c={c} rankings={rankings.map((x) => ({ id: x.r.row.id, name: x.r.row.name, count: x.count }))} current={current?.row.id ?? null} create={create} />
@@ -968,22 +967,11 @@ const StandingsBoard: FC<{ c: CompetitionRow; b: Board }> = ({ c, b }) => {
         <RankingForm c={c} r={null} />
       ) : (
         <>
-          {current ? (
-            <p class="small muted">
-              {describeRule(current.rule)} ·{" "}
-              {count > 1
-                ? t("{n} pilotes inscrits dans ce classement", { n: count })
-                : t("{n} pilote inscrit dans ce classement", { n: count })}
-              ,{" "}
-              {s.ranking.pilots.length > 1 ? t("{n} classés", { n: s.ranking.pilots.length }) : t("{n} classé", { n: s.ranking.pilots.length })}.{" "}
-              {t("Même total qu'au général (mêmes manches, même FTV), rang recalculé.")}
-              {!pilots.length ? ` ${t("Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition.")}` : ""}
-            </p>
-          ) : null}
+          {current && !pilots.length ? <p class="small muted">{t("Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition.")}</p> : null}
           <StandingsTable c={c} s={s} rid={current?.row.id} registry={pilots} />
           {current ? (
             <details class="fold" id="ranking-settings" open={Boolean(b.error)}>
-              <summary>{t("Règle et pilotes de ce classement")}</summary>
+              <summary>{t("Règle et pilotes de ce classement")} <span class="small muted">· {describeRule(current.rule)}</span></summary>
               <RankingForm c={c} r={current} />
               <h2 class="mt">{t("Ajouts et retraits à la main")}</h2>
               <RankingPilots c={c} r={current} pilots={pilots} />
