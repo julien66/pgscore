@@ -538,6 +538,7 @@ const dict: Record<string, string> = {
   "Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition.": "No pilots registered: import the list in the competition's Pilots section.",
   "Règle et pilotes de ce classement": "Rule and pilots for this ranking",
   "Ajouts et retraits à la main": "Added and removed by hand",
+  "Supprimer le classement « {name} » ? Le classement général n'est pas touché.": "Delete the ranking “{name}”? The overall ranking is not affected.",
   "Supprimer ce classement": "Delete this ranking",
   "Numéro": "Number",
   "Date": "Date",

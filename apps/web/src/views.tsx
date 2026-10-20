@@ -67,7 +67,8 @@ table.pilots td{padding:3px 4px}table.pilots input[type=text],table.pilots selec
 table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{width:190px}table.pilots tr.new td{background:var(--chip)}
 .tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--muted)}.tabs a.on{background:var(--card);border-color:var(--line);color:var(--text);font-weight:600;margin-bottom:-1px}
 [data-swap].loading{opacity:.55;transition:opacity .15s}
-.tabs a.tab-end{margin-left:auto}
+.tabs a.tab-end,.tabs form.tab-end{margin-left:auto}
+.tabs form.tab-end{align-self:center}
 table.rk.sport-hidden .sp{display:none}.sp-toggle .sp-open{display:none}html.sport-open .sp-toggle .sp-open{display:inline}html.sport-open .sp-toggle .sp-closed{display:none}.rk-bar{display:flex;justify-content:flex-end;align-items:center;gap:8px 16px;flex-wrap:wrap;margin:4px 0}.rk-bar .acts{margin-right:auto}
 @page{size:A4 portrait;margin:8mm}
 .print-head{display:none}
@@ -1000,6 +1001,21 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
 };
 
 /** Onglets des classements : général, puis les classements extraits. Ils restent sur la page de la compétition. */
+/** Suppression d'un classement extrait (jamais le général), après confirmation. */
+const DeleteRanking: FC<{ c: CompetitionRow; id: number; name: string; cls?: string; big?: boolean }> = ({ c, id, name, cls, big }) => (
+  <form
+    method="post"
+    action={`/competitions/${c.id}/rankings/${id}/delete`}
+    class={cls}
+    onsubmit={`return confirm(${JSON.stringify(t("Supprimer le classement « {name} » ? Le classement général n'est pas touché.", { name: t(name) }))})`}
+  >
+    <button class={big ? "danger" : "link"} title={t("Supprimer ce classement")}>
+      <Bi n="trash" />
+      {t("Supprimer ce classement")}
+    </button>
+  </form>
+);
+
 const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: string; count?: number }>; current: number | null; create?: boolean; canEdit?: boolean }> = ({
   c,
   rankings,
@@ -1020,6 +1036,9 @@ const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: s
       <a href={boardUrl(c, { create: true })} class={`swap${create ? " on" : ""}`}>
         + {t("Nouveau classement")}
       </a>
+    ) : null}
+    {canEdit && current !== null && !create ? (
+      <DeleteRanking c={c} id={current} name={rankings.find((r) => r.id === current)?.name ?? ""} cls="tab-end no-print" />
     ) : null}
   </nav>
 );
@@ -1160,12 +1179,7 @@ const StandingsBoard: FC<{ c: CompetitionRow; b: Board }> = ({ c, b }) => {
               <RankingForm c={c} r={current} />
               <h2 class="mt">{t("Ajouts et retraits à la main")}</h2>
               <RankingPilots c={c} r={current} pilots={pilots} />
-              <form method="post" action={`/competitions/${c.id}/rankings/${current.row.id}/delete`} class="mt">
-                <button>
-                  <Bi n="trash" />
-                  {t("Supprimer ce classement")}
-                </button>
-              </form>
+              <DeleteRanking c={c} id={current.row.id} name={current.row.name} cls="mt" big />
             </details>
           ) : null}
         </>

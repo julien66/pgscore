@@ -223,6 +223,10 @@ describe("interface web", () => {
     const page = await (await req(serialUrl)).text();
     expect(page).toContain("EN-C, en d et ptv max (kg) ≤ 110");
     expect(page).toContain("revenir à la règle");
+    // Bouton de suppression à côté des onglets, avec confirmation ; absent sur le général.
+    expect(page).toContain(`action="/competitions/${compUrl.split("/").pop()}/rankings/${rid}/delete" class="tab-end no-print"`);
+    expect(page).toContain("Supprimer le classement « Serial »");
+    expect(await (await req(compUrl)).text()).not.toContain("tab-end no-print");
     const bad = await req(`${compUrl}/rankings`, { method: "POST", body: new URLSearchParams({ name: "X", field1: "weight_max", op1: "in", value1: "90" }) });
     expect(bad.status).toBe(400);
     await req(`${compUrl}/rankings/${rid}/delete`, { method: "POST" });
