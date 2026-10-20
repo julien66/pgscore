@@ -1,5 +1,12 @@
 // Page de la compétition : la case « officielle » s'enregistre seule et met à jour le classement général sans recharger.
 (() => {
+  // Bloc replié ciblé par l'adresse (#pilots…) : on l'ouvre.
+  const openHash = () => {
+    const el = location.hash && document.getElementById(location.hash.slice(1));
+    if (el && el.tagName === "DETAILS") el.open = true;
+  };
+  openHash();
+  window.addEventListener("hashchange", openHash);
   for (const box of document.querySelectorAll("form.official input[name=official]")) {
     box.addEventListener("change", async () => {
       const form = box.form;

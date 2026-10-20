@@ -62,7 +62,7 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 .lead-warn{color:var(--warn);cursor:help;margin-right:4px}
 table.pilots td{padding:3px 4px}table.pilots input[type=text],table.pilots select{padding:4px 6px;font-size:13px}
 table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{width:190px}table.pilots tr.new td{background:var(--chip)}
-.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs a{padding:6px 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--muted)}.tabs a.on{background:var(--card);border-color:var(--line);color:var(--text);font-weight:600;margin-bottom:-1px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--muted)}.tabs a.on{background:var(--card);border-color:var(--line);color:var(--text);font-weight:600;margin-bottom:-1px}
 .cond{margin-top:6px}.cond select{width:auto}.cond input{max-width:280px}
 .ftv-part{font-weight:600}.ftv-raw{color:var(--muted);font-size:12px;margin-left:4px}.ftv-out{color:var(--muted)}
 th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
@@ -350,15 +350,40 @@ export const CompetitionPage: FC<{
   airspaceCount: number | null;
   error?: string | null;
   notice?: string | null;
-}> = ({ user, c, v, tasks, standings, pilots, rankings, airspaceCount, error, notice }) => (
-  <Layout title={c.name} user={user}>
+  edit?: boolean;
+}> = ({ user, c, v, tasks, standings, pilots, rankings, airspaceCount, error, notice, edit }) => (
+  <Layout title={edit ? `Éditer · ${c.name}` : c.name} user={user}>
     <div class="crumbs">
       <a href="/">Mes compétitions</a>
     </div>
     <h1>{c.name}</h1>
+    <nav class="tabs">
+      <a href={`/competitions/${c.id}`} class={edit ? "" : "on"}>
+        <Bi n="route" />
+        Manches et classements
+      </a>
+      <a href={`/competitions/${c.id}/edit`} class={edit ? "on" : ""}>
+        <Bi n="sliders" />
+        Éditer
+      </a>
+    </nav>
     <ErrorBox message={error} />
     {notice ? <div class="note">{notice}</div> : null}
+    {edit ? (
+      <CompetitionEdit c={c} v={v} pilots={pilots} airspaceCount={airspaceCount} open={Boolean(error)} />
+    ) : (
+      <CompetitionMain c={c} tasks={tasks} standings={standings} rankings={rankings} />
+    )}
+  </Layout>
+);
 
+const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; standings: Standings; rankings: Array<{ id: number; name: string }> }> = ({
+  c,
+  tasks,
+  standings,
+  rankings,
+}) => (
+  <>
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <h2><Ic n="route" c="blue" />Manches</h2>
@@ -404,18 +429,50 @@ export const CompetitionPage: FC<{
       <RankingTabs c={c} rankings={rankings} current={null} />
       <StandingsTable c={c} s={standings} limit={10} />
     </div>
+    <script src="/static/competition.js" />
+  </>
+);
 
-    <PilotsBlock c={c} pilots={pilots} />
-
-    <div class="card">
-      <h2><Ic n="shield" c="red" />Espace aérien</h2>
-      {c.airspace_name ? (
-        <p>
-          <strong>{c.airspace_name}</strong> · {airspaceCount} zone{airspaceCount === 1 ? "" : "s"}
+/** Onglet « Éditer » : réglages de la compétition, espace aérien, pilotes. */
+const CompetitionEdit: FC<{ c: CompetitionRow; v: CompetitionFormValues; pilots: PilotRow[]; airspaceCount: number | null; open: boolean }> = ({
+  c,
+  v,
+  pilots,
+  airspaceCount,
+  open,
+}) => (
+  <>
+    <details class="card fold" id="settings" open={open}>
+      <summary>
+        <h2>
+          <Ic n="sliders" c="gray" />
+          Compétition
+          <span class="muted small">
+            {GAP_PROFILES[v.settings.gapProfile].split(" (")[0]} · FTV {Math.round(v.settings.ftvFactor * 100)} % · nominale {v.settings.nominalDistance / 1000} km,{" "}
+            {v.settings.nominalTime / 60} min
+          </span>
+        </h2>
+      </summary>
+      <form method="post" action={`/competitions/${c.id}`}>
+        <CompetitionFields v={v} />
+        <p class="mt">
+          <button class="primary">
+            <Bi n="save" />
+            Enregistrer
+          </button>
         </p>
-      ) : (
-        <p class="muted">Aucun fichier : les traces ne sont pas contrôlées pour l'espace aérien.</p>
-      )}
+      </form>
+    </details>
+
+    <details class="card fold" id="airspace" open={open}>
+      <summary>
+        <h2>
+          <Ic n="shield" c="red" />
+          Espace aérien
+          <span class="muted small">{c.airspace_name ? `${c.airspace_name} · ${airspaceCount} zone${airspaceCount === 1 ? "" : "s"}` : "aucun fichier"}</span>
+        </h2>
+      </summary>
+      {c.airspace_name ? null : <p class="muted">Aucun fichier : les traces ne sont pas contrôlées pour l'espace aérien.</p>}
       <form method="post" action={`/competitions/${c.id}/airspace`} enctype="multipart/form-data" class="row">
         <input type="file" name="airspace" accept=".txt,.air,.openair" required />
         <button>
@@ -424,24 +481,15 @@ export const CompetitionPage: FC<{
         </button>
       </form>
       <p class="small muted">Limites lues en AMSL ; niveaux de vol convertis à 1013,25 hPa puis abaissés de 100 m. Les limites AGL sont ignorées.</p>
-    </div>
+    </details>
 
-    <form method="post" action={`/competitions/${c.id}`} class="card">
-      <h2><Ic n="sliders" c="gray" />Compétition</h2>
-      <CompetitionFields v={v} />
-      <p class="mt">
-        <button class="primary">
-          <Bi n="save" />
-          Enregistrer
-        </button>
-      </p>
-    </form>
+    <PilotsBlock c={c} pilots={pilots} open={open} />
     <script src="/static/competition.js" />
-  </Layout>
+  </>
 );
 
 /** Pilotes inscrits : import FSDB/CSV et tableau modifiable. */
-const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[] }> = ({ c, pilots }) => {
+const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> = ({ c, pilots, open }) => {
   const women = pilots.filter((p) => p.gender === "F").length;
   const cell = (p: PilotRow | null, key: (typeof PILOT_COLUMNS)[number]["key"]) => {
     const name = p ? `p.${p.id}.${key}` : `new.${key}`;
@@ -464,7 +512,7 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[] }> = ({ c, pilots 
     return <input type="text" name={name} value={v === null ? "" : String(v)} class={`in-${size}`} placeholder={p ? "" : PILOT_COLUMNS.find((x) => x.key === key)!.label} />;
   };
   return (
-    <details class="card fold" id="pilots" open={pilots.length === 0}>
+    <details class="card fold" id="pilots" open={open}>
       <summary>
         <h2>
           <Ic n="users" c="purple" />

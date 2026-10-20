@@ -69,7 +69,7 @@ describe("interface web", () => {
     const { compUrl, taskUrl } = await createCompetitionAndTask(req);
     const comp = await (await req(compUrl)).text();
     expect(comp).toContain("Coupe test");
-    expect(comp).toContain("15 zones");
+    expect(await (await req(`${compUrl}/edit`)).text()).toContain("15 zones");
     const task = await (await req(taskUrl)).text();
     expect(task).toContain("84,05 km");
     expect(task).toContain("13:25:00"); // porte 11:25Z affichée en heure de Gemona
@@ -147,7 +147,8 @@ describe("interface web", () => {
     const r = await req(`${compUrl}/pilots/import`, { method: "POST", body: f });
     expect(r.status).toBe(302);
     expect(decodeURIComponent(r.headers.get("location")!)).toContain("2 pilotes ajoutés");
-    let html = await (await req(compUrl)).text();
+    expect(r.headers.get("location")).toContain("/edit?");
+    const html = await (await req(`${compUrl}/edit`)).text();
     expect(html).toContain("2 inscrits · 1 femmes");
     const rows = db.prepare("SELECT id, pilot_key FROM competition_pilots ORDER BY id").all() as Array<{ id: number; pilot_key: string }>;
     // Échange des numéros, retrait d'un pilote et ajout d'un nouveau en un seul enregistrement.

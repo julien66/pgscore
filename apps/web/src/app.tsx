@@ -245,7 +245,11 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     }
   });
 
-  const competitionPage = (c: Context<Env>, comp: CompetitionRow, extra: { error?: string; notice?: string; v?: CompetitionFormValues } = {}) => {
+  const competitionPage = (
+    c: Context<Env>,
+    comp: CompetitionRow,
+    extra: { error?: string; notice?: string; v?: CompetitionFormValues; edit?: boolean } = {},
+  ) => {
     const tasks = db.prepare("SELECT * FROM tasks WHERE competition_id = ? ORDER BY number").all(comp.id) as unknown as TaskRow[];
     let count: number | null = null;
     if (comp.airspace_text) {
@@ -267,10 +271,19 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         airspaceCount={count}
         error={extra.error ?? null}
         notice={extra.notice ?? null}
+        edit={extra.edit ?? false}
       />,
       extra.error ? 400 : 200,
     );
   };
+
+  // Onglet « Éditer » : réglages de la compétition, espace aérien et pilotes.
+  app.get("/competitions/:id/edit", (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    const msg = c.req.query("msg");
+    return competitionPage(c, comp, { edit: true, ...(msg ? { notice: msg } : c.req.query("ok") ? { notice: "Enregistré." } : {}) });
+  });
 
   app.get("/competitions/:id", (c) => {
     const comp = competition(c, c.req.param("id"));
@@ -295,17 +308,17 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         JSON.stringify(s),
         comp.id,
       );
-      return c.redirect(`/competitions/${comp.id}?ok=1`);
+      return c.redirect(`/competitions/${comp.id}/edit?ok=1#settings`);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
-      return competitionPage(c, comp, { error: e.message, v: formValues(f, parseSettings(comp.params)) });
+      return competitionPage(c, comp, { edit: true, error: e.message, v: formValues(f, parseSettings(comp.params)) });
     }
   });
 
   // --- Pilotes inscrits -------------------------------------------------------------------
   const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
   const backToPilots = (c: Context<Env>, comp: CompetitionRow, msg: string) =>
-    c.redirect(`/competitions/${comp.id}?msg=${encodeURIComponent(msg)}#pilots`);
+    c.redirect(`/competitions/${comp.id}/edit?msg=${encodeURIComponent(msg)}#pilots`);
 
   app.post("/competitions/:id/pilots/import", async (c) => {
     const comp = competition(c, c.req.param("id"));
@@ -318,7 +331,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       return backToPilots(c, comp, `Import : ${plural(r.added, "pilote ajouté", "pilotes ajoutés")}, ${plural(r.updated, "mis à jour", "mis à jour")}.`);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
-      return competitionPage(c, comp, { error: e.message });
+      return competitionPage(c, comp, { edit: true, error: e.message });
     }
   });
 
@@ -332,7 +345,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       return backToPilots(c, comp, `Pilotes enregistrés${parts.length ? ` : ${parts.join(", ")}` : ""}.`);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
-      return competitionPage(c, comp, { error: e.message });
+      return competitionPage(c, comp, { edit: true, error: e.message });
     }
   });
 
@@ -456,10 +469,10 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       const air = await readAirspace(f.airspace);
       if (!air) throw new FormError("Choisissez un fichier OpenAir.");
       db.prepare("UPDATE competitions SET airspace_name = ?, airspace_text = ? WHERE id = ?").run(air.name, air.text, comp.id);
-      return c.redirect(`/competitions/${comp.id}?ok=1`);
+      return c.redirect(`/competitions/${comp.id}/edit?ok=1#airspace`);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
-      return competitionPage(c, comp, { error: e.message });
+      return competitionPage(c, comp, { edit: true, error: e.message });
     }
   });
 
