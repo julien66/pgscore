@@ -492,7 +492,10 @@ export function competitionFsdb(db: Db, comp: CompetitionRow, opts: { withTracks
       stop_time: stopped ? fsTime(taskMs(tk.date, task.stopAnnouncement), tz) : undefined,
     });
     const r = tk.result?.results as TaskScoring | undefined;
-    const files = new Map(tk.tracks.map((x) => [x.pilot_key, x.filename]));
+    // Une trace par pilote dans FS : celle retenue au calcul quand le pilote en a plusieurs.
+    const chosen = (tk.result?.results as { chosenTracks?: Record<string, string> } | undefined)?.chosenTracks ?? {};
+    const files = new Map<string, string>();
+    for (const x of tk.tracks) if (!files.has(x.pilot_key) || chosen[x.pilot_key] === x.sha256) files.set(x.pilot_key, x.filename);
     const folder = `T${String(tk.number).padStart(2, "0")}`;
     const ranked = r?.pilots ?? [];
     const results = new Map(ranked.map((p, i) => [p.id, { p, rank: i + 1 }]));

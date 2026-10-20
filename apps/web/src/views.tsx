@@ -1198,6 +1198,11 @@ export const TaskPage: FC<{
   const stale = done !== null && lastChange > done.started_at;
   const versions = new Map<string, number>();
   for (const h of history) versions.set(h.pilot_key, (versions.get(h.pilot_key) ?? 0) + 1);
+  // Pilotes à plusieurs traces : le dernier calcul dit laquelle a été retenue.
+  const perPilot = new Map<string, number>();
+  for (const x of tracks) perPilot.set(x.pilot_key, (perPilot.get(x.pilot_key) ?? 0) + 1);
+  const chosenTracks: Record<string, string> =
+    run?.status === "done" && run.results ? ((JSON.parse(run.results) as { chosenTracks?: Record<string, string> }).chosenTracks ?? {}) : {};
   const when = (ms: number) => `${new Date(ms).toLocaleDateString(locale(), { timeZone: tz, day: "2-digit", month: "2-digit" })} ${localTime(ms, tz)}`;
   const fileUrl = (sha: string) => `/tasks/${tk.id}/files/${sha}`;
   return (
@@ -1286,7 +1291,7 @@ export const TaskPage: FC<{
           </button>
           <span class="small muted">
             {t(
-              "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Pour remplacer la trace d'un pilote, utilisez « Remplacer » sur sa ligne.",
+              "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Une seconde trace pour un même pilote est gardée à côté de la première : le calcul retient la plus favorable au pilote. Pour remplacer une trace, utilisez « Remplacer » sur sa ligne.",
             )}
           </span>
         </form>
@@ -1316,6 +1321,15 @@ export const TaskPage: FC<{
                           {tr.filename}
                         </a>
                         {versions.get(tr.pilot_key) ? <span class="badge">v{(versions.get(tr.pilot_key) ?? 0) + 1}</span> : null}
+                        {(perPilot.get(tr.pilot_key) ?? 0) > 1 ? (
+                          chosenTracks[tr.pilot_key] === tr.sha256 ? (
+                            <span class="badge" title={t("Le pilote a plusieurs traces : celle-ci lui donne le plus de points.")}>{t("retenue")}</span>
+                          ) : chosenTracks[tr.pilot_key] ? (
+                            <span class="badge muted" title={t("Le pilote a plusieurs traces : une autre lui donne plus de points.")}>{t("non retenue")}</span>
+                          ) : (
+                            <span class="badge" title={t("Le pilote a plusieurs traces : le calcul retiendra la plus favorable.")}>{t("{n} traces", { n: perPilot.get(tr.pilot_key)! })}</span>
+                          )
+                        ) : null}
                         {tr.note ? <div class="small muted">{tr.note}</div> : null}
                       </td>
                       <td class="small muted">{when(tr.uploaded_at)}</td>

@@ -1,5 +1,14 @@
 /** Traductions en : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Une seconde trace pour un même pilote est gardée à côté de la première : le calcul retient la plus favorable au pilote. Pour remplacer une trace, utilisez « Remplacer » sur sa ligne.": "IGC files or .zip archive. The pilot is recognised by the file number or, failing that, by the name in the track; a track with no recognised pilot is added separately, without overwriting another. A second track for the same pilot is kept next to the first: scoring uses the one most favourable to the pilot. To replace a track, use “Replace” on its row.",
+  "Le pilote a plusieurs traces : celle-ci lui donne le plus de points.": "The pilot has several tracks: this one gives the most points.",
+  "retenue": "scored",
+  "Le pilote a plusieurs traces : une autre lui donne plus de points.": "The pilot has several tracks: another one gives more points.",
+  "non retenue": "not scored",
+  "Le pilote a plusieurs traces : le calcul retiendra la plus favorable.": "The pilot has several tracks: scoring will use the most favourable one.",
+  "{n} traces": "{n} tracks",
+  "{n} trace en plus pour un pilote qui en avait déjà une : les deux sont gardées, le calcul retient la plus favorable au pilote.": "{n} extra track for a pilot who already had one: both are kept, and scoring uses the one most favourable to the pilot.",
+  "{n} traces en plus pour des pilotes qui en avaient déjà une : elles sont gardées, le calcul retient la plus favorable à chaque pilote.": "{n} extra tracks for pilots who already had one: they are kept, and scoring uses the one most favourable to each pilot.",
   "Manche arrêtée : finesse du bonus d'altitude": "Stopped task: altitude bonus glide ratio",
   "Finesse du bonus d'altitude : nombre positif attendu.": "Altitude bonus glide ratio: a positive number is expected.",
   "Un bon logiciel de scoring ouvert à toute la communauté, c'est aussi la possibilité de faire évoluer la compétition elle-même : tester de nouvelles règles et de nouveaux formats compétitifs bien plus facilement, les appliquer à des manches réelles et comparer les classements obtenus.": "A good scoring software open to the whole community also makes it possible to move competition itself forward: try new rules and new competitive formats much more easily, apply them to real tasks and compare the resulting rankings.",
@@ -18,7 +27,6 @@ const dict: Record<string, string> = {
   "Suppression définitive : manches, pilotes, traces, calculs, décisions et classements disparaissent. Exportez d'abord la compétition si vous voulez en garder une copie. Pour confirmer, recopiez son nom : {name}": "Permanent deletion: tasks, pilots, tracks, scoring runs, decisions and rankings are all removed. Export the competition first if you want to keep a copy. To confirm, type its name: {name}",
   "Supprimer définitivement": "Delete permanently",
   "Supprimer définitivement « {name} » et toutes ses données ? Cette action ne peut pas être annulée.": "Permanently delete “{name}” and all its data? This cannot be undone.",
-  "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Pour remplacer la trace d'un pilote, utilisez « Remplacer » sur sa ligne.": "IGC files or a .zip archive. The pilot is recognised by the file's number or, failing that, by the name written in the track; a track with no recognised pilot is added separately, without overwriting another. To replace a pilot's track, use “Replace” on their row.",
   "QR code de la manche (XCTrack)": "Task QR code (XCTrack)",
   "texte du QR code": "QR code text",
   "Logiciel libre, licence AGPL-3.0": "Free software, AGPL-3.0 licence",

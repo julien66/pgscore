@@ -1,5 +1,14 @@
 /** Traductions de : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Une seconde trace pour un même pilote est gardée à côté de la première : le calcul retient la plus favorable au pilote. Pour remplacer une trace, utilisez « Remplacer » sur sa ligne.": "IGC-Dateien oder .zip-Archiv. Der Pilot wird an der Dateinummer erkannt oder sonst am Namen im Track; ein Track ohne erkannten Piloten wird separat hinzugefügt, ohne einen anderen zu überschreiben. Ein zweiter Track desselben Piloten wird neben dem ersten behalten: Gewertet wird der für den Piloten günstigste. Um einen Track zu ersetzen, nutzen Sie „Ersetzen“ in seiner Zeile.",
+  "Le pilote a plusieurs traces : celle-ci lui donne le plus de points.": "Der Pilot hat mehrere Tracks: Dieser bringt die meisten Punkte.",
+  "retenue": "gewertet",
+  "Le pilote a plusieurs traces : une autre lui donne plus de points.": "Der Pilot hat mehrere Tracks: Ein anderer bringt mehr Punkte.",
+  "non retenue": "nicht gewertet",
+  "Le pilote a plusieurs traces : le calcul retiendra la plus favorable.": "Der Pilot hat mehrere Tracks: Gewertet wird der günstigste.",
+  "{n} traces": "{n} Tracks",
+  "{n} trace en plus pour un pilote qui en avait déjà une : les deux sont gardées, le calcul retient la plus favorable au pilote.": "{n} zusätzlicher Track für einen Piloten, der schon einen hatte: Beide bleiben erhalten, gewertet wird der für den Piloten günstigste.",
+  "{n} traces en plus pour des pilotes qui en avaient déjà une : elles sont gardées, le calcul retient la plus favorable à chaque pilote.": "{n} zusätzliche Tracks für Piloten, die schon einen hatten: Sie bleiben erhalten, gewertet wird jeweils der für den Piloten günstigste.",
   "Manche arrêtée : finesse du bonus d'altitude": "Gestoppter Task: Gleitzahl des Höhenbonus",
   "Finesse du bonus d'altitude : nombre positif attendu.": "Gleitzahl des Höhenbonus: positive Zahl erwartet.",
   "Un bon logiciel de scoring ouvert à toute la communauté, c'est aussi la possibilité de faire évoluer la compétition elle-même : tester de nouvelles règles et de nouveaux formats compétitifs bien plus facilement, les appliquer à des manches réelles et comparer les classements obtenus.": "Eine gute, für die ganze Community offene Wertungssoftware ermöglicht es auch, den Wettkampf selbst weiterzuentwickeln: neue Regeln und neue Wettkampfformate viel leichter ausprobieren, sie auf echte Tasks anwenden und die Ranglisten vergleichen.",
@@ -18,7 +27,6 @@ const dict: Record<string, string> = {
   "Suppression définitive : manches, pilotes, traces, calculs, décisions et classements disparaissent. Exportez d'abord la compétition si vous voulez en garder une copie. Pour confirmer, recopiez son nom : {name}": "Endgültige Löschung: Aufgaben, Piloten, Tracks, Berechnungen, Entscheidungen und Wertungen verschwinden. Exportieren Sie den Wettbewerb vorher, wenn Sie eine Kopie behalten möchten. Zur Bestätigung den Namen eingeben: {name}",
   "Supprimer définitivement": "Endgültig löschen",
   "Supprimer définitivement « {name} » et toutes ses données ? Cette action ne peut pas être annulée.": "„{name}“ und alle Daten endgültig löschen? Dies kann nicht rückgängig gemacht werden.",
-  "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Pour remplacer la trace d'un pilote, utilisez « Remplacer » sur sa ligne.": "IGC-Dateien oder ein .zip-Archiv. Der Pilot wird an der Nummer der Datei erkannt, sonst am Namen im Track; ein Track ohne erkannten Piloten wird getrennt hinzugefügt, ohne einen anderen zu überschreiben. Um den Track eines Piloten zu ersetzen, „Ersetzen“ in seiner Zeile verwenden.",
   "QR code de la manche (XCTrack)": "QR-Code der Aufgabe (XCTrack)",
   "texte du QR code": "Text des QR-Codes",
   "Logiciel libre, licence AGPL-3.0": "Freie Software, Lizenz AGPL-3.0",

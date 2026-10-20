@@ -287,6 +287,51 @@ export function finishScoring(task: Task, controlled: ControlledPilot[], options
   return { distances, pilots: results, lcMin, leadingMaxTime: maxTime, gap };
 }
 
+/**
+ * Plusieurs traces pour un même pilote (deux instruments, un fichier renvoyé) : on retient celle qui lui
+ * donne le plus de points. `groups` : les traces contrôlées de chaque pilote. Rend le classement et,
+ * pour chaque pilote, l'indice de la trace retenue. Les points d'un pilote dépendent des autres
+ * (leading, meilleure distance) : chaque essai refait donc le calcul complet, sur des copies.
+ */
+export function finishScoringBest(task: Task, groups: ControlledPilot[][], options: ScoringOptions): { scoring: TaskScoring; chosen: number[] } {
+  const chosen = groups.map((g) => (g.length > 1 ? bestByFlight(g) : 0));
+  if (groups.every((g) => g.length <= 1)) return { scoring: finishScoring(task, groups.map((g) => g[0]!), options), chosen };
+  const run = (choice: number[]) => finishScoring(task, choice.map((c, i) => structuredClone(groups[i]![c]!)), options);
+  const totalOf = (s: TaskScoring, id: string) => s.pilots.find((p) => p.id === id)?.total ?? -1;
+  let best = run(chosen);
+  for (const [i, g] of groups.entries()) {
+    if (g.length < 2) continue;
+    const id = g[0]!.result.id;
+    for (let j = 0; j < g.length; j++) {
+      if (j === chosen[i]) continue;
+      const trial = [...chosen];
+      trial[i] = j;
+      const s = run(trial);
+      if (totalOf(s, id) > totalOf(best, id) + 1e-9) {
+        best = s;
+        chosen[i] = j;
+      }
+    }
+  }
+  return { scoring: best, chosen };
+}
+
+/** Premier choix entre les traces d'un pilote, avant les points : goal, puis ESS, puis le plus loin, puis le plus rapide. */
+function bestByFlight(g: ControlledPilot[]): number {
+  const rank = (r: PilotResult) => (r.error ? 9 : ({ GOAL: 0, ESS: 1, DF: 2, MIND: 3, ERREUR: 4, DNF: 5, ABS: 6 } as const)[r.status]);
+  let best = 0;
+  for (let j = 1; j < g.length; j++) {
+    const a = g[j]!.result;
+    const b = g[best]!.result;
+    const better =
+      rank(a) - rank(b) ||
+      b.distance - a.distance ||
+      (a.speedSectionTime ?? Infinity) - (b.speedSectionTime ?? Infinity);
+    if (better < 0) best = j;
+  }
+  return best;
+}
+
 /** Pénalités d'espace aérien et de l'organisateur, cumulées (13.5 : pourcentage puis points). */
 function penaltyOf(r: PilotResult): { fraction?: number; points?: number } {
   let fraction = r.airspacePenalty?.fraction ?? 0;

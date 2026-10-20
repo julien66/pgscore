@@ -2,8 +2,8 @@ import type { Db, TrackHistoryRow, TrackRow } from "./db.js";
 import type { VersionMeta } from "./viewer-data.js";
 
 /**
- * Traces d'une manche. Une seule trace en vigueur par pilote ; celle qu'elle remplace (ou une trace
- * retirée) passe dans l'historique avec l'auteur, l'heure et la raison. Les fichiers restent dans le
+ * Traces d'une manche. Un pilote peut avoir plusieurs traces en vigueur (le calcul retient la plus
+ * favorable) ; une trace remplacée ou retirée passe dans l'historique avec l'auteur, l'heure et la raison. Les fichiers restent dans le
  * dossier des traces : rien n'est perdu.
  */
 
@@ -24,36 +24,41 @@ export interface NewTrack {
   note?: string | null;
 }
 
-/** Enregistre la trace d'un pilote. Rend "same" si c'est déjà ce fichier-là, "replaced" ou "added". */
-export function saveTrack(db: Db, taskId: number, userId: number, t: NewTrack): "added" | "replaced" | "same" {
-  const old = db.prepare("SELECT * FROM tracks WHERE task_id = ? AND pilot_key = ?").get(taskId, t.pilotKey) as unknown as TrackRow | undefined;
-  if (old && old.sha256 === t.sha256) return "same";
-  if (old) {
-    archive(db, old, userId, "replaced");
-    db.prepare("UPDATE tracks SET pilot_name = ?, filename = ?, sha256 = ?, size = ?, uploaded_at = ?, uploaded_by = ?, note = ? WHERE id = ?").run(
-      t.pilotName ?? old.pilot_name,
-      t.filename,
-      t.sha256,
-      t.size,
-      Date.now(),
-      userId,
-      t.note ?? null,
-      old.id,
-    );
-    return "replaced";
-  }
-  db.prepare("INSERT INTO tracks (task_id, pilot_key, pilot_name, filename, sha256, size, uploaded_at, uploaded_by, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
-    taskId,
-    t.pilotKey,
-    t.pilotName,
+const insert = (db: Db, taskId: number, userId: number, t: NewTrack) =>
+  db
+    .prepare("INSERT INTO tracks (task_id, pilot_key, pilot_name, filename, sha256, size, uploaded_at, uploaded_by, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(taskId, t.pilotKey, t.pilotName, t.filename, t.sha256, t.size, Date.now(), userId, t.note ?? null);
+
+/**
+ * Enregistre une trace envoyée pour un pilote. Si le pilote en a déjà une autre, elle ne la remplace
+ * pas : les deux sont gardées et le calcul retient la plus favorable au pilote ("extra").
+ * Rend "same" si ce fichier est déjà une trace du pilote.
+ */
+export function saveTrack(db: Db, taskId: number, userId: number, t: NewTrack): "added" | "extra" | "same" {
+  const olds = db.prepare("SELECT sha256 FROM tracks WHERE task_id = ? AND pilot_key = ?").all(taskId, t.pilotKey) as Array<{ sha256: string }>;
+  if (olds.some((o) => o.sha256 === t.sha256)) return "same";
+  insert(db, taskId, userId, t);
+  return olds.length ? "extra" : "added";
+}
+
+/** Remplace une trace précise (bouton « Remplacer ») : l'ancienne passe dans l'historique. */
+export function replaceTrack(db: Db, taskId: number, trackId: number, userId: number, t: Omit<NewTrack, "pilotKey">): "replaced" | "same" {
+  const old = db.prepare("SELECT * FROM tracks WHERE id = ? AND task_id = ?").get(trackId, taskId) as unknown as TrackRow | undefined;
+  if (!old) throw new Error("trace inconnue");
+  const twin = db.prepare("SELECT id FROM tracks WHERE task_id = ? AND pilot_key = ? AND sha256 = ?").get(taskId, old.pilot_key, t.sha256) as { id: number } | undefined;
+  if (twin) return "same";
+  archive(db, old, userId, "replaced");
+  db.prepare("UPDATE tracks SET pilot_name = ?, filename = ?, sha256 = ?, size = ?, uploaded_at = ?, uploaded_by = ?, note = ? WHERE id = ?").run(
+    t.pilotName ?? old.pilot_name,
     t.filename,
     t.sha256,
     t.size,
     Date.now(),
     userId,
     t.note ?? null,
+    old.id,
   );
-  return "added";
+  return "replaced";
 }
 
 export function removeTrack(db: Db, taskId: number, trackId: number, userId: number): boolean {
@@ -87,13 +92,15 @@ export function taskHasFile(db: Db, taskId: number, sha256: string): { filename:
 }
 
 /** Toutes les versions de la trace d'un pilote : celle en vigueur d'abord, puis les anciennes, de la plus récente à la plus ancienne. */
-export function pilotVersions(db: Db, taskId: number, pilotKey: string): Array<{ meta: VersionMeta; pilotName: string | null }> {
-  const cur = db
-    .prepare("SELECT t.*, u.name AS by_name FROM tracks t LEFT JOIN users u ON u.id = t.uploaded_by WHERE t.task_id = ? AND t.pilot_key = ?")
-    .get(taskId, pilotKey) as (TrackRow & { by_name: string | null }) | undefined;
+export function pilotVersions(db: Db, taskId: number, pilotKey: string, scoredSha?: string): Array<{ meta: VersionMeta; pilotName: string | null }> {
+  const curs = db
+    .prepare("SELECT t.*, u.name AS by_name FROM tracks t LEFT JOIN users u ON u.id = t.uploaded_by WHERE t.task_id = ? AND t.pilot_key = ? ORDER BY t.uploaded_at DESC, t.id DESC")
+    .all(taskId, pilotKey) as unknown as Array<TrackRow & { by_name: string | null }>;
+  // La trace retenue au dernier calcul d'abord.
+  curs.sort((a, b) => Number(b.sha256 === scoredSha) - Number(a.sha256 === scoredSha));
   const old = trackHistory(db, taskId).filter((h) => h.pilot_key === pilotKey);
   const out: Array<{ meta: VersionMeta; pilotName: string | null }> = [];
-  if (cur) {
+  for (const cur of curs) {
     out.push({
       pilotName: cur.pilot_name,
       meta: { sha256: cur.sha256, filename: cur.filename, uploadedAt: cur.uploaded_at, uploadedBy: cur.by_name, status: "current", endedAt: null, endedBy: null, note: cur.note },

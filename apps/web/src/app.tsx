@@ -21,7 +21,7 @@ import type { CompetitionRow, Db, RunRow, TaskRow, TrackRow, User } from "./db.j
 import { collectIgc, decodeQrImage, decodeText, nameKey, pilotKeyForTrack } from "./files.js";
 import { isRunning, startRun } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
-import { pilotVersions, removeTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
+import { pilotVersions, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
 import { addDecision, deleteDecision, listDecisions, touchScoring } from "./decisions.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
@@ -839,9 +839,15 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const added = q("added");
     const replaced = q("replaced");
     const same = q("same");
+    const extra = q("extra");
     const parts = [
       c.req.query("created") ? t("Manche créée : vérifiez le parcours sur la carte avant d'envoyer les traces.") : "",
       added ? (one(added) ? t("{n} trace ajoutée.", { n: added }) : t("{n} traces ajoutées.", { n: added })) : "",
+      extra
+        ? one(extra)
+          ? t("{n} trace en plus pour un pilote qui en avait déjà une : les deux sont gardées, le calcul retient la plus favorable au pilote.", { n: extra })
+          : t("{n} traces en plus pour des pilotes qui en avaient déjà une : elles sont gardées, le calcul retient la plus favorable à chaque pilote.", { n: extra })
+        : "",
       replaced ? (one(replaced) ? t("{n} trace remplacée.", { n: replaced }) : t("{n} traces remplacées.", { n: replaced })) : "",
       same
         ? one(same)
@@ -915,7 +921,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     if (!igcs.length) return taskPage(c, x.t, x.comp, { error: t("Aucun fichier IGC trouvé dans l'envoi.") });
     // Fichiers écrits sur disque avant la base : une ligne de la base pointe toujours vers un fichier présent.
     const stored = igcs.map((g) => ({ g, sha256: tracks.put(g.bytes) }));
-    const count = { added: 0, replaced: 0, same: 0 };
+    const count = { added: 0, extra: 0, same: 0 };
     // Pilote de chaque trace : nom de fichier, sinon en-tête IGC rapproché des inscrits (traces anonymes).
     const registry = listPilots(db, x.comp.id);
     // Traces déjà dans la manche : une trace anonyme ne les remplace pas, elle prend une nouvelle clé.
@@ -956,7 +962,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const g = igcs[0]!;
     const note = typeof f.note === "string" && f.note.trim() ? f.note.trim().slice(0, 500) : null;
     const sha256 = tracks.put(g.bytes);
-    const how = saveTrack(db, x.t.id, me(c).id, { pilotKey: tr.pilot_key, pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
+    const how = replaceTrack(db, x.t.id, tr.id, me(c).id, { pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
     if (how === "same") return taskPage(c, x.t, x.comp, { edit: true, notice: t("Ce fichier est déjà la trace de {pilot} : rien n'a changé.", { pilot: tr.pilot_name ?? tr.pilot_key }) });
     return c.redirect(`/tasks/${x.t.id}/edit?replaced=1&open=tracks#tracks`);
   });
@@ -1017,7 +1023,9 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     const key = c.req.param("key");
-    const versions = pilotVersions(db, x.t.id, key);
+    const last = db.prepare("SELECT results FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1").get(x.t.id) as { results: string } | undefined;
+    const scored = last ? (JSON.parse(last.results) as { chosenTracks?: Record<string, string> }).chosenTracks?.[key] : undefined;
+    const versions = pilotVersions(db, x.t.id, key, scored);
     if (!versions.length) return notFound(c);
     const data = viewerData(
       JSON.parse(x.t.task) as Task,

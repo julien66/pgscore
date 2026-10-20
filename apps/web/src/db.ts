@@ -182,6 +182,25 @@ export const MIGRATIONS: Migration[] = [
      created_at INTEGER NOT NULL,
      last_used_at INTEGER
    );`,
+  // Plusieurs traces par pilote (deux instruments, fichier renvoyé) : le calcul retient la plus favorable.
+  `CREATE TABLE tracks_new (
+     id INTEGER PRIMARY KEY,
+     task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+     pilot_key TEXT NOT NULL,
+     pilot_name TEXT,
+     filename TEXT NOT NULL,
+     sha256 TEXT NOT NULL,
+     size INTEGER NOT NULL,
+     uploaded_at INTEGER NOT NULL,
+     uploaded_by INTEGER REFERENCES users(id),
+     note TEXT,
+     UNIQUE (task_id, pilot_key, sha256)
+   );
+   INSERT INTO tracks_new (id, task_id, pilot_key, pilot_name, filename, sha256, size, uploaded_at, uploaded_by, note)
+     SELECT id, task_id, pilot_key, pilot_name, filename, sha256, size, uploaded_at, uploaded_by, note FROM tracks;
+   DROP TABLE tracks;
+   ALTER TABLE tracks_new RENAME TO tracks;
+   CREATE INDEX tracks_task_pilot ON tracks (task_id, pilot_key);`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {

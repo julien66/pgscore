@@ -34,7 +34,6 @@ const competitionFields = {
   minimumDistance: "5",
   nominalTime: "60",
   ftvFactor: "0",
-  gapProfile: "PWCA",
   airspacePenaltyRule: "pwca-soft",
   timeZone: "Europe/Rome",
   roundAirspaceLimits: "on",
@@ -340,10 +339,13 @@ describe("interface web", () => {
       await new Promise((r) => setTimeout(r, 500));
     }
     expect(html).toContain("Baptiste Lambert");
-    expect(html).toContain("RISERVA CORNINO");
     expect(html).toContain("MIND");
-    expect(html).toContain("Validité de la manche");
-    expect(html).toContain("Points disponibles");
+    // Détail du calcul (espaces aériens, validité, points disponibles) : dans l'onglet « Éditer ».
+    const edit = await (await req(`${taskUrl}/edit`)).text();
+    expect(edit).toContain("RISERVA CORNINO");
+    const details = await (await req(`${taskUrl}?view=details`)).text();
+    expect(details).toContain("Validité de la manche");
+    expect(details).toContain("Points disponibles");
     const csv = await (await req(`${taskUrl}/results.csv`)).text();
     const [head, first] = csv.split("\n");
     expect(first).toContain("GOAL");

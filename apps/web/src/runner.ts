@@ -1,4 +1,4 @@
-import { controlPilot, finishScoring, parseOpenAir, type ControlledPilot, type Task } from "@pgscore/engine";
+import { controlPilot, finishScoringBest, parseOpenAir, type ControlledPilot, type Task } from "@pgscore/engine";
 import type { CompetitionRow, Db, RunDetail, RunStep, TaskRow } from "./db.js";
 import { engineDecisions, listDecisions } from "./decisions.js";
 import { parseSettings, type StoredTask } from "./settings.js";
@@ -51,7 +51,7 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
       ...(task.taskEndTime ? { taskEndTime: task.taskEndTime } : {}),
       decisions: engineDecisions(listDecisions(db, taskId)),
     };
-    const ids = db.prepare("SELECT id FROM tracks WHERE task_id = ? ORDER BY pilot_key").all(taskId) as Array<{ id: number }>;
+    const ids = db.prepare("SELECT id FROM tracks WHERE task_id = ? ORDER BY pilot_key, id").all(taskId) as Array<{ id: number }>;
     const getTrack = db.prepare("SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE id = ?");
 
     // 2. Contrôle des traces, une par une, avec des compteurs pour la page.
@@ -62,7 +62,8 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
       recent: [],
     };
     report("control", 0, detail);
-    const controlled: ControlledPilot[] = [];
+    // Traces contrôlées regroupées par pilote : un pilote peut en avoir plusieurs.
+    const groups = new Map<string, Array<{ cp: ControlledPilot; sha256: string }>>();
     for (const [i, { id }] of ids.entries()) {
       await tick();
       const tr = getTrack.get(id) as { pilot_key: string; pilot_name: string | null; sha256: string };
@@ -71,7 +72,9 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
       const igc = tracks.text(tr.sha256);
       const input = tr.pilot_name ? { id: tr.pilot_key, name: tr.pilot_name, igc } : { id: tr.pilot_key, igc };
       const cp = controlPilot(task, input, options);
-      controlled.push(cp);
+      const g = groups.get(tr.pilot_key) ?? [];
+      g.push({ cp, sha256: tr.sha256 });
+      groups.set(tr.pilot_key, g);
       const r = cp.result;
       // Avant le leading, ERREUR vaut aussi pour une trace sans vol : le statut final est celui du classement.
       detail.counts[r.error ? "ERREUR" : r.status] = (detail.counts[r.error ? "ERREUR" : r.status] ?? 0) + 1;
@@ -85,7 +88,14 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
     delete detail.pilot;
     report("leading", ids.length, detail);
     await tick();
-    const result = finishScoring(task, controlled, options);
+    const list = [...groups.values()];
+    const { scoring, chosen } = finishScoringBest(task, list.map((g) => g.map((x) => x.cp)), options);
+    // Trace retenue, pour les pilotes qui en ont plusieurs (affichage, visionneuse, export FS).
+    const chosenTracks: Record<string, string> = {};
+    list.forEach((g, i) => {
+      if (g.length > 1) chosenTracks[g[0]!.cp.result.id] = g[chosen[i]!]!.sha256;
+    });
+    const result = Object.keys(chosenTracks).length ? { ...scoring, chosenTracks } : scoring;
 
     // 4. Enregistrement.
     report("save", ids.length, detail);

@@ -1,5 +1,14 @@
 /** Traductions es : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Une seconde trace pour un même pilote est gardée à côté de la première : le calcul retient la plus favorable au pilote. Pour remplacer une trace, utilisez « Remplacer » sur sa ligne.": "Ficheros IGC o archivo .zip. El piloto se reconoce por el número del fichero o, si no, por el nombre del track; un track sin piloto reconocido se añade aparte, sin sobrescribir otro. Un segundo track para el mismo piloto se guarda junto al primero: el cálculo usa el más favorable al piloto. Para reemplazar un track, use «Reemplazar» en su línea.",
+  "Le pilote a plusieurs traces : celle-ci lui donne le plus de points.": "El piloto tiene varios tracks: este le da más puntos.",
+  "retenue": "puntuado",
+  "Le pilote a plusieurs traces : une autre lui donne plus de points.": "El piloto tiene varios tracks: otro le da más puntos.",
+  "non retenue": "no puntuado",
+  "Le pilote a plusieurs traces : le calcul retiendra la plus favorable.": "El piloto tiene varios tracks: el cálculo usará el más favorable.",
+  "{n} traces": "{n} tracks",
+  "{n} trace en plus pour un pilote qui en avait déjà une : les deux sont gardées, le calcul retient la plus favorable au pilote.": "{n} track adicional para un piloto que ya tenía uno: se guardan ambos y el cálculo usa el más favorable al piloto.",
+  "{n} traces en plus pour des pilotes qui en avaient déjà une : elles sont gardées, le calcul retient la plus favorable à chaque pilote.": "{n} tracks adicionales para pilotos que ya tenían uno: se guardan y el cálculo usa el más favorable a cada piloto.",
   "Manche arrêtée : finesse du bonus d'altitude": "Manga parada: planeo de la bonificación de altura",
   "Finesse du bonus d'altitude : nombre positif attendu.": "Planeo de la bonificación de altura: se espera un número positivo.",
   "Un bon logiciel de scoring ouvert à toute la communauté, c'est aussi la possibilité de faire évoluer la compétition elle-même : tester de nouvelles règles et de nouveaux formats compétitifs bien plus facilement, les appliquer à des manches réelles et comparer les classements obtenus.": "Un buen programa de puntuación abierto a toda la comunidad permite también hacer evolucionar la propia competición: probar nuevas reglas y nuevos formatos competitivos con mucha más facilidad, aplicarlos a mangas reales y comparar las clasificaciones obtenidas.",
@@ -18,7 +27,6 @@ const dict: Record<string, string> = {
   "Suppression définitive : manches, pilotes, traces, calculs, décisions et classements disparaissent. Exportez d'abord la compétition si vous voulez en garder une copie. Pour confirmer, recopiez son nom : {name}": "Eliminación definitiva: mangas, pilotos, trazas, cálculos, decisiones y clasificaciones desaparecen. Exporte antes la competición si quiere conservar una copia. Para confirmar, escriba su nombre: {name}",
   "Supprimer définitivement": "Eliminar definitivamente",
   "Supprimer définitivement « {name} » et toutes ses données ? Cette action ne peut pas être annulée.": "¿Eliminar definitivamente «{name}» y todos sus datos? Esta acción no se puede deshacer.",
-  "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Pour remplacer la trace d'un pilote, utilisez « Remplacer » sur sa ligne.": "Archivos IGC o archivo .zip. El piloto se reconoce por el número del archivo o, si no, por el nombre escrito en la traza; una traza sin piloto reconocido se añade aparte, sin sobrescribir otra. Para sustituir la traza de un piloto, use «Reemplazar» en su línea.",
   "QR code de la manche (XCTrack)": "Código QR de la manga (XCTrack)",
   "texte du QR code": "texto del código QR",
   "Logiciel libre, licence AGPL-3.0": "Software libre, licencia AGPL-3.0",

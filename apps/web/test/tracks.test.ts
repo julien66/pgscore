@@ -68,6 +68,35 @@ describe("fichiers IGC hors de la base", () => {
     expect(Buffer.compare(store.bytes(row.sha256 as string), IGC)).toBe(0);
   });
 
+  it("garde une seconde trace envoyée pour un pilote et retient la plus favorable au calcul", async () => {
+    const { db, req, url } = await minimalTask();
+    await req(`${url}/tracks`, { method: "POST", body: upload("42.igc", IGC) });
+    const r = await req(`${url}/tracks`, { method: "POST", body: upload("42.igc", IGC2) });
+    expect(r.headers.get("location")).toContain("extra=1");
+    expect((db.prepare("SELECT COUNT(*) n FROM tracks WHERE pilot_key = '42'").get() as { n: number }).n).toBe(2);
+    expect(db.prepare("SELECT COUNT(*) n FROM track_history").get()).toEqual({ n: 0 });
+    const page = await (await req(r.headers.get("location")!)).text();
+    expect(page).toContain("le calcul retient la plus favorable");
+    // Le calcul compte un seul pilote et note la trace retenue.
+    await req(`${url}/runs`, { method: "POST" });
+    let run: { status: string; results: string | null } | undefined;
+    for (let i = 0; i < 100; i++) {
+      run = db.prepare("SELECT status, results FROM runs ORDER BY id DESC LIMIT 1").get() as typeof run;
+      if (run && (run.status === "done" || run.status === "error")) break;
+      await new Promise((res) => setTimeout(res, 50));
+    }
+    expect(run!.status).toBe("done");
+    const res = JSON.parse(run!.results!) as { pilots: Array<{ id: string }>; chosenTracks: Record<string, string> };
+    expect(res.pilots.filter((p) => p.id === "42")).toHaveLength(1);
+    const shas = (db.prepare("SELECT sha256 FROM tracks").all() as Array<{ sha256: string }>).map((x) => x.sha256);
+    expect(shas).toContain(res.chosenTracks["42"]);
+    // Liste des traces : l'une est marquée retenue, l'autre non ; la visionneuse ouvre les deux.
+    const edit = await (await req(`${url}/edit`)).text();
+    expect(edit).toContain(">retenue<");
+    expect(edit).toContain(">non retenue<");
+    expect((await req(`${url}/pilots/42`)).status).toBe(200);
+  });
+
   it("remplace la trace d'un pilote et garde l'ancienne version", async () => {
     const { db, req, url } = await minimalTask();
     await req(`${url}/tracks`, { method: "POST", body: upload("42.igc", IGC) });
