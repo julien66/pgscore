@@ -96,7 +96,7 @@ describe("interface web", () => {
     expect((await post({ pilot: "613", kind: "bonus", value: "", reason: "Aide" })).status).toBe(400);
     expect((await post({ pilot: "613", kind: "bonus", value: "799", reason: "Aide à un pilote accidenté" })).status).toBe(302);
     expect((await post({ pilot: "999", name: "Resté au sol", kind: "dnf", reason: "Conditions" })).status).toBe(302);
-    const html = await (await req(taskUrl)).text();
+    const html = await (await req(`${taskUrl}/edit`)).text();
     expect(html).toContain("Bonus 799 pts");
     expect(html).toContain("Aide à un pilote accidenté");
     expect(html).toContain("Resté au sol");
@@ -104,7 +104,7 @@ describe("interface web", () => {
     expect(rows.map((r) => [r.kind, r.value])).toEqual([["bonus", 799], ["dnf", null]]);
     expect((db.prepare("SELECT scoring_changed_at FROM tasks").get() as { scoring_changed_at: number }).scoring_changed_at).toBeGreaterThan(0);
     await req(`${taskUrl}/decisions/${rows[0]!.id}/delete`, { method: "POST" });
-    expect((await (await req(taskUrl)).text()).includes("Bonus 799 pts")).toBe(false);
+    expect((await (await req(`${taskUrl}/edit`)).text()).includes("Bonus 799 pts")).toBe(false);
   });
 
   it("classe la compétition avec les manches officielles", async () => {

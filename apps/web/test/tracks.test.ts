@@ -93,7 +93,7 @@ describe("fichiers IGC hors de la base", () => {
     const newFile = Buffer.from(await (await req(`${url}/files/${now[0]!.sha256}`)).arrayBuffer());
     expect(Buffer.compare(newFile, IGC2)).toBe(0);
     expect((await req(`${url}/files/${"0".repeat(64)}`)).status).toBe(404);
-    const page = await (await req(url)).text();
+    const page = await (await req(`${url}/edit`)).text();
     expect(page).toContain("Anciennes versions (1)");
     expect(page).toContain("Remplacée le");
     expect(page).toContain("v2");

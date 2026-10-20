@@ -1,5 +1,15 @@
 /** Traductions en : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Carte et résultats": "Map and results",
+  "arrêtée à {time}": "stopped at {time}",
+  "Balises": "Turnpoints",
+  "Résultats": "Results",
+  "Calcul en cours.": "Calculation in progress.",
+  "Suivre le calcul": "Follow the calculation",
+  "Relancer le calcul": "Run the calculation again",
+  "Pas encore de résultats.": "No results yet.",
+  "Envoyer les traces et lancer le calcul": "Upload the tracks and run the calculation",
+  "Voir les résultats": "See the results",
   "Classements": "Rankings",
   "Origine refusée": "Origin refused",
   "Se connecter avec Google": "Sign in with Google",

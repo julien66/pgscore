@@ -967,22 +967,25 @@ export const TaskPage: FC<{
   /** Dessin de la manche (JSON de taskGeometry). */
   geometry: string;
   run: RunRow | null;
+  /** Dernier calcul terminé : ses résultats restent affichés pendant un nouveau calcul. */
+  done: RunRow | null;
   running: boolean;
   error?: string | null;
   notice?: string | null;
-}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, running, error, notice }) => {
+  edit?: boolean;
+}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, running, error, notice, edit }) => {
   const tz = settings.timeZone;
   const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, tk.date, tz) : "");
-  const results = run?.status === "done" && run.results ? (JSON.parse(run.results) as TaskScoring) : null;
+  const results = done?.results ? (JSON.parse(done.results) as TaskScoring) : null;
   // Traces modifiées après le lancement du dernier calcul : le classement affiché n'en tient pas compte.
   const lastChange = Math.max(0, ...tracks.map((x) => x.uploaded_at), ...history.map((h) => h.ended_at), tk.scoring_changed_at ?? 0);
-  const stale = results !== null && run !== null && lastChange > run.started_at;
+  const stale = done !== null && lastChange > done.started_at;
   const versions = new Map<string, number>();
   for (const h of history) versions.set(h.pilot_key, (versions.get(h.pilot_key) ?? 0) + 1);
   const when = (ms: number) => `${new Date(ms).toLocaleDateString(locale(), { timeZone: tz, day: "2-digit", month: "2-digit" })} ${localTime(ms, tz)}`;
   const fileUrl = (sha: string) => `/tasks/${tk.id}/files/${sha}`;
   return (
-    <Layout title={`${t("Manche {n}", { n: tk.number })} · ${c.name}`} user={user}>
+    <Layout title={`${edit ? `${t("Éditer")} · ` : ""}${t("Manche {n}", { n: tk.number })} · ${c.name}`} user={user}>
       <div class="crumbs">
         <a href="/">{t("Mes compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
       </div>
@@ -990,51 +993,30 @@ export const TaskPage: FC<{
         {t("Manche {n}", { n: tk.number })}
         {tk.date ? <span class="muted"> · {dateRange(tk.date, null)}</span> : null}
       </h1>
+      <nav class="tabs">
+        <a href={`/tasks/${tk.id}`} class={edit ? "" : "on"}>
+          <Bi n="map" />
+          {t("Carte et résultats")}
+        </a>
+        <a href={`/tasks/${tk.id}/edit`} class={edit ? "on" : ""}>
+          <Bi n="sliders" />
+          {t("Éditer")}
+        </a>
+      </nav>
       <ErrorBox message={error} />
       {notice ? <div class="note">{notice}</div> : null}
 
-      <div class="card">
-        <h2><Ic n="map" c="teal" />{t("Définition")}</h2>
-        <div id="task-map" class="task-map" />
-        <p class="small muted legend">
-          <span style="color:#16a34a">● {t("départ")}</span> <span style="color:#2563eb">● {t("balise")}</span> <span style="color:#9333ea">● ESS</span>{" "}
-          <span style="color:#dc2626">● goal</span> · {t("trait noir : route optimisée (distance de la manche), longueur de chaque branche")}
-        </p>
-        <p class="small muted">
-          {task.type === "race" ? t("Race to goal") : t("Time trial")} · {t("portes {gates}", { gates: task.startGates.map(loc).join(", ") || t("aucune") })} ·{" "}
-          {t("deadline {time}", { time: loc(task.deadline) || t("aucune") })} · {t("heures locales ({tz})", { tz })}
-        </p>
-        <p class="small">
-          {t("Manche")} <strong>{km(distances.task)} km</strong> · {t("décollage → ESS {d} km", { d: km(distances.launchToEss) })} ·{" "}
-          {t("section de vitesse {d} km", { d: km(distances.speedSection) })}
-        </p>
-        <details class="fold" id="task-settings">
-          <summary>{t("Balises et réglages de la manche")}</summary>
-        <div class="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>{t("Rôle")}</th>
-                <th>{t("Balise")}</th>
-                <th class="n">{t("Rayon")}</th>
-                <th class="n">{t("Altitude")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {task.turnpoints.map((tp, i) => (
-                <tr>
-                  <td>{i + 1}</td>
-                  <td>{ROLE[tp.role] ? t(ROLE[tp.role]!) : tp.role}</td>
-                  <td>{tp.zone.waypoint.name}</td>
-                  <td class="n">{tp.zone.kind === "cylinder" ? `${km(tp.zone.radius, tp.zone.radius % 1000 ? 1 : 0)} km` : t("ligne {n} m", { n: tp.zone.length })}</td>
-                  <td class="n">{tp.zone.waypoint.altitude !== undefined ? `${tp.zone.waypoint.altitude} m` : ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <form method="post" action={`/tasks/${tk.id}`} class="grid mt">
+      {edit ? (
+        <>
+      <details class="card fold" id="task-settings" open={Boolean(error)}>
+        <summary>
+          <h2>
+            <Ic n="sliders" c="gray" />
+            {t("Manche")}
+            <span class="muted small">{task.stopAnnouncement ? t("arrêtée à {time}", { time: loc(task.stopAnnouncement) }) : tk.date ? dateRange(tk.date, null) : ""}</span>
+          </h2>
+        </summary>
+        <form method="post" action={`/tasks/${tk.id}`} class="grid">
           <div>
             <label>{t("Date")}</label>
             <input type="date" name="date" value={tk.date ?? ""} />
@@ -1070,10 +1052,9 @@ export const TaskPage: FC<{
             </button>
           </div>
         </form>
-        </details>
-      </div>
+      </details>
 
-      <div class="card">
+      <div class="card" id="tracks">
         <h2><Ic n="pulse" c="green" />{t("Traces ({n})", { n: tracks.length })}</h2>
         <form method="post" action={`/tasks/${tk.id}/tracks`} enctype="multipart/form-data" class="row upload">
           <input type="file" name="files" accept=".igc,.zip" multiple required />
@@ -1183,7 +1164,7 @@ export const TaskPage: FC<{
       </div>
 
       <div class="card" id="run-card">
-        <RunCard t={tk} run={run} running={running} settings={settings} tracks={tracks.length} stale={stale} />
+        <RunCard t={tk} run={run} running={running} settings={settings} tracks={tracks.length} stale={run !== null && lastChange > run.started_at} />
       </div>
 
       <details class="card fold" id="decisions">
@@ -1271,17 +1252,97 @@ export const TaskPage: FC<{
         </form>
       </details>
 
-      <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
-      <script type="application/json" id="task-geometry" dangerouslySetInnerHTML={{ __html: geometry.replace(/</g, "\\u003c") }} />
-      <script src="/vendor/leaflet/leaflet.js" />
-      <script src="/static/basemaps.js" />
-      <script src="/static/taskmap.js" />
+        </>
+      ) : (
+        <>
+      <div class="card">
+        <h2><Ic n="map" c="teal" />{t("Définition")}</h2>
+        <div id="task-map" class="task-map" />
+        <p class="small muted legend">
+          <span style="color:#16a34a">● {t("départ")}</span> <span style="color:#2563eb">● {t("balise")}</span> <span style="color:#9333ea">● ESS</span>{" "}
+          <span style="color:#dc2626">● goal</span> · {t("trait noir : route optimisée (distance de la manche), longueur de chaque branche")}
+        </p>
+        <p class="small muted">
+          {task.type === "race" ? t("Race to goal") : t("Time trial")} · {t("portes {gates}", { gates: task.startGates.map(loc).join(", ") || t("aucune") })} ·{" "}
+          {t("deadline {time}", { time: loc(task.deadline) || t("aucune") })} · {t("heures locales ({tz})", { tz })}
+        </p>
+        <p class="small">
+          {t("Manche")} <strong>{km(distances.task)} km</strong> · {t("décollage → ESS {d} km", { d: km(distances.launchToEss) })} ·{" "}
+          {t("section de vitesse {d} km", { d: km(distances.speedSection) })}
+        </p>
+        <details class="fold" id="task-settings">
+          <summary>{t("Balises")}</summary>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>{t("Rôle")}</th>
+                <th>{t("Balise")}</th>
+                <th class="n">{t("Rayon")}</th>
+                <th class="n">{t("Altitude")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {task.turnpoints.map((tp, i) => (
+                <tr>
+                  <td>{i + 1}</td>
+                  <td>{ROLE[tp.role] ? t(ROLE[tp.role]!) : tp.role}</td>
+                  <td>{tp.zone.waypoint.name}</td>
+                  <td class="n">{tp.zone.kind === "cylinder" ? `${km(tp.zone.radius, tp.zone.radius % 1000 ? 1 : 0)} km` : t("ligne {n} m", { n: tp.zone.length })}</td>
+                  <td class="n">{tp.zone.waypoint.altitude !== undefined ? `${tp.zone.waypoint.altitude} m` : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        </details>
+      </div>
+
+      <div class="card" id="results">
+        <h2><Ic n="trophy" c="amber" />{t("Résultats")}</h2>
+        {running ? (
+          <div class="note">
+            <span class="spin" /> {t("Calcul en cours.")} <a href={`/tasks/${tk.id}/edit#run-card`}>{t("Suivre le calcul")}</a>
+          </div>
+        ) : null}
+        {results ? (
+          <>
+            {stale && !running ? (
+              <div class="note">
+                {t("Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.")}{" "}
+                <a href={`/tasks/${tk.id}/edit#run-card`}>{t("Relancer le calcul")}</a>
+              </div>
+            ) : null}
+            <p class="small muted">
+              <RunStatus run={done} tz={settings.timeZone} taskId={tk.id} inline />
+            </p>
+            <Results r={results} tz={settings.timeZone} settings={settings} taskId={tk.id} />
+          </>
+        ) : running ? null : (
+          <p class="muted">
+            {t("Pas encore de résultats.")} <a href={`/tasks/${tk.id}/edit`}>{t("Envoyer les traces et lancer le calcul")}</a>
+          </p>
+        )}
+      </div>
+        </>
+      )}
+
+      {edit ? null : (
+        <>
+          <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+          <script type="application/json" id="task-geometry" dangerouslySetInnerHTML={{ __html: geometry.replace(/</g, "\\u003c") }} />
+          <script src="/vendor/leaflet/leaflet.js" />
+          <script src="/static/basemaps.js" />
+          <script src="/static/taskmap.js" />
+        </>
+      )}
       <script src="/static/run.js" />
     </Layout>
   );
 };
 
-/** Bloc « Calcul » : bouton, avancement ou bilan, classement. Rechargé seul par /static/run.js. */
+/** Bloc « Calcul » de l'onglet Éditer : bouton, avancement ou bilan. Rechargé seul par /static/run.js. */
 export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; settings: CompetitionSettings; tracks: number; stale: boolean }> = ({
   t: tk,
   run,
@@ -1307,12 +1368,12 @@ export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; set
       {stale && !running && results ? (
         <div class="note">{t("Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.")}</div>
       ) : null}
-      {results ? <Results r={results} tz={tz} settings={settings} taskId={tk.id} /> : null}
     </>
   );
 };
 
-const RunStatus: FC<{ run: RunRow | null; tz: string; taskId: number }> = ({ run, tz, taskId }) => {
+/** Où en est le dernier calcul. inline : seulement la phrase du bilan (page des résultats). */
+const RunStatus: FC<{ run: RunRow | null; tz: string; taskId: number; inline?: boolean }> = ({ run, tz, taskId, inline }) => {
   if (!run) return <p class="muted">{t("Aucun calcul pour l'instant.")}</p>;
   const when = new Date(run.started_at).toLocaleString(locale(), { timeZone: tz, dateStyle: "short", timeStyle: "short" });
   if (run.status === "queued" || run.status === "running")
@@ -1326,11 +1387,12 @@ const RunStatus: FC<{ run: RunRow | null; tz: string; taskId: number }> = ({ run
     );
   if (run.status === "error") return <div class="err">{t("Le calcul a échoué : {error}", { error: t(run.error ?? "") })}</div>;
   const secs = run.finished_at ? Math.round((run.finished_at - run.started_at) / 1000) : null;
+  const text =
+    secs !== null ? t("Calcul du {when}, {n} traces, en {secs} s.", { when, n: run.total, secs }) : t("Calcul du {when}, {n} traces.", { when, n: run.total });
+  if (inline) return <>{text}</>;
   return (
     <p class="small muted">
-      {secs !== null
-        ? t("Calcul du {when}, {n} traces, en {secs} s.", { when, n: run.total, secs })
-        : t("Calcul du {when}, {n} traces.", { when, n: run.total })}
+      {text} <a href={`/tasks/${taskId}#results`}>{t("Voir les résultats")}</a>
     </p>
   );
 };

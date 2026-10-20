@@ -572,7 +572,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     }
   });
 
-  const taskPage = (c: Context<Env>, t: TaskRow, comp: CompetitionRow, extra: { error?: string; notice?: string } = {}) => {
+  const taskPage = (c: Context<Env>, t: TaskRow, comp: CompetitionRow, extra: { error?: string; notice?: string; edit?: boolean } = {}) => {
     const task = JSON.parse(t.task) as Task;
     const tracks = db
       .prepare("SELECT * FROM tracks WHERE task_id = ? ORDER BY CAST(pilot_key AS INTEGER), pilot_key")
@@ -591,9 +591,13 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         decisions={listDecisions(db, t.id)}
         geometry={JSON.stringify(taskGeometry(task))}
         run={run}
+        done={
+          (db.prepare("SELECT * FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1").get(t.id) as unknown as RunRow | undefined) ?? null
+        }
         running={isRunning(t.id) || run?.status === "running" || run?.status === "queued"}
         error={extra.error ?? null}
         notice={extra.notice ?? null}
+        edit={extra.edit ?? Boolean(extra.error)}
       />,
       extra.error ? 400 : 200,
     );
@@ -613,7 +617,9 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     );
   };
 
-  app.get("/tasks/:id", (c) => {
+  // Onglet principal (carte et résultats) et onglet « Éditer » (réglages, traces, calcul, décisions).
+  for (const [path, edit] of [["/tasks/:id", false], ["/tasks/:id/edit", true]] as const)
+  app.get(path, (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     const q = (k: string) => Number(c.req.query(k) ?? 0);
@@ -631,7 +637,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
           : t("{n} fichiers identiques aux traces en place, ignorés.", { n: same })
         : "",
     ].filter(Boolean);
-    return taskPage(c, x.t, x.comp, parts.length ? { notice: parts.join(" ") } : {});
+    return taskPage(c, x.t, x.comp, { edit, ...(parts.length ? { notice: parts.join(" ") } : {}) });
   });
 
   app.post("/tasks/:id", async (c) => {
@@ -656,7 +662,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     }
     db.prepare("UPDATE tasks SET date = ?, task = ? WHERE id = ?").run(date, JSON.stringify(task), x.t.id);
     if (JSON.stringify(task) !== x.t.task) touchScoring(db, x.t.id);
-    return c.redirect(`/tasks/${x.t.id}`);
+    return c.redirect(`/tasks/${x.t.id}/edit#task-settings`);
   });
 
   app.post("/tasks/:id/decisions", async (c) => {
@@ -668,14 +674,14 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       if (e instanceof FormError) return taskPage(c, x.t, x.comp, { error: e.message });
       throw e;
     }
-    return c.redirect(`/tasks/${x.t.id}#decisions`);
+    return c.redirect(`/tasks/${x.t.id}/edit#decisions`);
   });
 
   app.post("/tasks/:id/decisions/:did/delete", (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     deleteDecision(db, x.t.id, Number(c.req.param("did")));
-    return c.redirect(`/tasks/${x.t.id}#decisions`);
+    return c.redirect(`/tasks/${x.t.id}/edit#decisions`);
   });
 
   app.post("/tasks/:id/tracks", async (c) => {
@@ -699,7 +705,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       count[saveTrack(db, x.t.id, c.get("user").id, { pilotKey: pilotKeyFromFilename(g.filename), pilotName: igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
     }
     db.exec("COMMIT");
-    return c.redirect(`/tasks/${x.t.id}?${new URLSearchParams(Object.entries(count).filter(([, n]) => n).map(([k, n]) => [k, String(n)]))}`);
+    return c.redirect(`/tasks/${x.t.id}/edit?${new URLSearchParams(Object.entries(count).filter(([, n]) => n).map(([k, n]) => [k, String(n)]))}`);
   });
 
   // Remplacer la trace d'un pilote donné, quel que soit le nom du nouveau fichier. Le pilote garde son
@@ -726,8 +732,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const note = typeof f.note === "string" && f.note.trim() ? f.note.trim().slice(0, 500) : null;
     const sha256 = tracks.put(g.bytes);
     const how = saveTrack(db, x.t.id, c.get("user").id, { pilotKey: tr.pilot_key, pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
-    if (how === "same") return taskPage(c, x.t, x.comp, { notice: t("Ce fichier est déjà la trace de {pilot} : rien n'a changé.", { pilot: tr.pilot_name ?? tr.pilot_key }) });
-    return c.redirect(`/tasks/${x.t.id}?replaced=1`);
+    if (how === "same") return taskPage(c, x.t, x.comp, { edit: true, notice: t("Ce fichier est déjà la trace de {pilot} : rien n'a changé.", { pilot: tr.pilot_name ?? tr.pilot_key }) });
+    return c.redirect(`/tasks/${x.t.id}/edit?replaced=1`);
   });
 
   // Fichier IGC d'origine (trace en vigueur ou ancienne version), pour l'organisateur.
@@ -747,7 +753,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     removeTrack(db, x.t.id, Number(c.req.param("trackId")), c.get("user").id);
-    return c.redirect(`/tasks/${x.t.id}`);
+    return c.redirect(`/tasks/${x.t.id}/edit#tracks`);
   });
 
   app.post("/tasks/:id/runs", (c) => {
@@ -762,7 +768,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       return taskPage(c, x.t, x.comp, { error: (e as Error).message });
     }
     if (inPlace) return runCard(c, x.t, x.comp);
-    return c.redirect(`/tasks/${x.t.id}`);
+    return c.redirect(`/tasks/${x.t.id}/edit#run-card`);
   });
 
   // Manche officielle ou non : ses résultats comptent au classement général.
