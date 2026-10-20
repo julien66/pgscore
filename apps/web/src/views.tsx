@@ -18,7 +18,7 @@ const CSS = `
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 header{background:var(--card);border-bottom:1px solid var(--line)}
 header .in{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
-header .brand{font-weight:700;font-size:17px;color:var(--text)}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}header .login{font-size:14px;font-weight:600}header a.who:hover{color:var(--accent)}pre.code{background:var(--chip);padding:8px 10px;border-radius:7px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.doc h2{margin-top:18px}
+header .brand{font-weight:700;font-size:17px;color:var(--text)}header .sp{flex:1}header .who{color:var(--muted);font-size:14px}header .login{font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--text)}header .login:hover{border-color:var(--accent)}.gg{flex:none}a.btn.gbtn{background:#fff;color:#1f1f1f;border:1px solid #747775;font-weight:600;gap:10px;padding:10px 16px}a.btn.gbtn:hover{background:#f6f8fc}header a.who:hover{color:var(--accent)}pre.code{background:var(--chip);padding:8px 10px;border-radius:7px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.doc h2{margin-top:18px}
 main{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
 h1{font-size:24px;margin:4px 0 16px}h2{font-size:18px;margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ic{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;flex:none;color:var(--hue);background:color-mix(in srgb,var(--hue) 13%,var(--card))}
@@ -170,7 +170,10 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
               </form>
             </>
           ) : (
-            <a href="/login" class="login">{t("Se connecter")}</a>
+            <a href="/login" class="login">
+              <GoogleG />
+              {t("Se connecter")}
+            </a>
           )}
         </div>
       </header>
@@ -178,6 +181,16 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
     </body>
   </html>
   </>
+);
+
+/** Logo « G » de Google, en couleurs (consignes de marque Google Sign-In). */
+const GoogleG: FC = () => (
+  <svg class="gg" viewBox="0 0 48 48" width="18" height="18" aria-hidden="true">
+    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+  </svg>
 );
 
 export const ErrorBox: FC<{ message?: string | null }> = ({ message }) => (message ? <div class="err">{message}</div> : null);
@@ -194,8 +207,8 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
       <ErrorBox message={error} />
       {providers.map((p) => (
         <p>
-          <a class="btn primary" href={p.href}>
-            <Bi n="login" />
+          <a class="btn gbtn" href={p.href}>
+            <GoogleG />
             {p.label}
           </a>
         </p>
