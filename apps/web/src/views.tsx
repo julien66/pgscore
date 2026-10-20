@@ -66,7 +66,7 @@ table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{
 .tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px;border-bottom:1px solid var(--line)}.tabs a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;color:var(--muted)}.tabs a.on{background:var(--card);border-color:var(--line);color:var(--text);font-weight:600;margin-bottom:-1px}
 [data-swap].loading{opacity:.55;transition:opacity .15s}
 .tabs a.tab-end{margin-left:auto}
-table.rk.sport-hidden .sp{display:none}.sp-toggle .sp-open{display:none}html.sport-open .sp-toggle .sp-open{display:inline}html.sport-open .sp-toggle .sp-closed{display:none}.rk-bar{display:flex;justify-content:flex-end;margin:4px 0}
+table.rk.sport-hidden .sp{display:none}.sp-toggle .sp-open{display:none}html.sport-open .sp-toggle .sp-open{display:inline}html.sport-open .sp-toggle .sp-closed{display:none}.rk-bar{display:flex;justify-content:flex-end;align-items:center;gap:8px 16px;flex-wrap:wrap;margin:4px 0}.rk-bar .acts{margin-right:auto}
 @page{size:A4 portrait;margin:8mm}
 .print-head{display:none}
 body.printing{background:#fff;color:#000;font-size:10px}body.printing header,body.printing .no-print,body.printing .print-me nav.tabs,body.printing .print-me h2,body.printing .print-me .note,body.printing .print-me .print-rk,body.printing .print-me .rk-bar{display:none!important}
@@ -720,8 +720,14 @@ const PrintButton: FC = () => (
 );
 
 /** Bascule version courte / version complète (colonnes .sp), posée en haut et en bas à droite du tableau. */
-const SportToggle: FC = () => (
+const SportToggle: FC<{ csv?: string }> = ({ csv }) => (
   <div class="rk-bar">
+    {csv ? (
+      <span class="acts">
+        <CsvLink href={csv} />
+        <PrintButton />
+      </span>
+    ) : null}
     <button type="button" class="link sp-toggle" title={t("Afficher ou masquer le détail sportif")}>
       <span class="sp-closed">{t("Version complète")}</span>
       <span class="sp-open">{t("Version courte")}</span>
@@ -751,7 +757,7 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
   return (
     <>
       <StandingsInfo s={s} />
-      <SportToggle />
+      <SportToggle csv={`/competitions/${c.id}/standings.csv${q}`} />
       <div class="scroll">
         <table class="rk sport-hidden">
           <thead>
@@ -1921,7 +1927,7 @@ const TaskResults: FC<{
   if (only && !shown.length) return <p class="muted">{t("Aucun pilote de ce classement dans les résultats de la manche.")}</p>;
   return (
     <>
-      <SportToggle />
+      <SportToggle csv={`/tasks/${taskId}/results.csv${rid ? `?r=${rid}` : ""}`} />
       <div class="scroll">
         <table class="rk sport-hidden">
           <thead>
