@@ -526,11 +526,16 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
               {s.ranked.map((x) => {
                 const t = info.get(String(x.t.id))!;
                 return (
-                  <th class="n" title={t.excluded ? `Non comptée : ${t.excluded}` : undefined}>
+                  <th
+                    class="n"
+                    title={
+                      t.excluded
+                        ? `Non comptée : ${t.excluded}`
+                        : `Validité FTV = points du vainqueur / 1000. Validité GAP de la manche ${fr(x.validity ?? 0, 3)}, ${fr(x.available ?? 0, 1)} points disponibles.`
+                    }
+                  >
                     <a href={`/tasks/${x.t.id}`}>M{x.t.number}</a>
-                    <span class="sub">
-                      {t.included ? `val. ${fr(x.validity ?? 0, 3)} · ${fr(x.available ?? 0, 0)} pts` : "non comptée"}
-                    </span>
+                    <span class="sub">{t.included ? `val. ${fr(t.validity * 100, 1)} %` : "non comptée"}</span>
                   </th>
                 );
               })}
