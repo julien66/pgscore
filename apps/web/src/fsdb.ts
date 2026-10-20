@@ -171,7 +171,14 @@ const normKey = (s: string) =>
     .trim();
 
 /** Nom de fichier sans dossier, en minuscules, pour retrouver une trace dans le ZIP. */
-const base = (p: string) => p.split(/[\\/]/).pop()!.toLowerCase();
+// Certains outils de ZIP écrivent les lettres accentuées « #U00e9 » : on les redécode, et on compare en NFC.
+const base = (p: string) =>
+  p
+    .split(/[\\/]/)
+    .pop()!
+    .replace(/#U([0-9a-f]{4})/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)))
+    .normalize("NFC")
+    .toLowerCase();
 
 /** Le fichier envoyé est-il du FSDB (XML seul, ou ZIP avec un .fsdb et pas d'archive pgscore) ? */
 export function looksLikeFsdb(bytes: Uint8Array): boolean {

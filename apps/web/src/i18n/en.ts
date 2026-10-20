@@ -1,5 +1,12 @@
 /** Traductions en : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Seul un administrateur peut supprimer une compétition.": "Only an administrator can delete a competition.",
+  "Recopiez exactement le nom de la compétition pour la supprimer.": "Type the competition's exact name to delete it.",
+  "Compétition « {name} » supprimée.": "Competition “{name}” deleted.",
+  "Supprimer la compétition": "Delete the competition",
+  "Suppression définitive : manches, pilotes, traces, calculs, décisions et classements disparaissent. Exportez d'abord la compétition si vous voulez en garder une copie. Pour confirmer, recopiez son nom : {name}": "Permanent deletion: tasks, pilots, tracks, scoring runs, decisions and rankings are all removed. Export the competition first if you want to keep a copy. To confirm, type its name: {name}",
+  "Supprimer définitivement": "Delete permanently",
+  "Supprimer définitivement « {name} » et toutes ses données ? Cette action ne peut pas être annulée.": "Permanently delete “{name}” and all its data? This cannot be undone.",
   "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Pour remplacer la trace d'un pilote, utilisez « Remplacer » sur sa ligne.": "IGC files or a .zip archive. The pilot is recognised by the file's number or, failing that, by the name written in the track; a track with no recognised pilot is added separately, without overwriting another. To replace a pilot's track, use “Replace” on their row.",
   "QR code de la manche (XCTrack)": "Task QR code (XCTrack)",
   "texte du QR code": "QR code text",

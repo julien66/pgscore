@@ -1,5 +1,12 @@
 /** Traductions es : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Seul un administrateur peut supprimer une compétition.": "Solo un administrador puede eliminar una competición.",
+  "Recopiez exactement le nom de la compétition pour la supprimer.": "Escriba el nombre exacto de la competición para eliminarla.",
+  "Compétition « {name} » supprimée.": "Competición «{name}» eliminada.",
+  "Supprimer la compétition": "Eliminar la competición",
+  "Suppression définitive : manches, pilotes, traces, calculs, décisions et classements disparaissent. Exportez d'abord la compétition si vous voulez en garder une copie. Pour confirmer, recopiez son nom : {name}": "Eliminación definitiva: mangas, pilotos, trazas, cálculos, decisiones y clasificaciones desaparecen. Exporte antes la competición si quiere conservar una copia. Para confirmar, escriba su nombre: {name}",
+  "Supprimer définitivement": "Eliminar definitivamente",
+  "Supprimer définitivement « {name} » et toutes ses données ? Cette action ne peut pas être annulée.": "¿Eliminar definitivamente «{name}» y todos sus datos? Esta acción no se puede deshacer.",
   "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro du fichier ou, à défaut, au nom inscrit dans la trace ; une trace sans pilote reconnu est ajoutée à part, sans en écraser une autre. Pour remplacer la trace d'un pilote, utilisez « Remplacer » sur sa ligne.": "Archivos IGC o archivo .zip. El piloto se reconoce por el número del archivo o, si no, por el nombre escrito en la traza; una traza sin piloto reconocido se añade aparte, sin sobrescribir otra. Para sustituir la traza de un piloto, use «Reemplazar» en su línea.",
   "QR code de la manche (XCTrack)": "Código QR de la manga (XCTrack)",
   "texte du QR code": "texto del código QR",

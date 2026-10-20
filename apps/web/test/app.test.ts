@@ -282,6 +282,29 @@ describe("interface web", () => {
     expect((await req(`/tasks/${taskId}/official`, { method: "POST", body: new URLSearchParams({ official: "1" }) })).status).toBe(302);
   });
 
+  it("seul un administrateur supprime une compétition, en recopiant son nom", async () => {
+    const { db, req } = setup(["admin@example.org"]);
+    const { compUrl } = await createCompetitionAndTask(req);
+    const count = () => (db.prepare("SELECT COUNT(*) AS n FROM competitions").get() as { n: number }).n;
+    // Le propriétaire ne voit pas le bouton et ne peut pas supprimer.
+    expect(await (await req(`${compUrl}/edit`)).text()).not.toContain("/delete");
+    expect((await req(`${compUrl}/delete`, { method: "POST", body: new URLSearchParams({ confirm: "Coupe test" }) })).status).toBe(403);
+    await req("/auth/logout", { method: "POST" });
+    await req("/auth/dev", { method: "POST", body: new URLSearchParams({ email: "admin@example.org" }) });
+    const page = await (await req(`${compUrl}/edit`)).text();
+    expect(page).toContain(`${compUrl}/delete`);
+    expect(page).toContain("return confirm(");
+    // Mauvais nom : rien n'est supprimé.
+    const bad = await req(`${compUrl}/delete`, { method: "POST", body: new URLSearchParams({ confirm: "Coupe" }) });
+    expect(bad.headers.get("location")).toContain("error=");
+    expect(count()).toBe(1);
+    const ok = await req(`${compUrl}/delete`, { method: "POST", body: new URLSearchParams({ confirm: "Coupe test" }) });
+    expect(ok.headers.get("location")).toContain("/?msg=");
+    expect(count()).toBe(0);
+    expect((db.prepare("SELECT COUNT(*) AS n FROM tasks").get() as { n: number }).n).toBe(0);
+    expect((await req(compUrl)).status).toBe(404);
+  });
+
   it("lit l'image du QR code", async () => {
     const png = "/mnt/project-files/jeux-de-test/pwca-gemona-2026/manche-3/task3_qr_code.png";
     if (!existsSync(png)) return;

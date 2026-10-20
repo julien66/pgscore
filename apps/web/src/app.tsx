@@ -257,7 +257,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       .sort((a, b) => b.scored_at! - a.scored_at!)
       .slice(0, 30)
       .map((r) => ({ ...r, owner: r.owner_name || "", scoredAt: r.scored_at! }));
-    return c.html(<HomePage user={user} mine={user ? rows.filter((r) => r.owner_id === user.id) : []} recent={recent} error={c.req.query("error") ?? null} />);
+    return c.html(<HomePage user={user} mine={user ? rows.filter((r) => r.owner_id === user.id) : []} recent={recent} error={c.req.query("error") ?? null} notice={c.req.query("msg") ?? null} />);
   });
 
   // --- Clés d'API (page « Mon compte ») ------------------------------------------------------
@@ -371,6 +371,20 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     }
   });
 
+  // Suppression définitive d'une compétition : super-administrateurs seulement, nom à recopier.
+  app.post("/competitions/:id/delete", async (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    const user = me(c);
+    if (!isAdmin(user)) return c.text(t("Seul un administrateur peut supprimer une compétition."), 403);
+    const f = await c.req.parseBody();
+    if (String(f.confirm ?? "").trim() !== comp.name.trim())
+      return c.redirect(`/competitions/${comp.id}/edit?error=${encodeURIComponent(t("Recopiez exactement le nom de la compétition pour la supprimer."))}#delete`);
+    db.prepare("DELETE FROM competitions WHERE id = ?").run(comp.id);
+    console.log(`Compétition ${comp.id} « ${comp.name} » supprimée par ${user.email ?? user.id}`);
+    return c.redirect(`/?msg=${encodeURIComponent(t("Compétition « {name} » supprimée.", { name: comp.name }))}`);
+  });
+
   // --- Compétitions ------------------------------------------------------------------------
   const formValues = (f: Record<string, unknown>, fallback = DEFAULT_SETTINGS): CompetitionFormValues => {
     let settings = fallback;
@@ -482,6 +496,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         notice={extra.notice ?? null}
         edit={extra.edit ?? false}
         canEdit={canEdit(c, comp)}
+        canDelete={Boolean(c.get("user") && isAdmin(c.get("user")!))}
       />,
       extra.error || bq.error ? 400 : 200,
     );
@@ -501,7 +516,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
     const msg = c.req.query("msg");
-    return competitionPage(c, comp, { edit: true, ...(msg ? { notice: msg } : c.req.query("ok") ? { notice: t("Enregistré.") } : {}) });
+    const error = c.req.query("error");
+    return competitionPage(c, comp, { edit: true, ...(error ? { error } : {}), ...(msg ? { notice: msg } : c.req.query("ok") ? { notice: t("Enregistré.") } : {}) });
   });
 
   app.get("/competitions/:id", (c) => {

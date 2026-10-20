@@ -30,7 +30,7 @@ input[type=text],input[type=number],input[type=date],input[type=email],select,te
 textarea{font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:70px}
 .check{display:flex;gap:8px;align-items:center;color:var(--text);font-size:14px}
 button,.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;cursor:pointer}
-button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+button.danger{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:600}.card.danger{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 button.link{border:0;background:none;color:var(--muted);padding:0;font-size:13px}a.act{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:13px}a.act:hover,button.link.print-rk:hover{color:var(--accent);text-decoration:none}a.act .bi{color:#21a366}.acts{display:inline-flex;gap:16px;align-items:center;flex-wrap:wrap;margin-right:8px;vertical-align:middle}body.printing .print-me .acts,body.printing a.act{display:none!important}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.mt{margin-top:12px}
 .muted{color:var(--muted)}.badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;background:var(--accent);color:var(--accent-ink)}details.replace{display:inline-block;margin-right:8px}details.replace summary{cursor:pointer;color:var(--accent);font-size:14px}details.replace form{display:flex;flex-direction:column;gap:6px;margin-top:6px;min-width:260px}.small{font-size:13px}
@@ -270,7 +270,7 @@ const CompList: FC<{ list: HomeComp[] }> = ({ list }) => (
 );
 
 /** Accueil : ses compétitions quand on est connecté, puis les compétitions récemment calculées, visibles de tous. */
-export const HomePage: FC<{ user: User | null; mine: HomeComp[]; recent: HomeComp[]; error?: string | null }> = ({ user, mine, recent, error }) => (
+export const HomePage: FC<{ user: User | null; mine: HomeComp[]; recent: HomeComp[]; error?: string | null; notice?: string | null }> = ({ user, mine, recent, error, notice }) => (
   <Layout title={user ? t("Mes compétitions") : t("Compétitions")} user={user}>
     {user ? (
       <>
@@ -282,6 +282,7 @@ export const HomePage: FC<{ user: User | null; mine: HomeComp[]; recent: HomeCom
           </a>
         </div>
         <ErrorBox message={error} />
+        {notice ? <div class="note">{notice}</div> : null}
         <div class="card">
           {mine.length ? <CompList list={mine} /> : <p class="muted">{t("Pas encore de compétition. Créez-en une pour y ajouter des manches.")}</p>}
           <form method="post" action="/competitions/import" enctype="multipart/form-data" class="row mt">
@@ -435,7 +436,9 @@ export const CompetitionPage: FC<{
   edit?: boolean;
   /** Créateur de la compétition ou administrateur : sinon, lecture seule. */
   canEdit: boolean;
-}> = ({ user, c, v, tasks, board, pilots, airspaceCount, error, notice, edit, canEdit }) => (
+  /** Super-administrateur : peut supprimer la compétition. */
+  canDelete?: boolean;
+}> = ({ user, c, v, tasks, board, pilots, airspaceCount, error, notice, edit, canEdit, canDelete }) => (
   <Layout title={edit ? `${t("Éditer")} · ${c.name}` : c.name} user={user}>
     <div class="crumbs">
       <a href="/">{t("Compétitions")}</a>
@@ -456,7 +459,29 @@ export const CompetitionPage: FC<{
     <ErrorBox message={error} />
     {notice ? <div class="note">{notice}</div> : null}
     {edit && canEdit ? (
-      <CompetitionEdit c={c} v={v} pilots={pilots} airspaceCount={airspaceCount} open={Boolean(error)} />
+      <>
+        <CompetitionEdit c={c} v={v} pilots={pilots} airspaceCount={airspaceCount} open={Boolean(error)} />
+        {canDelete ? (
+          <div class="card danger" id="delete">
+            <h2><Ic n="trash" c="red" />{t("Supprimer la compétition")}</h2>
+            <p class="small muted">
+              {t("Suppression définitive : manches, pilotes, traces, calculs, décisions et classements disparaissent. Exportez d'abord la compétition si vous voulez en garder une copie. Pour confirmer, recopiez son nom : {name}", { name: c.name })}
+            </p>
+            <form
+              method="post"
+              action={`/competitions/${c.id}/delete`}
+              class="row"
+              onsubmit={`return confirm(${JSON.stringify(t("Supprimer définitivement « {name} » et toutes ses données ? Cette action ne peut pas être annulée.", { name: c.name }))})`}
+            >
+              <input type="text" name="confirm" required autocomplete="off" placeholder={c.name} />
+              <button class="danger">
+                <Bi n="trash" />
+                {t("Supprimer définitivement")}
+              </button>
+            </form>
+          </div>
+        ) : null}
+      </>
     ) : (
       <CompetitionMain c={c} tasks={tasks} board={board} />
     )}
