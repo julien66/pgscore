@@ -67,6 +67,16 @@ table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{
 [data-swap].loading{opacity:.55;transition:opacity .15s}
 .tabs a.tab-end{margin-left:auto}
 table.rk.sport-hidden .sp{display:none}table.rk .sp-open{display:none}table.rk:not(.sport-hidden) .sp-open{display:inline}table.rk:not(.sport-hidden) .sp-closed{display:none}
+@page{size:A4 portrait;margin:8mm}
+.print-head{display:none}
+body.printing{background:#fff;color:#000;font-size:10px}body.printing header,body.printing .no-print,body.printing .print-me nav.tabs,body.printing .print-me h2,body.printing .print-me .note,body.printing .print-me .print-rk,body.printing .print-me .sp-toggle{display:none!important}
+body.printing main{max-width:none;width:194mm;padding:0;margin:0}body.printing .print-me{border:0;padding:0;margin:0;background:none}
+body.printing .print-head{display:block;margin:0 0 6px}body.printing .print-head strong{font-size:14px}body.printing .print-head span{color:#555;margin-left:8px}
+body.printing .print-me>p{font-size:8px;margin:2px 0}body.printing .scroll{overflow:visible}body.printing table.rk{width:auto;font-size:8px;color:#000}body.printing table.rk th,body.printing table.rk td{padding:1.5px 3px;border-color:#ccc}
+body.printing table.rk th{font-size:7px;color:#333}body.printing table.rk .sp{display:table-cell!important}body.printing table.rk a{color:#000}
+body.printing table.rk td.small,body.printing table.rk td.small *{font-size:7px}body.printing table.rk td.sponsor{min-width:30mm;max-width:40mm}body.printing table.rk td.gear{white-space:nowrap}body.printing table.rk .muted,body.printing table.rk .sub{color:#555}
+body.printing table.rk tr{break-inside:avoid}body.printing table.rk thead{display:table-header-group}
+@media print{header,.print-rk{display:none}.card{border:0}.scroll{overflow:visible}}
 td.gear{line-height:1.25}table td.sponsor{white-space:normal;min-width:160px;max-width:260px;overflow-wrap:anywhere;line-height:1.25}.sp-toggle{font-size:11px;text-transform:none;letter-spacing:0;color:var(--accent)}
 .details h3{font-size:16px;margin:22px 0 6px}.details ul{margin:4px 0 10px;padding-left:20px}
 table.calc{margin:4px 0 8px}table.calc th{width:190px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text);vertical-align:top}
@@ -93,6 +103,7 @@ const ICONS = {
   map: '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/>',
   pulse: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
   gavel: '<path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/>',
+  printer: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
   calc: '<rect width="16" height="20" x="4" y="2" rx="2"/><path d="M8 6h8"/><path d="M16 14v4"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/>',
   filter: '<path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/>',
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
@@ -693,6 +704,13 @@ const identity = (registry: PilotRow[], keys: string[]) => {
   return { Head, Cells };
 };
 
+/** Bouton d'impression du classement affiché : détail déplié, ajusté à une page A4 portrait (competition.js). */
+const PrintButton: FC = () => (
+  <button type="button" class="link print-rk" title={t("Imprimer ou enregistrer en PDF (A4 portrait, détail déplié)")}>
+    <Bi n="printer" /> {t("Imprimer / PDF")}
+  </button>
+);
+
 /** En-tête du total, avec le bouton qui déplie ou replie le détail sportif (colonnes .sp). */
 const TotalHead: FC = () => (
   <th class="n total-h">
@@ -781,7 +799,7 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
             ·{" "}
           </>
         ) : null}
-        <a href={`/competitions/${c.id}/standings.csv${q}`}>{t("Exporter en CSV")}</a>
+        <a href={`/competitions/${c.id}/standings.csv${q}`}>{t("Exporter en CSV")}</a> · <PrintButton />
         {r.ftvFactor > 0
           ? ` · ${t("en gras, la part retenue d'une manche comptée en partie ; barré, le score de la manche non retenu")}`
           : ""}
@@ -1954,7 +1972,7 @@ const TaskResults: FC<{
       </div>
       <p class="small muted mt">
         {t("Heures locales ; vitesse sur la section de vitesse ({d} km).", { d: km(speedSection) })}{" "}
-        <a href={`/tasks/${taskId}/results.csv${rid ? `?r=${rid}` : ""}`}>{t("exporter en CSV")}</a>
+        <a href={`/tasks/${taskId}/results.csv${rid ? `?r=${rid}` : ""}`}>{t("exporter en CSV")}</a> · <PrintButton />
       </p>
     </>
   );

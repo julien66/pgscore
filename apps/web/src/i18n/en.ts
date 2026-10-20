@@ -1,5 +1,7 @@
 /** Traductions en : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "Imprimer / PDF": "Print / PDF",
+  "Imprimer ou enregistrer en PDF (A4 portrait, détail déplié)": "Print or save as PDF (A4 portrait, details expanded)",
   "Sponsor": "Sponsor",
   "Matériel": "Equipment",
   "Afficher ou masquer le détail sportif": "Show or hide the scoring details",

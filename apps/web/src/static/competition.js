@@ -28,6 +28,53 @@
     applySport();
   });
 
+  // Impression d'un classement : seul son bloc reste, détail sportif déplié, tableau réduit à la largeur d'une page A4 portrait.
+  function printBoard(box) {
+    const hidden = [];
+    for (let el = box; el && el !== document.body; el = el.parentElement) {
+      for (const sib of el.parentElement.children) {
+        if (sib === el || sib.tagName === "SCRIPT" || sib.classList.contains("no-print")) continue;
+        sib.classList.add("no-print");
+        hidden.push(sib);
+      }
+    }
+    const title = document.title;
+    const page = title.replace(/ · pgscore$/, "");
+    const tab = box.querySelector("nav.tabs a.on");
+    const which = tab ? tab.textContent.trim() : "";
+    const head = document.createElement("div");
+    head.className = "print-head";
+    const strong = document.createElement("strong");
+    strong.textContent = page;
+    const span = document.createElement("span");
+    span.textContent = [which, new Date().toLocaleDateString(document.documentElement.lang || undefined)].filter(Boolean).join(" · ");
+    head.append(strong, span);
+    box.prepend(head);
+    box.classList.add("print-me");
+    document.body.classList.add("printing");
+    document.title = [page, which].filter(Boolean).join(" - ");
+    const tables = [...box.querySelectorAll("table.rk")];
+    for (const tb of tables) {
+      tb.style.zoom = "";
+      const w = tb.scrollWidth;
+      if (w > box.clientWidth) tb.style.zoom = String(box.clientWidth / w);
+    }
+    const undo = () => {
+      for (const el of hidden) el.classList.remove("no-print");
+      for (const tb of tables) tb.style.zoom = "";
+      head.remove();
+      box.classList.remove("print-me");
+      document.body.classList.remove("printing");
+      document.title = title;
+    };
+    window.addEventListener("afterprint", undo, { once: true });
+    window.print();
+  }
+  document.addEventListener("click", (ev) => {
+    const b = ev.target.closest && ev.target.closest(".print-rk");
+    if (b) printBoard(b.closest("[data-swap]") || b.closest(".card"));
+  });
+
   // Onglets de classement (général, féminin…) et « voir tous » : seul le bloc [data-swap] est remplacé.
   async function loadBoard(url, id) {
     const cur = document.getElementById(id || "standings");
