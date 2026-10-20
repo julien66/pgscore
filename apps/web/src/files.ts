@@ -2,6 +2,7 @@ import { unzipSync } from "fflate";
 import jpeg from "jpeg-js";
 import jsQRModule from "jsqr";
 import { PNG } from "pngjs";
+import { t } from "./i18n.js";
 
 // Le paquet jsqr est en CommonJS : sa fonction est soit l'export par défaut, soit le module lui-même.
 type JsQr = typeof import("jsqr").default;
@@ -14,7 +15,7 @@ export function decodeQrImage(bytes: Uint8Array): string | null {
   let img: { width: number; height: number; data: Uint8Array | Buffer };
   if (bytes[0] === 0x89 && bytes[1] === 0x50) img = PNG.sync.read(Buffer.from(bytes));
   else if (bytes[0] === 0xff && bytes[1] === 0xd8) img = jpeg.decode(bytes, { useTArray: true, formatAsRGBA: true });
-  else throw new Error("Image non reconnue : envoyez un PNG ou un JPEG.");
+  else throw new Error(t("Image non reconnue : envoyez un PNG ou un JPEG."));
   const data = new Uint8ClampedArray(img.data.buffer, img.data.byteOffset, img.data.byteLength);
   const r = jsQR(data, img.width, img.height, { inversionAttempts: "attemptBoth" });
   return r?.data ?? null;

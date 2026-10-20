@@ -15,16 +15,17 @@
   let cur = Math.max(0, VS.findIndex((v) => v.sha256 === want));
   const shown = new Set(VS.map((_, k) => k));
   // Version analysée : ses données sont reliées à ces variables par bind().
-  let V, T, N, above;
+  let V, TK, N, above;
 
   // ---- Formats ----------------------------------------------------------------------------
-  const fmtTime = new Intl.DateTimeFormat("fr-FR", { timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  const LOC = window.I18N_LOCALE || "fr-FR";
+  const fmtTime = new Intl.DateTimeFormat(LOC, { timeZone: tz, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
   const hhmmss = (t) => (t == null ? "" : fmtTime.format(new Date(t)));
-  const m = (x, d = 0) => (x == null ? "–" : x.toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }));
-  const km = (x) => (x == null ? "–" : (x / 1000).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-  const ROLE = { takeoff: "Décollage", sss: "Départ", turnpoint: "Balise", ess: "ESS", goal: "Goal" };
+  const m = (x, d = 0) => (x == null ? "–" : x.toLocaleString(LOC, { minimumFractionDigits: d, maximumFractionDigits: d }));
+  const km = (x) => (x == null ? "–" : (x / 1000).toLocaleString(LOC, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const ROLE = { takeoff: T("Décollage"), sss: T("Départ"), turnpoint: T("Balise"), ess: "ESS", goal: "Goal" };
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-  const edgeText = (e) => (e == null ? "–" : e >= 0 ? `${m(e, 1)} m dehors` : `${m(-e, 1)} m dedans`);
+  const edgeText = (e) => (e == null ? "–" : e >= 0 ? T("{d} m dehors", { d: m(e, 1) }) : T("{d} m dedans", { d: m(-e, 1) }));
 
   // ---- Géométrie côté client (affichage seulement) -----------------------------------------
   function inPolygon(lat, lon, poly) {
@@ -55,37 +56,38 @@
     }
     return (v._above = out);
   }
-  const vLabel = (v) => `v${v.num}${v.status === "current" ? " (en vigueur)" : v.status === "replaced" ? " (remplacée)" : " (retirée)"}`;
+  const vLabel = (v) =>
+    v.status === "current" ? T("v{n} (en vigueur)", { n: v.num }) : v.status === "replaced" ? T("v{n} (remplacée)", { n: v.num }) : T("v{n} (retirée)", { n: v.num });
   function bind(k) {
-    cur = k; V = VS[k]; T = V.track; N = T.t.length; above = aboveOf(V);
+    cur = k; V = VS[k]; TK = V.track; N = TK.t.length; above = aboveOf(V);
   }
   bind(cur);
 
   // ---- Mise en page -----------------------------------------------------------------------
   root.innerHTML = `
     <div class="v-top">
-      <div class="v-tabs"><button data-mode="2d" class="on">Carte 2D</button><button data-mode="3d">Vue 3D</button></div>
+      <div class="v-tabs"><button data-mode="2d" class="on">${T("Carte 2D")}</button><button data-mode="3d">${T("Vue 3D")}</button></div>
       <div class="v-play">
-        <button id="v-prev" title="Fix précédent">◀</button>
-        <button id="v-play" title="Lecture">▶</button>
-        <button id="v-next" title="Fix suivant">▶︎|</button>
-        <select id="v-speed" title="Vitesse de lecture"><option value="10">×10</option><option value="30" selected>×30</option><option value="100">×100</option><option value="300">×300</option></select>
-        <input id="v-slider" type="range" min="0" max="${N - 1}" value="${T.flightStart}" />
+        <button id="v-prev" title="${esc(T("Fix précédent"))}">◀</button>
+        <button id="v-play" title="${esc(T("Lecture"))}">▶</button>
+        <button id="v-next" title="${esc(T("Fix suivant"))}">▶︎|</button>
+        <select id="v-speed" title="${esc(T("Vitesse de lecture"))}"><option value="10">×10</option><option value="30" selected>×30</option><option value="100">×100</option><option value="300">×300</option></select>
+        <input id="v-slider" type="range" min="0" max="${N - 1}" value="${TK.flightStart}" />
       </div>
     </div>
-    ${multi ? `<div class="v-box"><h3>Versions de la trace</h3><div class="scroll"><table class="v-versions" id="v-versions"></table></div>
-      <p class="small muted">Cochez « Afficher » pour superposer les traces ; « Analyser » choisit la version dont le contrôle est détaillé. Un clic sur une trace de la carte l'analyse aussi.</p></div>` : ""}
+    ${multi ? `<div class="v-box"><h3>${T("Versions de la trace")}</h3><div class="scroll"><table class="v-versions" id="v-versions"></table></div>
+      <p class="small muted">${T("Cochez « Afficher » pour superposer les traces ; « Analyser » choisit la version dont le contrôle est détaillé. Un clic sur une trace de la carte l'analyse aussi.")}</p></div>` : ""}
     <div class="v-main">
       <div class="v-maps"><div id="v-map"></div><div id="v-3d" hidden></div></div>
       <aside class="v-side">
         <div id="v-now" class="v-box"></div>
-        <div class="v-box"><h3 id="v-ctl-title">Contrôle</h3><ol id="v-events" class="v-events"></ol></div>
+        <div class="v-box"><h3 id="v-ctl-title">${T("Contrôle")}</h3><ol id="v-events" class="v-events"></ol></div>
       </aside>
     </div>
     <canvas id="v-baro" height="170"></canvas>`;
 
   const slider = document.getElementById("v-slider");
-  let idx = T.flightStart;
+  let idx = TK.flightStart;
 
   // ---- Liste des événements ------------------------------------------------------------------
   let events = [];
@@ -93,21 +95,21 @@
   function renderEvents() {
   events = [];
   const D = V;
-  for (const v of D.validations) events.push({ t: v.time, html: `<b>${ROLE[v.role] || v.role} ${esc(v.name)}</b> validé à ${hhmmss(v.time)}`, cls: "ok" });
+  for (const v of D.validations) events.push({ t: v.time, html: T("{zone} validé à {time}", { zone: `<b>${ROLE[v.role] || v.role} ${esc(v.name)}</b>`, time: hhmmss(v.time) }), cls: "ok" });
   let firstMiss = true;
   for (const a of D.approaches) {
     if (a.reached) continue;
     if (!a.closest) {
-      events.push({ t: Infinity, html: `<b>${ROLE[a.role] || a.role} ${esc(a.name)}</b> non atteint (pas de vol après la validation précédente)`, cls: firstMiss ? "miss" : "later" });
+      events.push({ t: Infinity, html: T("{zone} non atteint (pas de vol après la validation précédente)", { zone: `<b>${ROLE[a.role] || a.role} ${esc(a.name)}</b>` }), cls: firstMiss ? "miss" : "later" });
     } else {
       const d = a.closest.distance;
-      const where = d >= 0 ? `${m(d, 1)} m à l'extérieur du cylindre` : `${m(-d, 1)} m à l'intérieur du cylindre`;
-      const what = a.role === "sss" ? "Départ manqué" : `${ROLE[a.role] || a.role} ${esc(a.name)} non validé`;
+      const where = d >= 0 ? T("{d} m à l'extérieur du cylindre", { d: m(d, 1) }) : T("{d} m à l'intérieur du cylindre", { d: m(-d, 1) });
+      const what = a.role === "sss" ? T("Départ manqué") : T("{zone} non validé", { zone: `${ROLE[a.role] || a.role} ${esc(a.name)}` });
       events.push({
         t: a.closest.time,
         html: firstMiss
-          ? `<b>${what}</b> : au plus près ${where} à ${hhmmss(a.closest.time)}, ${m(a.closest.altitude)} m. Tolérance : 5 m.`
-          : `${ROLE[a.role] || a.role} ${esc(a.name)} : au plus près ${where} à ${hhmmss(a.closest.time)} <span class="muted">(non compté : zone précédente non validée)</span>`,
+          ? T("{what} : au plus près {where} à {time}, {alt} m. Tolérance : 5 m.", { what: `<b>${what}</b>`, where, time: hhmmss(a.closest.time), alt: m(a.closest.altitude) })
+          : `${T("{zone} : au plus près {where} à {time}", { zone: `${ROLE[a.role] || a.role} ${esc(a.name)}`, where, time: hhmmss(a.closest.time) })} <span class="muted">${T("(non compté : zone précédente non validée)")}</span>`,
         cls: firstMiss ? "miss" : "later",
       });
     }
@@ -116,16 +118,16 @@
   for (const i of D.infringements) {
     events.push({
       t: i.worst,
-      html: `<b>Espace aérien ${esc(i.name)}</b> : ${m(i.depth, 1)} m de pénétration de ${hhmmss(i.from)} à ${hhmmss(i.to)}`,
+      html: T("{airspace} : {d} m de pénétration de {from} à {to}", { airspace: `<b>${T("Espace aérien {name}", { name: esc(i.name) })}</b>`, d: m(i.depth, 1), from: hhmmss(i.from), to: hhmmss(i.to) }),
       cls: "bad",
     });
   }
-  if (D.stopTime) events.push({ t: D.stopTime, html: `<b>Arrêt de la manche</b> (après score-back) à ${hhmmss(D.stopTime)}`, cls: "" });
+  if (D.stopTime) events.push({ t: D.stopTime, html: T("{stop} (après score-back) à {time}", { stop: `<b>${T("Arrêt de la manche")}</b>`, time: hhmmss(D.stopTime) }), cls: "" });
   events.sort((a, b) => a.t - b.t);
   evList.innerHTML = events
     .map((e, k) => `<li class="${e.cls}" data-k="${k}">${e.html}</li>`)
-    .join("") || "<li>Rien à signaler.</li>";
-  document.getElementById("v-ctl-title").textContent = multi ? `Contrôle · ${vLabel(V)}` : "Contrôle";
+    .join("") || `<li>${T("Rien à signaler.")}</li>`;
+  document.getElementById("v-ctl-title").textContent = multi ? T("Contrôle · {version}", { version: vLabel(V) }) : T("Contrôle");
   }
   evList.addEventListener("click", (ev) => {
     const li = ev.target.closest("li[data-k]");
@@ -142,7 +144,7 @@
     }
     return lo;
   }
-  const indexAt = (t) => indexIn(T, t);
+  const indexAt = (t) => indexIn(TK, t);
 
   // ---- Carte 2D -----------------------------------------------------------------------------
   const map = L.map("v-map", { preferCanvas: true });
@@ -165,7 +167,7 @@
     }
   }
   L.polyline(D.route.map((p) => [p.lat, p.lon]), { color: "#111827", weight: 1.5, dashArray: "6 6", opacity: 0.7 }).addTo(map);
-  const ll = (i) => [T.lat[i], T.lon[i]];
+  const ll = (i) => [TK.lat[i], TK.lon[i]];
   // Traces de toutes les versions ; la version analysée est en trait plein, les autres en pointillé.
   const trackLayers = VS.map((v, k) => {
     const tr = v.track, g = L.layerGroup();
@@ -176,8 +178,8 @@
       if (k !== cur) return selectVersion(k);
       // Clic sur la trace analysée : fix le plus proche du clic.
       let best = 0, bd = Infinity;
-      for (let i = T.flightStart; i <= T.flightEnd; i++) {
-        const d = (T.lat[i] - e.latlng.lat) ** 2 + ((T.lon[i] - e.latlng.lng) * Math.cos((e.latlng.lat * Math.PI) / 180)) ** 2;
+      for (let i = TK.flightStart; i <= TK.flightEnd; i++) {
+        const d = (TK.lat[i] - e.latlng.lat) ** 2 + ((TK.lon[i] - e.latlng.lng) * Math.cos((e.latlng.lat * Math.PI) / 180)) ** 2;
         if (d < bd) (bd = d), (best = i);
       }
       setIndex(best);
@@ -203,13 +205,13 @@
     for (const v of V.validations) {
       const i = indexAt(v.time);
       L.circleMarker(ll(i), { radius: 6, color: "#16a34a", fillColor: "#16a34a", fillOpacity: 1 })
-        .bindTooltip(`${ROLE[v.role] || v.role} ${esc(v.name)} validé à ${hhmmss(v.time)}`)
+        .bindTooltip(T("{zone} validé à {time}", { zone: `${ROLE[v.role] || v.role} ${esc(v.name)}`, time: hhmmss(v.time) }))
         .addTo(markers);
     }
     for (const a of V.approaches) {
       if (a.reached || !a.closest) continue;
       L.circleMarker([a.closest.lat, a.closest.lon], { radius: 6, color: "#ea580c", fillColor: "#fff", fillOpacity: 1, weight: 3 })
-        .bindTooltip(`${ROLE[a.role] || a.role} ${esc(a.name)} : au plus près ${edgeText(a.closest.distance)} à ${hhmmss(a.closest.time)}`)
+        .bindTooltip(T("{zone} : au plus près {where} à {time}", { zone: `${ROLE[a.role] || a.role} ${esc(a.name)}`, where: edgeText(a.closest.distance), time: hhmmss(a.closest.time) }))
         .addTo(markers);
     }
     for (const i of V.infringements) {
@@ -261,7 +263,7 @@
     const x = (t) => PAD.l + ((t - t0) / (t1 - t0)) * (W - PAD.l - PAD.r);
     const y = (a) => PAD.t + (1 - (a - aMin) / (aMax - aMin)) * (H - PAD.t - PAD.b);
     ctx.clearRect(0, 0, W, H);
-    [i0, i1] = span(T);
+    [i0, i1] = span(TK);
     const text = css.getPropertyValue("--muted") || "#666";
     ctx.font = "11px system-ui";
     ctx.fillStyle = text;
@@ -278,7 +280,7 @@
         const a = D.airspaces[k];
         const top = y(Math.min(a.upper, aMax)), bot = y(Math.max(a.lower, aMin));
         if (bot <= top) continue;
-        const xa = x(T.t[i]), xb = x(T.t[Math.min(i + 1, N - 1)]);
+        const xa = x(TK.t[i]), xb = x(TK.t[Math.min(i + 1, N - 1)]);
         ctx.fillRect(xa, top, Math.max(1, xb - xa), bot - top);
       }
     }
@@ -289,9 +291,9 @@
       ctx.beginPath(); ctx.moveTo(x(t), PAD.t); ctx.lineTo(x(t), H - PAD.b); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = col; ctx.fillText(label, x(t) + 3, PAD.t + 10);
     };
-    D.gates.forEach((g) => vline(g, "#16a34a", "porte"));
-    vline(V.stopTime, "#9333ea", "arrêt");
-    vline(D.deadline, "#dc2626", "deadline");
+    D.gates.forEach((g) => vline(g, "#16a34a", T("porte")));
+    vline(V.stopTime, "#9333ea", T("arrêt"));
+    vline(D.deadline, "#dc2626", T("deadline"));
     // Traces : les autres versions affichées en pointillé, puis la version analysée.
     const plot = (tr, col, width, dash) => {
       const [a, b] = span(tr);
@@ -305,18 +307,18 @@
       ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
     };
     VS.forEach((v, k) => k !== cur && shown.has(k) && plot(v.track, v.color, 1.2, [5, 4]));
-    plot(T, V.color, 1.6, []);
+    plot(TK, V.color, 1.6, []);
     for (const v of V.validations) {
       const k = indexAt(v.time);
-      if (T.alt[k] == null) continue;
-      ctx.fillStyle = "#16a34a"; ctx.beginPath(); ctx.arc(x(v.time), y(T.alt[k]), 3.5, 0, 7); ctx.fill();
+      if (TK.alt[k] == null) continue;
+      ctx.fillStyle = "#16a34a"; ctx.beginPath(); ctx.arc(x(v.time), y(TK.alt[k]), 3.5, 0, 7); ctx.fill();
     }
     // Heures.
     ctx.fillStyle = text;
     const secs = (t1 - t0) / 1000, tick = secs > 4 * 3600 ? 3600e3 : secs > 3600 ? 1800e3 : 600e3;
     for (let t = Math.ceil(t0 / tick) * tick; t <= t1; t += tick) ctx.fillText(hhmmss(t).slice(0, 5), x(t) - 14, H - 5);
     // Curseur.
-    ctx.strokeStyle = css.getPropertyValue("--text") || "#111"; ctx.beginPath(); ctx.moveTo(x(T.t[idx]), PAD.t); ctx.lineTo(x(T.t[idx]), H - PAD.b); ctx.stroke();
+    ctx.strokeStyle = css.getPropertyValue("--text") || "#111"; ctx.beginPath(); ctx.moveTo(x(TK.t[idx]), PAD.t); ctx.lineTo(x(TK.t[idx]), H - PAD.b); ctx.stroke();
     baro._x = x;
   }
   const fromX = (px) => {
@@ -334,30 +336,30 @@
   const now = document.getElementById("v-now");
   function renderNow() {
     const i = idx, p = Math.max(0, i - 1);
-    const dt = (T.t[i] - T.t[p]) / 1000 || 1;
-    const vz = T.alt[i] != null && T.alt[p] != null ? (T.alt[i] - T.alt[p]) / dt : null;
-    const dx = Math.hypot((T.lat[i] - T.lat[p]) * 111195, (T.lon[i] - T.lon[p]) * 111195 * Math.cos((T.lat[i] * Math.PI) / 180));
-    const z = D.zones[T.next[i]];
+    const dt = (TK.t[i] - TK.t[p]) / 1000 || 1;
+    const vz = TK.alt[i] != null && TK.alt[p] != null ? (TK.alt[i] - TK.alt[p]) / dt : null;
+    const dx = Math.hypot((TK.lat[i] - TK.lat[p]) * 111195, (TK.lon[i] - TK.lon[p]) * 111195 * Math.cos((TK.lat[i] * Math.PI) / 180));
+    const z = D.zones[TK.next[i]];
     const inAir = above[i]
       .map((k) => {
-        const a = D.airspaces[k], alt = T.alt[i];
+        const a = D.airspaces[k], alt = TK.alt[i];
         let rel = "";
-        if (alt != null) rel = alt < a.lower ? `${m(a.lower - alt)} m sous le plancher` : alt > a.upper ? `${m(alt - a.upper)} m au-dessus` : `<b class="bad">dedans</b>, ${m(Math.min(alt - a.lower, a.upper - alt))} m des limites`;
+        if (alt != null) rel = alt < a.lower ? T("{d} m sous le plancher", { d: m(a.lower - alt) }) : alt > a.upper ? T("{d} m au-dessus", { d: m(alt - a.upper) }) : T("{inside}, {d} m des limites", { inside: `<b class="bad">${T("dedans")}</b>`, d: m(Math.min(alt - a.lower, a.upper - alt)) });
         return `<li>${esc(a.name)} (${m(a.lower)}–${m(a.upper)} m) : ${rel}</li>`;
       })
       .join("");
     now.innerHTML = `
-      <h3>${hhmmss(T.t[i])}</h3>
+      <h3>${hhmmss(TK.t[i])}</h3>
       <dl>
-        <dt>Altitude GPS</dt><dd>${m(T.alt[i])} m</dd>
-        <dt>Vario</dt><dd>${vz == null ? "–" : (vz >= 0 ? "+" : "") + m(vz, 1)} m/s</dd>
-        <dt>Vitesse sol</dt><dd>${m((dx / dt) * 3.6)} km/h</dd>
-        <dt>Prochaine zone</dt><dd>${z ? `${ROLE[z.role] || z.role} ${esc(z.name)}` : "manche terminée"}</dd>
-        ${z ? `<dt>Bord de la zone</dt><dd>${edgeText(T.edge[i])}</dd>` : ""}
-        <dt>Position</dt><dd>${T.lat[i].toFixed(5)}, ${T.lon[i].toFixed(5)}</dd>
+        <dt>${T("Altitude GPS")}</dt><dd>${m(TK.alt[i])} m</dd>
+        <dt>${T("Vario")}</dt><dd>${vz == null ? "–" : (vz >= 0 ? "+" : "") + m(vz, 1)} m/s</dd>
+        <dt>${T("Vitesse sol")}</dt><dd>${m((dx / dt) * 3.6)} km/h</dd>
+        <dt>${T("Prochaine zone")}</dt><dd>${z ? `${ROLE[z.role] || z.role} ${esc(z.name)}` : T("manche terminée")}</dd>
+        ${z ? `<dt>${T("Bord de la zone")}</dt><dd>${edgeText(TK.edge[i])}</dd>` : ""}
+        <dt>${T("Position")}</dt><dd>${TK.lat[i].toFixed(5)}, ${TK.lon[i].toFixed(5)}</dd>
       </dl>
-      ${inAir ? `<p class="small">Espaces aériens à la verticale :</p><ul class="small">${inAir}</ul>` : ""}
-      ${i < T.flightStart || i > T.flightEnd ? `<p class="small muted">Hors du vol retenu.</p>` : ""}`;
+      ${inAir ? `<p class="small">${T("Espaces aériens à la verticale :")}</p><ul class="small">${inAir}</ul>` : ""}
+      ${i < TK.flightStart || i > TK.flightEnd ? `<p class="small muted">${T("Hors du vol retenu.")}</p>` : ""}`;
   }
 
   // ---- Vue 3D (Cesium, chargé à la demande) --------------------------------------------------
@@ -365,7 +367,7 @@
   function loadScript(src) {
     return new Promise((res, rej) => {
       const s = document.createElement("script");
-      s.src = src; s.onload = res; s.onerror = () => rej(new Error("Chargement impossible : " + src));
+      s.src = src; s.onload = res; s.onerror = () => rej(new Error(T("Chargement impossible : {src}", { src })));
       document.head.appendChild(s);
     });
   }
@@ -419,7 +421,7 @@
       return viewer3d.entities.add({ name: multi ? `${D.pilot.name} · ${vLabel(v)}` : D.pilot.name, polyline: { positions: C.Cartesian3.fromDegreesArrayHeights(pos), width: 2, material: C.Color.fromCssColorString(v.color) } });
     });
     ghosts3d = VS.map((v) => viewer3d.entities.add({ position: C.Cartesian3.fromDegrees(0, 0, 0), show: false, point: { pixelSize: 9, color: C.Color.WHITE, outlineColor: C.Color.fromCssColorString(v.color), outlineWidth: 3 } }));
-    cursor3d = viewer3d.entities.add({ position: C.Cartesian3.fromDegrees(T.lon[idx], T.lat[idx], T.alt[idx] ?? 0), point: { pixelSize: 12, color: C.Color.YELLOW, outlineColor: C.Color.BLACK, outlineWidth: 2 } });
+    cursor3d = viewer3d.entities.add({ position: C.Cartesian3.fromDegrees(TK.lon[idx], TK.lat[idx], TK.alt[idx] ?? 0), point: { pixelSize: 12, color: C.Color.YELLOW, outlineColor: C.Color.BLACK, outlineWidth: 2 } });
     viewer3d.flyTo(viewer3d.entities, { duration: 0 });
     draw3d();
   }
@@ -436,8 +438,8 @@
   }
   function update3d() {
     if (!cursor3d) return;
-    const C = window.Cesium, t = T.t[idx];
-    cursor3d.position = C.Cartesian3.fromDegrees(T.lon[idx], T.lat[idx], T.alt[idx] ?? 0);
+    const C = window.Cesium, t = TK.t[idx];
+    cursor3d.position = C.Cartesian3.fromDegrees(TK.lon[idx], TK.lat[idx], TK.alt[idx] ?? 0);
     VS.forEach((v, k) => {
       const tr = v.track, g = ghosts3d[k];
       g.show = k !== cur && shown.has(k) && t >= tr.t[0] && t <= tr.t[tr.t.length - 1];
@@ -454,7 +456,7 @@
       document.getElementById("v-3d").hidden = !three;
       if (three) {
         try { await open3d(); update3d(); }
-        catch (e) { document.getElementById("v-3d").textContent = "La vue 3D n'a pas pu se charger : " + e.message; }
+        catch (e) { document.getElementById("v-3d").textContent = T("La vue 3D n'a pas pu se charger : {error}", { error: e.message }); }
       } else map.invalidateSize();
     }),
   );
@@ -464,7 +466,7 @@
     idx = Math.max(0, Math.min(N - 1, i));
     slider.value = String(idx);
     cursor.setLatLng(ll(idx));
-    moveGhosts2d(T.t[idx]);
+    moveGhosts2d(TK.t[idx]);
     if (pan) map.panTo(ll(idx));
     renderNow();
     drawBaro();
@@ -481,10 +483,10 @@
     let last = performance.now();
     timer = setInterval(() => {
       const nowMs = performance.now();
-      const target = T.t[idx] + (nowMs - last) * Number(document.getElementById("v-speed").value);
+      const target = TK.t[idx] + (nowMs - last) * Number(document.getElementById("v-speed").value);
       last = nowMs;
       const j = indexAt(target);
-      if (j >= T.flightEnd) { setIndex(T.flightEnd); playBtn.click(); return; }
+      if (j >= TK.flightEnd) { setIndex(TK.flightEnd); playBtn.click(); return; }
       setIndex(Math.max(j, idx + 1), false);
     }, 100);
   };
@@ -500,15 +502,15 @@
     const r = v.result;
     const res = r.madeGoal ? `Goal ${hhmmss(r.goalTime)}` : r.madeEss ? `ESS ${hhmmss(r.essTime)}` : `${km(r.flownDistance)} km`;
     const miss = v.approaches.find((a) => !a.reached && a.closest);
-    const missTxt = miss ? `${miss.role === "sss" ? "Départ" : `${ROLE[miss.role] || miss.role} ${esc(miss.name)}`} manqué de ${m(Math.abs(miss.closest.distance), 1)} m` : "";
+    const missTxt = miss ? T("{zone} manqué de {d} m", { zone: miss.role === "sss" ? ROLE.sss : `${ROLE[miss.role] || miss.role} ${esc(miss.name)}`, d: m(Math.abs(miss.closest.distance), 1) }) : "";
     const depth = v.infringements.length ? Math.max(...v.infringements.map((i) => i.depth)) : 0;
-    return { res, start: r.startTime ? hhmmss(r.startTime) : "aucun", missTxt, air: depth ? `${m(depth, 1)} m dans ${esc(v.infringements.find((i) => i.depth === depth).name)}` : "" };
+    return { res, start: r.startTime ? hhmmss(r.startTime) : T("aucun"), missTxt, air: depth ? T("{d} m dans {name}", { d: m(depth, 1), name: esc(v.infringements.find((i) => i.depth === depth).name) }) : "" };
   }
-  const fmtDay = new Intl.DateTimeFormat("fr-FR", { timeZone: tz, day: "2-digit", month: "2-digit" });
+  const fmtDay = new Intl.DateTimeFormat(LOC, { timeZone: tz, day: "2-digit", month: "2-digit" });
   function renderVersions() {
     const tbl = document.getElementById("v-versions");
     if (!tbl) return;
-    tbl.innerHTML = `<thead><tr><th></th><th>Afficher</th><th>Analyser</th><th>Version</th><th>Reçue</th><th>Résultat</th><th>Départ</th><th>À vérifier</th></tr></thead><tbody>${VS.map((v, k) => {
+    tbl.innerHTML = `<thead><tr><th></th><th>${T("Afficher")}</th><th>${T("Analyser")}</th><th>${T("Version")}</th><th>${T("Reçue")}</th><th>${T("Résultat")}</th><th>${T("Départ")}</th><th>${T("À vérifier")}</th></tr></thead><tbody>${VS.map((v, k) => {
       const s = summary(v);
       const remarks = [s.missTxt, s.air && `<span class="bad">${s.air}</span>`, v.note && `<span class="muted">${esc(v.note)}</span>`].filter(Boolean).join("<br>");
       return `<tr class="${k === cur ? "on" : ""}">
@@ -521,12 +523,12 @@
     }).join("")}</tbody>`;
   }
   function selectVersion(k) {
-    const t = T.t[idx];
+    const t = TK.t[idx];
     bind(k);
     slider.max = String(N - 1);
     renderVersions(); renderEvents(); drawTracks2d(); draw3d();
     // Même instant dans la nouvelle version, si elle le couvre.
-    setIndex(t >= T.t[0] && t <= T.t[N - 1] ? indexAt(t) : T.flightStart);
+    setIndex(t >= TK.t[0] && t <= TK.t[N - 1] ? indexAt(t) : TK.flightStart);
     const u = new URL(location.href); u.searchParams.set("v", V.sha256); history.replaceState(null, "", u);
   }
   const vt = document.getElementById("v-versions");
@@ -544,6 +546,6 @@
 
   // Ouverture : sur le premier passage manqué s'il y en a un, sinon au décollage.
   const miss = V.approaches.find((a) => !a.reached && a.closest);
-  setIndex(miss ? indexAt(miss.closest.time) : T.flightStart, !!miss);
+  setIndex(miss ? indexAt(miss.closest.time) : TK.flightStart, !!miss);
   if (miss) map.setView(ll(idx), 14);
 })();

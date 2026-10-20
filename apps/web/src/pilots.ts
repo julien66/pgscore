@@ -1,22 +1,23 @@
 import type { Db, PilotRow } from "./db.js";
 import { FormError } from "./settings.js";
+import { N_, t } from "./i18n.js";
 
 /** Champs d'un pilote inscrit, sans l'identifiant en base. */
 export type PilotFields = Omit<PilotRow, "id" | "competition_id">;
 
 /** Colonnes du tableau, de l'export CSV et de l'import CSV (avec les en-têtes reconnus). */
 export const PILOT_COLUMNS: Array<{ key: keyof PilotFields; label: string; csv: string; aliases: string[] }> = [
-  { key: "pilot_key", label: "N°", csv: "numero", aliases: ["n", "no", "num", "number", "id", "pilot", "pilote", "dossard", "bib"] },
-  { key: "name", label: "Nom", csv: "nom", aliases: ["name", "pilot name", "nom prenom", "full name"] },
-  { key: "gender", label: "Genre", csv: "genre", aliases: ["gender", "sex", "sexe", "female"] },
-  { key: "nation", label: "Nation", csv: "nation", aliases: ["nat", "country", "pays", "nationality", "nationalite"] },
-  { key: "civl_id", label: "CIVL ID", csv: "civl_id", aliases: ["civl", "civlid", "fai id"] },
-  { key: "glider_brand", label: "Marque voile", csv: "voile_marque", aliases: ["glider brand", "glider make", "marque voile", "marque"] },
-  { key: "glider_model", label: "Modèle voile", csv: "voile_modele", aliases: ["glider", "glider model", "modele voile", "voile", "aile"] },
-  { key: "glider_class", label: "Classe", csv: "voile_classe", aliases: ["class", "classe", "en", "certification", "homologation", "glider class"] },
-  { key: "harness_brand", label: "Marque sellette", csv: "sellette_marque", aliases: ["harness brand", "harness make", "marque sellette"] },
-  { key: "harness_model", label: "Modèle sellette", csv: "sellette_modele", aliases: ["harness", "harness model", "modele sellette", "sellette"] },
-  { key: "weight_max", label: "PTV max (kg)", csv: "ptv_max_kg", aliases: ["ptv", "ptv max", "weight", "max weight", "poids", "poids max", "total weight"] },
+  { key: "pilot_key", label: N_("N°"), csv: "numero", aliases: ["n", "no", "num", "number", "id", "pilot", "pilote", "dossard", "bib"] },
+  { key: "name", label: N_("Nom"), csv: "nom", aliases: ["name", "pilot name", "nom prenom", "full name"] },
+  { key: "gender", label: N_("Genre"), csv: "genre", aliases: ["gender", "sex", "sexe", "female"] },
+  { key: "nation", label: N_("Nation"), csv: "nation", aliases: ["nat", "country", "pays", "nationality", "nationalite"] },
+  { key: "civl_id", label: N_("CIVL ID"), csv: "civl_id", aliases: ["civl", "civlid", "fai id"] },
+  { key: "glider_brand", label: N_("Marque voile"), csv: "voile_marque", aliases: ["glider brand", "glider make", "marque voile", "marque"] },
+  { key: "glider_model", label: N_("Modèle voile"), csv: "voile_modele", aliases: ["glider", "glider model", "modele voile", "voile", "aile"] },
+  { key: "glider_class", label: N_("Classe"), csv: "voile_classe", aliases: ["class", "classe", "en", "certification", "homologation", "glider class"] },
+  { key: "harness_brand", label: N_("Marque sellette"), csv: "sellette_marque", aliases: ["harness brand", "harness make", "marque sellette"] },
+  { key: "harness_model", label: N_("Modèle sellette"), csv: "sellette_modele", aliases: ["harness", "harness model", "modele sellette", "sellette"] },
+  { key: "weight_max", label: N_("PTV max (kg)"), csv: "ptv_max_kg", aliases: ["ptv", "ptv max", "weight", "max weight", "poids", "poids max", "total weight"] },
 ];
 
 const norm = (s: string) =>
@@ -33,7 +34,7 @@ export function parseGender(v: string): "F" | "M" | null {
   if (!x) return null;
   if (["f", "female", "femme", "w", "woman", "women", "feminin", "1", "true", "oui", "yes"].includes(x)) return "F";
   if (["m", "male", "homme", "h", "man", "men", "masculin", "0", "false", "non", "no"].includes(x)) return "M";
-  throw new FormError(`Genre non reconnu : « ${v} » (F ou M attendu).`);
+  throw new FormError(t("Genre non reconnu : « {value} » (F ou M attendu).", { value: v }));
 }
 
 /** Nettoie et valide un pilote ; les champs vides deviennent null. */
@@ -43,12 +44,12 @@ export function cleanPilot(raw: Partial<Record<keyof PilotFields, unknown>>): Pi
     return v ? v : null;
   };
   const key = str("pilot_key");
-  if (!key) throw new FormError("Numéro du pilote obligatoire.");
+  if (!key) throw new FormError(t("Numéro du pilote obligatoire."));
   const name = str("name");
-  if (!name) throw new FormError(`Pilote ${key} : nom obligatoire.`);
+  if (!name) throw new FormError(t("Pilote {key} : nom obligatoire.", { key }));
   const w = str("weight_max");
   const weight = w === null ? null : Number(w.replace(",", ".").replace(/\s*kg$/i, ""));
-  if (weight !== null && !(Number.isFinite(weight) && weight > 0 && weight < 1000)) throw new FormError(`Pilote ${key} : PTV max illisible (« ${w} »).`);
+  if (weight !== null && !(Number.isFinite(weight) && weight > 0 && weight < 1000)) throw new FormError(t("Pilote {key} : PTV max illisible (« {value} »).", { key, value: w ?? "" }));
   const nation = str("nation");
   return {
     pilot_key: key,
@@ -103,7 +104,7 @@ export function parseCsvRows(text: string): string[][] {
 
 export function pilotsFromCsv(text: string): PilotFields[] {
   const rows = parseCsvRows(text);
-  if (rows.length < 2) throw new FormError("CSV vide : une ligne d'en-tête puis une ligne par pilote.");
+  if (rows.length < 2) throw new FormError(t("CSV vide : une ligne d'en-tête puis une ligne par pilote."));
   const head = rows[0]!.map(norm);
   const index = new Map<keyof PilotFields, number>();
   for (const c of PILOT_COLUMNS) {
@@ -112,7 +113,7 @@ export function pilotsFromCsv(text: string): PilotFields[] {
     if (i >= 0 && !index.has(c.key)) index.set(c.key, i);
   }
   if (!index.has("pilot_key") || !index.has("name"))
-    throw new FormError(`Colonnes « numero » et « nom » obligatoires. En-têtes lus : ${rows[0]!.join(", ")}.`);
+    throw new FormError(t("Colonnes « numero » et « nom » obligatoires. En-têtes lus : {headers}.", { headers: rows[0]!.join(", ") }));
   return rows.slice(1).map((r, n) => {
     const raw: Partial<Record<keyof PilotFields, unknown>> = {};
     for (const [k, i] of index) raw[k] = r[i] ?? "";
@@ -126,7 +127,7 @@ export function pilotsFromCsv(text: string): PilotFields[] {
     try {
       return cleanPilot(raw);
     } catch (e) {
-      throw new FormError(`Ligne ${n + 2} : ${(e as Error).message}`);
+      throw new FormError(t("Ligne {n} : {error}", { n: n + 2, error: (e as Error).message }));
     }
   });
 }
@@ -152,7 +153,7 @@ const decodeXml = (s: string) =>
  */
 export function pilotsFromFsdb(text: string): PilotFields[] {
   const parts = [...text.matchAll(/<FsParticipant\b([^>]*?)(\/>|>([\s\S]*?)<\/FsParticipant>)/g)];
-  if (!parts.length) throw new FormError("Aucun pilote (<FsParticipant>) dans ce fichier FSDB.");
+  if (!parts.length) throw new FormError(t("Aucun pilote (<FsParticipant>) dans ce fichier FSDB."));
   return parts.map((m, n) => {
     const a = xmlAttrs(m[1]!);
     const custom: Record<string, string> = {};
@@ -179,7 +180,7 @@ export function pilotsFromFsdb(text: string): PilotFields[] {
         weight_max: pick("ptv", "ptv max", "max weight", "weight"),
       });
     } catch (e) {
-      throw new FormError(`Pilote n° ${n + 1} du FSDB : ${(e as Error).message}`);
+      throw new FormError(t("Pilote n° {n} du FSDB : {error}", { n: n + 1, error: (e as Error).message }));
     }
   });
 }
@@ -190,7 +191,7 @@ export function pilotsFromFile(name: string, text: string): PilotFields[] {
   const list = isXml ? pilotsFromFsdb(text) : pilotsFromCsv(text);
   const seen = new Set<string>();
   for (const p of list) {
-    if (seen.has(p.pilot_key)) throw new FormError(`Numéro ${p.pilot_key} en double dans le fichier.`);
+    if (seen.has(p.pilot_key)) throw new FormError(t("Numéro {key} en double dans le fichier.", { key: p.pilot_key }));
     seen.add(p.pilot_key);
   }
   return list;
@@ -256,10 +257,10 @@ export function savePilotTable(db: Db, compId: number, form: Record<string, unkn
   const seen = new Map<string, number>();
   for (const r of current) if (!byId.has(r.id) && !removed.has(r.id)) seen.set(r.pilot_key, r.id);
   for (const { id, p } of kept) {
-    if (seen.has(p.pilot_key)) throw new FormError(`Numéro ${p.pilot_key} en double.`);
+    if (seen.has(p.pilot_key)) throw new FormError(t("Numéro {key} en double.", { key: p.pilot_key }));
     seen.set(p.pilot_key, id);
   }
-  if (added && seen.has(added.pilot_key)) throw new FormError(`Numéro ${added.pilot_key} déjà inscrit.`);
+  if (added && seen.has(added.pilot_key)) throw new FormError(t("Numéro {key} déjà inscrit.", { key: added.pilot_key }));
   const set = db.prepare(`UPDATE competition_pilots SET ${FIELDS.map((f) => `${f} = ?`).join(", ")} WHERE id = ? AND competition_id = ?`);
   const drop = db.prepare("DELETE FROM competition_pilots WHERE id = ? AND competition_id = ?");
   db.exec("BEGIN");

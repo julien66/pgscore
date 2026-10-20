@@ -1,11 +1,12 @@
 import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
-import type { DecisionKind, PilotResult, Task, TaskScoring } from "@pgscore/engine";
+import type { DecisionKind, LeadingWarning, PilotResult, Task, TaskScoring } from "@pgscore/engine";
 import type { CompetitionRow, DecisionRow, PilotRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
 import { DECISION_KINDS } from "./decisions.js";
 import { GAP_PROFILES, LEADING_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
 import type { Standings } from "./standings.js";
+import { lang, LANGS, locale, N_, t } from "./i18n.js";
 import { PILOT_COLUMNS } from "./pilots.js";
 import { describeRule, RULE_FIELDS, RULE_OPS, type Ranking } from "./rankings.js";
 
@@ -66,6 +67,7 @@ table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{
 .cond{margin-top:6px}.cond select{width:auto}.cond input{max-width:280px}
 .ftv-part{font-weight:600}.ftv-raw{color:var(--muted);font-size:12px;margin-left:4px}.ftv-out{color:var(--muted)}
 th .sub{display:block;text-transform:none;letter-spacing:0;font-weight:400}
+.langs{display:flex;gap:2px;font-size:12px}.langs a{padding:2px 6px;border-radius:6px;color:var(--muted)}.langs a.on{background:var(--chip);color:var(--text);font-weight:600}
 .center{max-width:420px;margin:60px auto;text-align:center}
 `;
 
@@ -115,13 +117,14 @@ export const Bi: FC<{ n: keyof typeof ICONS }> = ({ n }) =>
 export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; refresh?: number }>> = ({ title, user, refresh, children }) => (
   <>
   {raw("<!DOCTYPE html>")}
-  <html lang="fr">
+  <html lang={lang()}>
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       {refresh ? <meta http-equiv="refresh" content={String(refresh)} /> : null}
       <title>{title} · pgscore</title>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <script src="/static/i18n.js" />
     </head>
     <body>
       <header>
@@ -130,11 +133,18 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
             pgscore
           </a>
           <span class="sp" />
+          <nav class="langs" aria-label="Language">
+            {Object.entries(LANGS).map(([code, name]) => (
+              <a href={`/lang/${code}`} class={code === lang() ? "on" : ""} title={name} hreflang={code}>
+                {code.toUpperCase()}
+              </a>
+            ))}
+          </nav>
           {user ? (
             <>
               <span class="who">{user.name ?? user.email}</span>
               <form method="post" action="/auth/logout">
-                <button class="link">Se déconnecter</button>
+                <button class="link">{t("Se déconnecter")}</button>
               </form>
             </>
           ) : null}
@@ -153,10 +163,10 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
   devLogin,
   error,
 }) => (
-  <Layout title="Connexion">
+  <Layout title={t("Connexion")}>
     <div class="center">
       <h1>pgscore</h1>
-      <p class="muted">Contrôle et scoring des compétitions de parapente cross-country.</p>
+      <p class="muted">{t("Contrôle et scoring des compétitions de parapente cross-country.")}</p>
       <ErrorBox message={error} />
       {providers.map((p) => (
         <p>
@@ -167,20 +177,20 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
         </p>
       ))}
       {!providers.length && !devLogin ? (
-        <div class="note">Aucun service de connexion n'est configuré (variables GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET).</div>
+        <div class="note">{t("Aucun service de connexion n'est configuré (variables GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET).")}</div>
       ) : null}
       {devLogin ? (
         <form method="post" action="/auth/dev" class="card mt" style="text-align:left">
-          <h2><Ic n="key" c="gray" />Connexion de développement</h2>
-          <p class="small muted">Active seulement avec DEV_LOGIN=1, pour tester sans Google.</p>
-          <label>E-mail</label>
+          <h2><Ic n="key" c="gray" />{t("Connexion de développement")}</h2>
+          <p class="small muted">{t("Active seulement avec DEV_LOGIN=1, pour tester sans Google.")}</p>
+          <label>{t("E-mail")}</label>
           <input type="email" name="email" required value="dev@pgscore.local" />
-          <label class="mt">Nom</label>
-          <input type="text" name="name" value="Organisateur test" />
+          <label class="mt">{t("Nom")}</label>
+          <input type="text" name="name" value={t("Organisateur test")} />
           <p>
             <button class="primary">
               <Bi n="login" />
-              Entrer
+              {t("Entrer")}
             </button>
           </p>
         </form>
@@ -190,12 +200,12 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
 );
 
 export const HomePage: FC<{ user: User; competitions: CompetitionRow[] }> = ({ user, competitions }) => (
-  <Layout title="Mes compétitions" user={user}>
+  <Layout title={t("Mes compétitions")} user={user}>
     <div class="row" style="justify-content:space-between">
-      <h1>Mes compétitions</h1>
+      <h1>{t("Mes compétitions")}</h1>
       <a class="btn primary" href="/competitions/new">
         <Bi n="plus" />
-        Nouvelle compétition
+        {t("Nouvelle compétition")}
       </a>
     </div>
     <div class="card">
@@ -213,15 +223,15 @@ export const HomePage: FC<{ user: User; competitions: CompetitionRow[] }> = ({ u
           ))}
         </ul>
       ) : (
-        <p class="muted">Pas encore de compétition. Créez-en une pour y ajouter des manches.</p>
+        <p class="muted">{t("Pas encore de compétition. Créez-en une pour y ajouter des manches.")}</p>
       )}
     </div>
   </Layout>
 );
 
 function dateRange(a: string | null, b: string | null): string {
-  const f = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
-  if (a && b && a !== b) return `du ${f(a)} au ${f(b)}`;
+  const f = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" });
+  if (a && b && a !== b) return t("du {a} au {b}", { a: f(a), b: f(b) });
   return a ? f(a) : b ? f(b) : "";
 }
 
@@ -239,77 +249,77 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
     <>
       <div class="grid">
         <div>
-          <label>Nom</label>
+          <label>{t("Nom")}</label>
           <input type="text" name="name" required value={v.name} />
         </div>
         <div>
-          <label>Lieu</label>
+          <label>{t("Lieu")}</label>
           <input type="text" name="location" value={v.location} />
         </div>
         <div>
-          <label>Début</label>
+          <label>{t("Début")}</label>
           <input type="date" name="start_date" value={v.start_date} />
         </div>
         <div>
-          <label>Fin</label>
+          <label>{t("Fin")}</label>
           <input type="date" name="end_date" value={v.end_date} />
         </div>
       </div>
-      <h2 class="mt"><Ic n="sliders" c="gray" />Paramètres de la formule (S7F, chapitre 5)</h2>
+      <h2 class="mt"><Ic n="sliders" c="gray" />{t("Paramètres de la formule (S7F, chapitre 5)")}</h2>
       <div class="grid">
         <div>
-          <label>Distance nominale (km)</label>
+          <label>{t("Distance nominale (km)")}</label>
           <input type="number" step="0.1" min="0" name="nominalDistance" value={String(s.nominalDistance / 1000)} />
         </div>
         <div>
-          <label>Distance minimale (km)</label>
+          <label>{t("Distance minimale (km)")}</label>
           <input type="number" step="0.1" min="0" name="minimumDistance" value={String(s.minimumDistance / 1000)} />
         </div>
         <div>
-          <label>Temps nominal (min)</label>
+          <label>{t("Temps nominal (min)")}</label>
           <input type="number" step="1" min="1" name="nominalTime" value={String(s.nominalTime / 60)} />
         </div>
         <div>
-          <label>Facteur FTV (%)</label>
+          <label>{t("Facteur FTV (%)")}</label>
           <input type="number" step="1" min="0" max="100" name="ftvFactor" value={String(Math.round(s.ftvFactor * 100))} />
         </div>
         <div>
-          <label>Formule de points</label>
+          <label>{t("Formule de points")}</label>
           <select name="gapProfile">
             {Object.entries(GAP_PROFILES).map(([k, l]) => (
               <option value={k} selected={s.gapProfile === k}>
-                {l}
+                {t(l)}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label>Leading</label>
+          <label>{t("Leading")}</label>
           <select name="leadingProfile">
             {Object.entries(LEADING_PROFILES).map(([k, l]) => (
               <option value={k} selected={s.leadingProfile === k}>
-                {l}
+                {t(l)}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label>Pénalité d'espace aérien</label>
+          <label>{t("Pénalité d'espace aérien")}</label>
           <select name="airspacePenaltyRule">
             {Object.entries(PENALTY_RULES).map(([k, l]) => (
               <option value={k} selected={s.airspacePenaltyRule === k}>
-                {l}
+                {t(l)}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label>Fuseau horaire du site</label>
+          <label>{t("Fuseau horaire du site")}</label>
           <input type="text" name="timeZone" value={s.timeZone} placeholder="Europe/Paris" />
         </div>
         <div style="align-self:end">
           <label class="check">
-            <input type="checkbox" name="roundAirspaceLimits" checked={s.roundAirspaceLimits} /> Arrondir au mètre les limites en pieds (SVL)
+            <input type="checkbox" name="roundAirspaceLimits" checked={s.roundAirspaceLimits} /> {t("Arrondir au mètre les limites en pieds (SVL)")}
           </label>
         </div>
       </div>
@@ -318,21 +328,21 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
 };
 
 export const NewCompetitionPage: FC<{ user: User; v: CompetitionFormValues; error?: string | null }> = ({ user, v, error }) => (
-  <Layout title="Nouvelle compétition" user={user}>
+  <Layout title={t("Nouvelle compétition")} user={user}>
     <div class="crumbs">
-      <a href="/">Mes compétitions</a>
+      <a href="/">{t("Mes compétitions")}</a>
     </div>
-    <h1>Nouvelle compétition</h1>
+    <h1>{t("Nouvelle compétition")}</h1>
     <ErrorBox message={error} />
     <form method="post" action="/competitions" enctype="multipart/form-data" class="card">
       <CompetitionFields v={v} />
-      <h2 class="mt"><Ic n="shield" c="red" />Espace aérien</h2>
-      <label>Fichier OpenAir (facultatif, modifiable ensuite)</label>
+      <h2 class="mt"><Ic n="shield" c="red" />{t("Espace aérien")}</h2>
+      <label>{t("Fichier OpenAir (facultatif, modifiable ensuite)")}</label>
       <input type="file" name="airspace" accept=".txt,.air,.openair" />
       <p class="mt">
         <button class="primary">
           <Bi n="plus" />
-          Créer la compétition
+          {t("Créer la compétition")}
         </button>
       </p>
     </form>
@@ -352,19 +362,19 @@ export const CompetitionPage: FC<{
   notice?: string | null;
   edit?: boolean;
 }> = ({ user, c, v, tasks, standings, pilots, rankings, airspaceCount, error, notice, edit }) => (
-  <Layout title={edit ? `Éditer · ${c.name}` : c.name} user={user}>
+  <Layout title={edit ? `${t("Éditer")} · ${c.name}` : c.name} user={user}>
     <div class="crumbs">
-      <a href="/">Mes compétitions</a>
+      <a href="/">{t("Mes compétitions")}</a>
     </div>
     <h1>{c.name}</h1>
     <nav class="tabs">
       <a href={`/competitions/${c.id}`} class={edit ? "" : "on"}>
         <Bi n="route" />
-        Manches et classements
+        {t("Manches et classements")}
       </a>
       <a href={`/competitions/${c.id}/edit`} class={edit ? "on" : ""}>
         <Bi n="sliders" />
-        Éditer
+        {t("Éditer")}
       </a>
     </nav>
     <ErrorBox message={error} />
@@ -386,33 +396,33 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; standings: Stan
   <>
     <div class="card">
       <div class="row" style="justify-content:space-between">
-        <h2><Ic n="route" c="blue" />Manches</h2>
+        <h2><Ic n="route" c="blue" />{t("Manches")}</h2>
         <a class="btn primary" href={`/competitions/${c.id}/tasks/new`}>
           <Bi n="plus" />
-          Nouvelle manche
+          {t("Nouvelle manche")}
         </a>
       </div>
       {tasks.length ? (
         <ul class="list">
-          {tasks.map((t) => {
-            const task = JSON.parse(t.task) as Task;
+          {tasks.map((tk) => {
+            const task = JSON.parse(tk.task) as Task;
             return (
               <li>
-                <a href={`/tasks/${t.id}`}>
-                  <strong>Manche {t.number}</strong>
+                <a href={`/tasks/${tk.id}`}>
+                  <strong>{t("Manche {n}", { n: tk.number })}</strong>
                 </a>
                 <span class="muted small">
-                  {[t.date ? dateRange(t.date, null) : null, task.type === "race" ? "race" : "time trial", task.stopAnnouncement ? "arrêtée" : null]
+                  {[tk.date ? dateRange(tk.date, null) : null, task.type === "race" ? t("race") : t("time trial"), task.stopAnnouncement ? t("arrêtée") : null]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
-                <form method="post" action={`/tasks/${t.id}/official`} class="official">
+                <form method="post" action={`/tasks/${tk.id}/official`} class="official">
                   <input type="hidden" name="back" value="competition" />
                   <label class="check">
-                    <input type="checkbox" name="official" value="1" checked={t.official === 1} /> officielle
+                    <input type="checkbox" name="official" value="1" checked={tk.official === 1} /> {t("officielle")}
                   </label>
                   <noscript>
-                    <button class="link">Enregistrer</button>
+                    <button class="link">{t("Enregistrer")}</button>
                   </noscript>
                 </form>
               </li>
@@ -420,12 +430,12 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; standings: Stan
           })}
         </ul>
       ) : (
-        <p class="muted">Pas encore de manche.</p>
+        <p class="muted">{t("Pas encore de manche.")}</p>
       )}
     </div>
 
     <div class="card" id="standings">
-      <h2><Ic n="trophy" c="amber" />Classement général</h2>
+      <h2><Ic n="trophy" c="amber" />{t("Classement général")}</h2>
       <RankingTabs c={c} rankings={rankings} current={null} />
       <StandingsTable c={c} s={standings} limit={10} />
     </div>
@@ -446,10 +456,14 @@ const CompetitionEdit: FC<{ c: CompetitionRow; v: CompetitionFormValues; pilots:
       <summary>
         <h2>
           <Ic n="sliders" c="gray" />
-          Compétition
+          {t("Compétition")}
           <span class="muted small">
-            {GAP_PROFILES[v.settings.gapProfile].split(" (")[0]} · FTV {Math.round(v.settings.ftvFactor * 100)} % · nominale {v.settings.nominalDistance / 1000} km,{" "}
-            {v.settings.nominalTime / 60} min
+            {t(GAP_PROFILES[v.settings.gapProfile]).split(" (")[0]} ·{" "}
+            {t("FTV {ftv} % · nominale {km} km, {min} min", {
+              ftv: Math.round(v.settings.ftvFactor * 100),
+              km: fr(v.settings.nominalDistance / 1000, v.settings.nominalDistance % 1000 ? 1 : 0),
+              min: v.settings.nominalTime / 60,
+            })}
           </span>
         </h2>
       </summary>
@@ -458,7 +472,7 @@ const CompetitionEdit: FC<{ c: CompetitionRow; v: CompetitionFormValues; pilots:
         <p class="mt">
           <button class="primary">
             <Bi n="save" />
-            Enregistrer
+            {t("Enregistrer")}
           </button>
         </p>
       </form>
@@ -468,19 +482,25 @@ const CompetitionEdit: FC<{ c: CompetitionRow; v: CompetitionFormValues; pilots:
       <summary>
         <h2>
           <Ic n="shield" c="red" />
-          Espace aérien
-          <span class="muted small">{c.airspace_name ? `${c.airspace_name} · ${airspaceCount} zone${airspaceCount === 1 ? "" : "s"}` : "aucun fichier"}</span>
+          {t("Espace aérien")}
+          <span class="muted small">
+            {c.airspace_name
+              ? `${c.airspace_name} · ${airspaceCount === 1 ? t("{n} zone", { n: 1 }) : t("{n} zones", { n: airspaceCount ?? 0 })}`
+              : t("aucun fichier")}
+          </span>
         </h2>
       </summary>
-      {c.airspace_name ? null : <p class="muted">Aucun fichier : les traces ne sont pas contrôlées pour l'espace aérien.</p>}
+      {c.airspace_name ? null : <p class="muted">{t("Aucun fichier : les traces ne sont pas contrôlées pour l'espace aérien.")}</p>}
       <form method="post" action={`/competitions/${c.id}/airspace`} enctype="multipart/form-data" class="row">
         <input type="file" name="airspace" accept=".txt,.air,.openair" required />
         <button>
           <Bi n="upload" />
-          {c.airspace_name ? "Remplacer" : "Envoyer"}
+          {c.airspace_name ? t("Remplacer") : t("Envoyer")}
         </button>
       </form>
-      <p class="small muted">Limites lues en AMSL ; niveaux de vol convertis à 1013,25 hPa puis abaissés de 100 m. Les limites AGL sont ignorées.</p>
+      <p class="small muted">
+        {t("Limites lues en AMSL ; niveaux de vol convertis à 1013,25 hPa puis abaissés de 100 m. Les limites AGL sont ignorées.")}
+      </p>
     </details>
 
     <PilotsBlock c={c} pilots={pilots} open={open} />
@@ -509,16 +529,20 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
         </select>
       );
     const size = key === "pilot_key" || key === "nation" || key === "weight_max" || key === "glider_class" ? "s" : key === "name" ? "l" : "m";
-    return <input type="text" name={name} value={v === null ? "" : String(v)} class={`in-${size}`} placeholder={p ? "" : PILOT_COLUMNS.find((x) => x.key === key)!.label} />;
+    return <input type="text" name={name} value={v === null ? "" : String(v)} class={`in-${size}`} placeholder={p ? "" : t(PILOT_COLUMNS.find((x) => x.key === key)!.label)} />;
   };
   return (
     <details class="card fold" id="pilots" open={open}>
       <summary>
         <h2>
           <Ic n="users" c="purple" />
-          Pilotes{" "}
+          {t("Pilotes")}{" "}
           <span class="muted small">
-            {pilots.length ? `${pilots.length} inscrits${women ? ` · ${women} femmes` : ""}` : "aucun inscrit"}
+            {pilots.length
+              ? `${pilots.length === 1 ? t("{n} inscrit", { n: 1 }) : t("{n} inscrits", { n: pilots.length })}${
+                  women ? ` · ${women === 1 ? t("{n} femme", { n: 1 }) : t("{n} femmes", { n: women })}` : ""
+                }`
+              : t("aucun inscrit")}
           </span>
         </h2>
       </summary>
@@ -526,14 +550,14 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
         <input type="file" name="file" accept=".fsdb,.xml,.csv,.txt" required />
         <button>
           <Bi n="upload" />
-          Importer
+          {t("Importer")}
         </button>
-        {pilots.length ? <a href={`/competitions/${c.id}/pilots.csv`}>Exporter en CSV</a> : null}
+        {pilots.length ? <a href={`/competitions/${c.id}/pilots.csv`}>{t("Exporter en CSV")}</a> : null}
       </form>
       <p class="small muted">
-        Fichier FSDB (logiciel FS de la CIVL) ou CSV avec une ligne d'en-tête : numero, nom, genre, nation, civl_id, voile_marque, voile_modele,
-        voile_classe, sellette_marque, sellette_modele, ptv_max_kg (seuls numero et nom sont obligatoires ; une colonne « voile » ou « sellette » seule est
-        coupée en marque et modèle). Un pilote déjà inscrit sous le même numéro est mis à jour. Le numéro est celui des traces.
+        {t(
+          "Fichier FSDB (logiciel FS de la CIVL) ou CSV avec une ligne d'en-tête : numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg (seuls numero et nom sont obligatoires ; une colonne « voile » ou « sellette » seule est coupée en marque et modèle). Un pilote déjà inscrit sous le même numéro est mis à jour. Le numéro est celui des traces.",
+        )}
       </p>
       <form method="post" action={`/competitions/${c.id}/pilots`}>
         <div class="scroll">
@@ -541,9 +565,9 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
             <thead>
               <tr>
                 {PILOT_COLUMNS.map((col) => (
-                  <th>{col.label}</th>
+                  <th>{t(col.label)}</th>
                 ))}
-                <th>Retirer</th>
+                <th>{t("Retirer")}</th>
               </tr>
             </thead>
             <tbody>
@@ -553,7 +577,7 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
                     <td>{cell(p, col.key)}</td>
                   ))}
                   <td>
-                    <input type="checkbox" name={`del.${p.id}`} value="1" title="Retirer ce pilote à l'enregistrement" />
+                    <input type="checkbox" name={`del.${p.id}`} value="1" title={t("Retirer ce pilote à l'enregistrement")} />
                   </td>
                 </tr>
               ))}
@@ -561,7 +585,7 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
                 {PILOT_COLUMNS.map((col) => (
                   <td>{cell(null, col.key)}</td>
                 ))}
-                <td class="small muted">nouveau</td>
+                <td class="small muted">{t("nouveau")}</td>
               </tr>
             </tbody>
           </table>
@@ -569,7 +593,7 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
         <p class="mt">
           <button class="primary">
             <Bi n="save" />
-            Enregistrer les pilotes
+            {t("Enregistrer les pilotes")}
           </button>
         </p>
       </form>
@@ -588,12 +612,19 @@ const StandingsInfo: FC<{ s: Standings }> = ({ s }) => {
     <>
       <p class="small muted">
         {r.ftvFactor > 0
-          ? `FTV ${fr(r.ftvFactor * 100, 0)} % : chaque pilote garde ses meilleures performances jusqu'à une validité totale de ${fr(r.fixedTotalValidity, 3)} (${fr(r.fixedTotalValidity * 1000, 1)} points possibles).`
-          : `Sans FTV (facteur 0 %) : somme des points de chaque manche, sur ${fr(r.fixedTotalValidity * 1000, 1)} points possibles.`}
-        {notOfficial.length ? ` Pas encore officielles, donc non comptées : ${list(notOfficial)}.` : ""}
-        {notCalculated.length ? ` Officielles mais pas encore calculées : ${list(notCalculated)}.` : ""}
+          ? t("FTV {ftv} % : chaque pilote garde ses meilleures performances jusqu'à une validité totale de {total} ({points} points possibles).", {
+              ftv: fr(r.ftvFactor * 100, 0),
+              total: fr(r.fixedTotalValidity, 3),
+              points: fr(r.fixedTotalValidity * 1000, 1),
+            })
+          : t("Sans FTV (facteur 0 %) : somme des points de chaque manche, sur {points} points possibles.", { points: fr(r.fixedTotalValidity * 1000, 1) })}
+        {notOfficial.length ? ` ${t("Pas encore officielles, donc non comptées : {list}.", { list: list(notOfficial) })}` : ""}
+        {notCalculated.length ? ` ${t("Officielles mais pas encore calculées : {list}.", { list: list(notCalculated) })}` : ""}
       </p>
-      {stale.length ? <div class="note">Des changements ne sont pas encore calculés pour {list(stale)} : relancez le calcul de ces manches.</div> : null}
+      {stale.length ? (
+        <div class="note">{t("Des changements ne sont pas encore calculés pour {list} : relancez le calcul de ces manches.", { list: list(stale) })}</div>
+      ) : null}
+
     </>
   );
 };
@@ -602,9 +633,9 @@ const FtvCell: FC<{ ts: { score: number; fraction: number; counted: number } | u
   if (!ts) return <td class="n ftv-out">{included ? "0,0" : ""}</td>;
   if (!included) return <td class="n ftv-out">{pts(ts.score)}</td>;
   if (ts.fraction >= 1) return <td class="n">{pts(ts.score)}</td>;
-  if (ts.fraction <= 0) return <td class="n ftv-out" title="Non retenue (FTV)">({pts(ts.score)})</td>;
+  if (ts.fraction <= 0) return <td class="n ftv-out" title={t("Non retenue (FTV)")}>({pts(ts.score)})</td>;
   return (
-    <td class="n" title={`Retenue à ${fr(ts.fraction * 100, 1)} % (FTV)`}>
+    <td class="n" title={t("Retenue à {pct} % (FTV)", { pct: fr(ts.fraction * 100, 1) })}>
       <span class="ftv-part">{pts(ts.counted)}</span>
       <span class="ftv-raw">({pts(ts.score)})</span>
     </td>
@@ -619,14 +650,14 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
       <>
         <p class="muted">
           {s.tasks.length
-            ? "Aucune manche officielle calculée : cochez « officielle » dans la liste des manches pour qu'une manche compte."
-            : "Pas encore de manche."}
+            ? t("Aucune manche officielle calculée : cochez « officielle » dans la liste des manches pour qu'une manche compte.")
+            : t("Pas encore de manche.")}
         </p>
       </>
     );
   const pilots = limit ? r.pilots.slice(0, limit) : r.pilots;
-  if (rid && !pilots.length) return <p class="muted">Aucun pilote classé dans ce classement.</p>;
-  const info = new Map(r.tasks.map((t) => [t.key, t]));
+  if (rid && !pilots.length) return <p class="muted">{t("Aucun pilote classé dans ce classement.")}</p>;
+  const info = new Map(r.tasks.map((x) => [x.key, x]));
   return (
     <>
       <StandingsInfo s={s} />
@@ -635,25 +666,28 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
           <thead>
             <tr>
               <th class="n">#</th>
-              <th>Pilote</th>
-              <th>Nom</th>
+              <th>{t("Pilote")}</th>
+              <th>{t("Nom")}</th>
               {s.ranked.map((x) => {
-                const t = info.get(String(x.t.id))!;
+                const ti = info.get(String(x.t.id))!;
                 return (
                   <th
                     class="n"
                     title={
-                      t.excluded
-                        ? `Non comptée : ${t.excluded}`
-                        : `Validité FTV = points du vainqueur / 1000. Validité GAP de la manche ${fr(x.validity ?? 0, 3)}, ${fr(x.available ?? 0, 1)} points disponibles.`
+                      ti.excluded
+                        ? t("Non comptée : {why}", { why: t(ti.excluded) })
+                        : t("Validité FTV = points du vainqueur / 1000. Validité GAP de la manche {v}, {points} points disponibles.", {
+                            v: fr(x.validity ?? 0, 3),
+                            points: fr(x.available ?? 0, 1),
+                          })
                     }
                   >
-                    <a href={`/tasks/${x.t.id}`}>M{x.t.number}</a>
-                    <span class="sub">{t.included ? `val. ${fr(t.validity * 100, 1)} %` : "non comptée"}</span>
+                    <a href={`/tasks/${x.t.id}`}>{t("M{n}", { n: x.t.number })}</a>
+                    <span class="sub">{ti.included ? t("val. {pct} %", { pct: fr(ti.validity * 100, 1) }) : t("non comptée")}</span>
                   </th>
                 );
               })}
-              <th class="n">Total</th>
+              <th class="n">{t("Total")}</th>
             </tr>
           </thead>
           <tbody>
@@ -676,11 +710,13 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
       <p class="small mt">
         {limit && r.pilots.length > limit ? (
           <>
-            <a href={`/competitions/${c.id}/standings${q}`}>Voir les {r.pilots.length} pilotes</a> ·{" "}
+            <a href={`/competitions/${c.id}/standings${q}`}>{t("Voir les {n} pilotes", { n: r.pilots.length })}</a> ·{" "}
           </>
         ) : null}
-        <a href={`/competitions/${c.id}/standings.csv${q}`}>Exporter en CSV</a>
-        {r.ftvFactor > 0 ? " · en gras, la part retenue d'une manche comptée en partie ; entre parenthèses et en gris, le score de la manche non retenu" : ""}
+        <a href={`/competitions/${c.id}/standings.csv${q}`}>{t("Exporter en CSV")}</a>
+        {r.ftvFactor > 0
+          ? ` · ${t("en gras, la part retenue d'une manche comptée en partie ; entre parenthèses et en gris, le score de la manche non retenu")}`
+          : ""}
       </p>
     </>
   );
@@ -695,16 +731,16 @@ const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: s
 }) => (
   <nav class="tabs">
     <a href={`/competitions/${c.id}/standings`} class={current === null && !create ? "on" : ""}>
-      Général
+      {t("Général")}
     </a>
     {rankings.map((r) => (
       <a href={`/competitions/${c.id}/standings?r=${r.id}`} class={current === r.id ? "on" : ""}>
-        {r.name}
+        {t(r.name)}
         {r.count !== undefined ? <span class="muted small"> {r.count}</span> : null}
       </a>
     ))}
     <a href={`/competitions/${c.id}/standings?new=1`} class={create ? "on" : ""}>
-      + Nouveau classement
+      + {t("Nouveau classement")}
     </a>
   </nav>
 );
@@ -716,13 +752,14 @@ const RankingForm: FC<{ c: CompetitionRow; r: Ranking | null }> = ({ c, r }) => 
     <form method="post" action={r ? `/competitions/${c.id}/rankings/${r.row.id}` : `/competitions/${c.id}/rankings`}>
       <div class="grid">
         <div>
-          <label>Nom du classement</label>
-          <input type="text" name="name" value={r?.row.name ?? ""} placeholder="Serial, Lightweight, Sport…" required />
+          <label>{t("Nom du classement")}</label>
+          <input type="text" name="name" value={r?.row.name ?? ""} placeholder={t("Serial, Lightweight, Sport…")} required />
         </div>
       </div>
       <p class="small muted mt">
-        Pilotes retenus : ceux qui vérifient toutes les conditions remplies (données du bloc Pilotes). Plusieurs valeurs séparées par des virgules :
-        « EN-C, EN-D ». Sans condition, le classement ne contient que les pilotes ajoutés à la main.
+        {t(
+          "Pilotes retenus : ceux qui vérifient toutes les conditions remplies (données du bloc Pilotes). Plusieurs valeurs séparées par des virgules : « EN-C, EN-D ». Sans condition, le classement ne contient que les pilotes ajoutés à la main.",
+        )}
       </p>
       {[1, 2, 3, 4].map((i) => {
         const k = conds[i - 1];
@@ -732,14 +769,14 @@ const RankingForm: FC<{ c: CompetitionRow; r: Ranking | null }> = ({ c, r }) => 
               <option value="">—</option>
               {Object.entries(RULE_FIELDS).map(([f, label]) => (
                 <option value={f} selected={k?.field === f}>
-                  {label}
+                  {t(label)}
                 </option>
               ))}
             </select>
             <select name={`op${i}`}>
               {Object.entries(RULE_OPS).map(([o, label]) => (
                 <option value={o} selected={(k?.op ?? "in") === o}>
-                  {label}
+                  {t(label)}
                 </option>
               ))}
             </select>
@@ -750,7 +787,7 @@ const RankingForm: FC<{ c: CompetitionRow; r: Ranking | null }> = ({ c, r }) => 
       <p class="mt">
         <button class="primary">
           <Bi n={r ? "save" : "plus"} />
-          {r ? "Enregistrer la règle" : "Créer le classement"}
+          {r ? t("Enregistrer la règle") : t("Créer le classement")}
         </button>
       </p>
     </form>
@@ -766,14 +803,14 @@ const RankingPilots: FC<{ c: CompetitionRow; r: Ranking; pilots: PilotRow[] }> =
     <>
       <div class="row">
         <form method="post" action={action} class="row">
-          <input type="text" name="pilot" placeholder="N° du pilote" class="in-s" required style="width:120px" />
+          <input type="text" name="pilot" placeholder={t("N° du pilote")} class="in-s" required style="width:120px" />
           <button name="how" value="include">
             <Bi n="userPlus" />
-            Ajouter au classement
+            {t("Ajouter au classement")}
           </button>
           <button name="how" value="exclude">
             <Bi n="userMinus" />
-            Retirer du classement
+            {t("Retirer du classement")}
           </button>
         </form>
       </div>
@@ -781,21 +818,21 @@ const RankingPilots: FC<{ c: CompetitionRow; r: Ranking; pilots: PilotRow[] }> =
         <ul class="list">
           {manual.map(([key, inc]) => (
             <li>
-              <span class={`chip ${inc ? "t-bonus" : "t-pen"}`}>{inc ? "ajouté" : "retiré"}</span>
+              <span class={`chip ${inc ? "t-bonus" : "t-pen"}`}>{inc ? t("ajouté") : t("retiré")}</span>
               <span>
                 {key} {names.get(key) ?? ""}
               </span>
               <form method="post" action={action} style="margin-left:auto">
                 <input type="hidden" name="pilot" value={key} />
                 <button class="link" name="how" value="reset">
-                  revenir à la règle
+                  {t("revenir à la règle")}
                 </button>
               </form>
             </li>
           ))}
         </ul>
       ) : (
-        <p class="small muted">Aucun ajout ni retrait à la main.</p>
+        <p class="small muted">{t("Aucun ajout ni retrait à la main.")}</p>
       )}
     </>
   );
@@ -813,12 +850,16 @@ export const StandingsPage: FC<{
   error?: string | null;
   notice?: string | null;
 }> = ({ user, c, s, pilots, rankings, current, create, error, notice }) => {
-  const title = create ? "Nouveau classement" : current ? `Classement ${current.row.name.toLowerCase()}` : "Classement général";
+  const title = create
+    ? t("Nouveau classement")
+    : current
+      ? t("Classement {name}", { name: t(current.row.name).toLowerCase() })
+      : t("Classement général");
   const count = current ? rankings.find((x) => x.r.row.id === current.row.id)!.count : 0;
   return (
     <Layout title={`${title} · ${c.name}`} user={user}>
       <div class="crumbs">
-        <a href="/">Mes compétitions</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
+        <a href="/">{t("Mes compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
       </div>
       <h1>{title}</h1>
       <ErrorBox message={error} />
@@ -832,9 +873,14 @@ export const StandingsPage: FC<{
         <>
           {current ? (
             <p class="small muted">
-              {describeRule(current.rule)} · {count} pilote{count > 1 ? "s" : ""} inscrit{count > 1 ? "s" : ""} dans ce classement,{" "}
-              {s.ranking.pilots.length} classé{s.ranking.pilots.length > 1 ? "s" : ""}. Même total qu'au général (mêmes manches, même FTV), rang recalculé.
-              {!pilots.length ? " Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition." : ""}
+              {describeRule(current.rule)} ·{" "}
+              {count > 1
+                ? t("{n} pilotes inscrits dans ce classement", { n: count })
+                : t("{n} pilote inscrit dans ce classement", { n: count })}
+              ,{" "}
+              {s.ranking.pilots.length > 1 ? t("{n} classés", { n: s.ranking.pilots.length }) : t("{n} classé", { n: s.ranking.pilots.length })}.{" "}
+              {t("Même total qu'au général (mêmes manches, même FTV), rang recalculé.")}
+              {!pilots.length ? ` ${t("Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition.")}` : ""}
             </p>
           ) : null}
           <div class="card">
@@ -843,15 +889,15 @@ export const StandingsPage: FC<{
           {current ? (
             <details class="card fold" id="ranking-settings">
               <summary>
-                <h2><Ic n="filter" c="purple" />Règle et pilotes de ce classement</h2>
+                <h2><Ic n="filter" c="purple" />{t("Règle et pilotes de ce classement")}</h2>
               </summary>
               <RankingForm c={c} r={current} />
-              <h2 class="mt">Ajouts et retraits à la main</h2>
+              <h2 class="mt">{t("Ajouts et retraits à la main")}</h2>
               <RankingPilots c={c} r={current} pilots={pilots} />
               <form method="post" action={`/competitions/${c.id}/rankings/${current.row.id}/delete`} class="mt">
                 <button>
                   <Bi n="trash" />
-                  Supprimer ce classement
+                  {t("Supprimer ce classement")}
                 </button>
               </form>
             </details>
@@ -869,48 +915,50 @@ export const NewTaskPage: FC<{ user: User; c: CompetitionRow; number: number; er
   error,
   date,
 }) => (
-  <Layout title="Nouvelle manche" user={user}>
+  <Layout title={t("Nouvelle manche")} user={user}>
     <div class="crumbs">
-      <a href="/">Mes compétitions</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
+      <a href="/">{t("Mes compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
     </div>
-    <h1>Nouvelle manche</h1>
+    <h1>{t("Nouvelle manche")}</h1>
     <ErrorBox message={error} />
     <form method="post" action={`/competitions/${c.id}/tasks`} enctype="multipart/form-data" class="card">
       <div class="grid">
         <div>
-          <label>Numéro</label>
+          <label>{t("Numéro")}</label>
           <input type="number" name="number" min="1" value={String(number)} required />
         </div>
         <div>
-          <label>Date</label>
+          <label>{t("Date")}</label>
           <input type="date" name="date" value={date ?? ""} />
         </div>
       </div>
-      <h2 class="mt"><Ic n="map" c="teal" />Définition de la manche</h2>
-      <p class="small muted">Une seule des trois sources suffit.</p>
+      <h2 class="mt"><Ic n="map" c="teal" />{t("Définition de la manche")}</h2>
+      <p class="small muted">{t("Une seule des trois sources suffit.")}</p>
       <div class="grid">
         <div>
-          <label>Fichier XCTrack (.xctsk)</label>
+          <label>{t("Fichier XCTrack (.xctsk)")}</label>
           <input type="file" name="xctsk" accept=".xctsk,.json,.txt" />
         </div>
         <div>
-          <label>Image du QR code (PNG ou JPEG)</label>
+          <label>{t("Image du QR code (PNG ou JPEG)")}</label>
           <input type="file" name="qr" accept="image/png,image/jpeg" />
         </div>
       </div>
-      <label class="mt">Ou texte du QR code (commence par XCTSK:)</label>
+      <label class="mt">{t("Ou texte du QR code (commence par XCTSK:)")}</label>
       <textarea name="text" placeholder="XCTSK:{...}"></textarea>
       <p class="mt">
         <button class="primary">
           <Bi n="plus" />
-          Créer la manche
+          {t("Créer la manche")}
         </button>
       </p>
     </form>
   </Layout>
 );
 
-const ROLE: Record<string, string> = { takeoff: "Décollage", sss: "Départ (SSS)", turnpoint: "Balise", ess: "ESS", goal: "Goal" };
+const ROLE: Record<string, string> =
+ { takeoff: N_("Décollage"), sss: N_("Départ (SSS)"), turnpoint: N_("Balise"), ess: "ESS", goal: "Goal" };
+
 
 export const TaskPage: FC<{
   user: User;
@@ -928,81 +976,81 @@ export const TaskPage: FC<{
   running: boolean;
   error?: string | null;
   notice?: string | null;
-}> = ({ user, c, t, task, settings, distances, tracks, history, decisions, geometry, run, running, error, notice }) => {
+}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, running, error, notice }) => {
   const tz = settings.timeZone;
-  const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, t.date, tz) : "");
+  const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, tk.date, tz) : "");
   const results = run?.status === "done" && run.results ? (JSON.parse(run.results) as TaskScoring) : null;
   // Traces modifiées après le lancement du dernier calcul : le classement affiché n'en tient pas compte.
-  const lastChange = Math.max(0, ...tracks.map((x) => x.uploaded_at), ...history.map((h) => h.ended_at), t.scoring_changed_at ?? 0);
+  const lastChange = Math.max(0, ...tracks.map((x) => x.uploaded_at), ...history.map((h) => h.ended_at), tk.scoring_changed_at ?? 0);
   const stale = results !== null && run !== null && lastChange > run.started_at;
   const versions = new Map<string, number>();
   for (const h of history) versions.set(h.pilot_key, (versions.get(h.pilot_key) ?? 0) + 1);
-  const when = (ms: number) => `${new Date(ms).toLocaleDateString("fr-FR", { timeZone: tz, day: "2-digit", month: "2-digit" })} ${localTime(ms, tz)}`;
-  const fileUrl = (sha: string) => `/tasks/${t.id}/files/${sha}`;
+  const when = (ms: number) => `${new Date(ms).toLocaleDateString(locale(), { timeZone: tz, day: "2-digit", month: "2-digit" })} ${localTime(ms, tz)}`;
+  const fileUrl = (sha: string) => `/tasks/${tk.id}/files/${sha}`;
   return (
-    <Layout title={`Manche ${t.number} · ${c.name}`} user={user}>
+    <Layout title={`${t("Manche {n}", { n: tk.number })} · ${c.name}`} user={user}>
       <div class="crumbs">
-        <a href="/">Mes compétitions</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
+        <a href="/">{t("Mes compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a>
       </div>
       <h1>
-        Manche {t.number}
-        {t.date ? <span class="muted"> · {dateRange(t.date, null)}</span> : null}
+        {t("Manche {n}", { n: tk.number })}
+        {tk.date ? <span class="muted"> · {dateRange(tk.date, null)}</span> : null}
       </h1>
       <ErrorBox message={error} />
       {notice ? <div class="note">{notice}</div> : null}
 
       <div class="card">
-        <h2><Ic n="map" c="teal" />Définition</h2>
+        <h2><Ic n="map" c="teal" />{t("Définition")}</h2>
         <div id="task-map" class="task-map" />
         <p class="small muted legend">
-          <span style="color:#16a34a">● départ</span> <span style="color:#2563eb">● balise</span> <span style="color:#9333ea">● ESS</span>{" "}
-          <span style="color:#dc2626">● goal</span> · trait noir : route optimisée (distance de la manche), longueur de chaque branche
+          <span style="color:#16a34a">● {t("départ")}</span> <span style="color:#2563eb">● {t("balise")}</span> <span style="color:#9333ea">● ESS</span>{" "}
+          <span style="color:#dc2626">● goal</span> · {t("trait noir : route optimisée (distance de la manche), longueur de chaque branche")}
         </p>
         <p class="small muted">
-          {task.type === "race" ? "Race to goal" : "Time trial"} · portes {task.startGates.map(loc).join(", ") || "aucune"} · deadline{" "}
-          {loc(task.deadline) || "aucune"} · heures locales ({tz})
+          {task.type === "race" ? t("Race to goal") : t("Time trial")} · {t("portes {gates}", { gates: task.startGates.map(loc).join(", ") || t("aucune") })} ·{" "}
+          {t("deadline {time}", { time: loc(task.deadline) || t("aucune") })} · {t("heures locales ({tz})", { tz })}
         </p>
         <p class="small">
-          Manche <strong>{km(distances.task)} km</strong> · décollage → ESS {km(distances.launchToEss)} km · section de vitesse{" "}
-          {km(distances.speedSection)} km
+          {t("Manche")} <strong>{km(distances.task)} km</strong> · {t("décollage → ESS {d} km", { d: km(distances.launchToEss) })} ·{" "}
+          {t("section de vitesse {d} km", { d: km(distances.speedSection) })}
         </p>
         <details class="fold" id="task-settings">
-          <summary>Balises et réglages de la manche</summary>
+          <summary>{t("Balises et réglages de la manche")}</summary>
         <div class="scroll">
           <table>
             <thead>
               <tr>
                 <th>#</th>
-                <th>Rôle</th>
-                <th>Balise</th>
-                <th class="n">Rayon</th>
-                <th class="n">Altitude</th>
+                <th>{t("Rôle")}</th>
+                <th>{t("Balise")}</th>
+                <th class="n">{t("Rayon")}</th>
+                <th class="n">{t("Altitude")}</th>
               </tr>
             </thead>
             <tbody>
               {task.turnpoints.map((tp, i) => (
                 <tr>
                   <td>{i + 1}</td>
-                  <td>{ROLE[tp.role] ?? tp.role}</td>
+                  <td>{ROLE[tp.role] ? t(ROLE[tp.role]!) : tp.role}</td>
                   <td>{tp.zone.waypoint.name}</td>
-                  <td class="n">{tp.zone.kind === "cylinder" ? `${km(tp.zone.radius, tp.zone.radius % 1000 ? 1 : 0)} km` : `ligne ${tp.zone.length} m`}</td>
+                  <td class="n">{tp.zone.kind === "cylinder" ? `${km(tp.zone.radius, tp.zone.radius % 1000 ? 1 : 0)} km` : t("ligne {n} m", { n: tp.zone.length })}</td>
                   <td class="n">{tp.zone.waypoint.altitude !== undefined ? `${tp.zone.waypoint.altitude} m` : ""}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <form method="post" action={`/tasks/${t.id}`} class="grid mt">
+        <form method="post" action={`/tasks/${tk.id}`} class="grid mt">
           <div>
-            <label>Date</label>
-            <input type="date" name="date" value={t.date ?? ""} />
+            <label>{t("Date")}</label>
+            <input type="date" name="date" value={tk.date ?? ""} />
           </div>
           <div>
-            <label>Manche arrêtée : heure d'annonce (locale)</label>
+            <label>{t("Manche arrêtée : heure d'annonce (locale)")}</label>
             <input type="text" name="stop" placeholder="HH:MM" value={loc(task.stopAnnouncement)} />
           </div>
           <div>
-            <label>Leading Time Ratio (%)</label>
+            <label>{t("Leading Time Ratio (%)")}</label>
             <input
               type="number"
               step="any"
@@ -1014,17 +1062,17 @@ export const TaskPage: FC<{
             />
           </div>
           <div>
-            <label>Pilotes présents (sauf ABS)</label>
-            <input type="number" step="1" min="0" name="pilotsPresent" placeholder="pilotes qui ont volé" value={task.pilotsPresent ?? ""} />
+            <label>{t("Pilotes présents (sauf ABS)")}</label>
+            <input type="number" step="1" min="0" name="pilotsPresent" placeholder={t("pilotes qui ont volé")} value={task.pilotsPresent ?? ""} />
           </div>
           <div>
-            <label>Fin de manche pour le leading (locale)</label>
-            <input type="text" name="taskEndTime" placeholder="dernier posé" value={loc(task.taskEndTime)} />
+            <label>{t("Fin de manche pour le leading (locale)")}</label>
+            <input type="text" name="taskEndTime" placeholder={t("dernier posé")} value={loc(task.taskEndTime)} />
           </div>
           <div style="align-self:end">
             <button>
               <Bi n="save" />
-              Enregistrer
+              {t("Enregistrer")}
             </button>
           </div>
         </form>
@@ -1032,29 +1080,30 @@ export const TaskPage: FC<{
       </div>
 
       <div class="card">
-        <h2><Ic n="pulse" c="green" />Traces ({tracks.length})</h2>
-        <form method="post" action={`/tasks/${t.id}/tracks`} enctype="multipart/form-data" class="row upload">
+        <h2><Ic n="pulse" c="green" />{t("Traces ({n})", { n: tracks.length })}</h2>
+        <form method="post" action={`/tasks/${tk.id}/tracks`} enctype="multipart/form-data" class="row upload">
           <input type="file" name="files" accept=".igc,.zip" multiple required />
           <button>
             <Bi n="upload" />
-            Envoyer
+            {t("Envoyer")}
           </button>
           <span class="small muted">
-            Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro en fin de nom de fichier ; une trace envoyée pour un pilote
-            qui en a déjà une la remplace. Pour un fichier nommé autrement, utilisez « Remplacer » sur la ligne du pilote.
+            {t(
+              "Fichiers IGC ou archive .zip. Le pilote est reconnu au numéro en fin de nom de fichier ; une trace envoyée pour un pilote qui en a déjà une la remplace. Pour un fichier nommé autrement, utilisez « Remplacer » sur la ligne du pilote.",
+            )}
           </span>
         </form>
         {tracks.length ? (
           <details class="mt">
-            <summary>Voir les traces</summary>
+            <summary>{t("Voir les traces")}</summary>
             <div class="scroll">
               <table>
                 <thead>
                   <tr>
-                    <th>Pilote</th>
-                    <th>Nom</th>
-                    <th>Fichier</th>
-                    <th>Reçu</th>
+                    <th>{t("Pilote")}</th>
+                    <th>{t("Nom")}</th>
+                    <th>{t("Fichier")}</th>
+                    <th>{t("Reçu")}</th>
                     <th />
                   </tr>
                 </thead>
@@ -1063,7 +1112,7 @@ export const TaskPage: FC<{
                     <tr>
                       <td>{tr.pilot_key}</td>
                       <td>
-                        <a href={`/tasks/${t.id}/pilots/${encodeURIComponent(tr.pilot_key)}`}>{tr.pilot_name ?? tr.pilot_key}</a>
+                        <a href={`/tasks/${tk.id}/pilots/${encodeURIComponent(tr.pilot_key)}`}>{tr.pilot_name ?? tr.pilot_key}</a>
                       </td>
                       <td>
                         <a class="muted" href={fileUrl(tr.sha256)}>
@@ -1075,18 +1124,18 @@ export const TaskPage: FC<{
                       <td class="small muted">{when(tr.uploaded_at)}</td>
                       <td>
                         <details class="replace">
-                          <summary>Remplacer</summary>
-                          <form method="post" action={`/tasks/${t.id}/tracks/${tr.id}/replace`} enctype="multipart/form-data" class="upload">
+                          <summary>{t("Remplacer")}</summary>
+                          <form method="post" action={`/tasks/${tk.id}/tracks/${tr.id}/replace`} enctype="multipart/form-data" class="upload">
                             <input type="file" name="file" accept=".igc,.zip" required />
-                            <input type="text" name="note" placeholder="Raison (facultatif) : trace reçue après coup, autre instrument…" maxlength={500} />
+                            <input type="text" name="note" placeholder={t("Raison (facultatif) : trace reçue après coup, autre instrument…")} maxlength={500} />
                             <button>
                               <Bi n="refresh" />
-                              Remplacer la trace
+                              {t("Remplacer la trace")}
                             </button>
                           </form>
                         </details>
-                        <form method="post" action={`/tasks/${t.id}/tracks/${tr.id}/delete`}>
-                          <button class="link">Retirer</button>
+                        <form method="post" action={`/tasks/${tk.id}/tracks/${tr.id}/delete`}>
+                          <button class="link">{t("Retirer")}</button>
                         </form>
                       </td>
                     </tr>
@@ -1098,15 +1147,15 @@ export const TaskPage: FC<{
         ) : null}
         {history.length ? (
           <details class="mt">
-            <summary>Anciennes versions ({history.length})</summary>
+            <summary>{t("Anciennes versions ({n})", { n: history.length })}</summary>
             <div class="scroll">
               <table>
                 <thead>
                   <tr>
-                    <th>Pilote</th>
-                    <th>Fichier</th>
-                    <th>Reçu</th>
-                    <th>Fin</th>
+                    <th>{t("Pilote")}</th>
+                    <th>{t("Fichier")}</th>
+                    <th>{t("Reçu")}</th>
+                    <th>{t("Fin")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1119,7 +1168,7 @@ export const TaskPage: FC<{
                         <a class="muted" href={fileUrl(h.sha256)}>
                           {h.filename}
                         </a>{" "}
-                        · <a href={`/tasks/${t.id}/pilots/${encodeURIComponent(h.pilot_key)}?v=${h.sha256}`}>voir</a>
+                        · <a href={`/tasks/${tk.id}/pilots/${encodeURIComponent(h.pilot_key)}?v=${h.sha256}`}>{t("voir")}</a>
                         {h.note ? <div class="small muted">{h.note}</div> : null}
                       </td>
                       <td class="small muted">
@@ -1127,7 +1176,7 @@ export const TaskPage: FC<{
                         {h.uploaded_by_name ? ` · ${h.uploaded_by_name}` : ""}
                       </td>
                       <td class="small">
-                        {h.ended_how === "replaced" ? "Remplacée" : "Retirée"} le {when(h.ended_at)}
+                        {h.ended_how === "replaced" ? t("Remplacée le {date}", { date: when(h.ended_at) }) : t("Retirée le {date}", { date: when(h.ended_at) })}
                         {h.ended_by_name ? ` · ${h.ended_by_name}` : ""}
                       </td>
                     </tr>
@@ -1140,27 +1189,28 @@ export const TaskPage: FC<{
       </div>
 
       <div class="card" id="run-card">
-        <RunCard t={t} run={run} running={running} settings={settings} tracks={tracks.length} stale={stale} />
+        <RunCard t={tk} run={run} running={running} settings={settings} tracks={tracks.length} stale={stale} />
       </div>
 
       <details class="card fold" id="decisions">
         <summary>
-          <h2><Ic n="gavel" c="pink" />Décisions de l'organisateur ({decisions.length})</h2>
+          <h2><Ic n="gavel" c="pink" />{t("Décisions de l'organisateur ({n})", { n: decisions.length })}</h2>
         </summary>
         <p class="small muted">
-          Bonus (aide à un pilote accidenté…), pénalités, goal accordé après réclamation, pilotes absents ou restés au sol. Elles
-          s'appliquent au prochain calcul ; le motif apparaît dans les résultats.
+          {t(
+            "Bonus (aide à un pilote accidenté…), pénalités, goal accordé après réclamation, pilotes absents ou restés au sol. Elles s'appliquent au prochain calcul ; le motif apparaît dans les résultats.",
+          )}
         </p>
         {decisions.length ? (
           <div class="scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Pilote</th>
-                  <th>Nom</th>
-                  <th>Décision</th>
-                  <th>Motif</th>
-                  <th>Saisie</th>
+                  <th>{t("Pilote")}</th>
+                  <th>{t("Nom")}</th>
+                  <th>{t("Décision")}</th>
+                  <th>{t("Motif")}</th>
+                  <th>{t("Saisie")}</th>
                   <th />
                 </tr>
               </thead>
@@ -1176,8 +1226,10 @@ export const TaskPage: FC<{
                       {d.created_by_name ? `, ${d.created_by_name}` : ""}
                     </td>
                     <td>
-                      <form method="post" action={`/tasks/${t.id}/decisions/${d.id}/delete`}>
-                        <button class="link" onclick="return confirm('Supprimer cette décision ?')">Supprimer</button>
+                      <form method="post" action={`/tasks/${tk.id}/decisions/${d.id}/delete`}>
+                        <button class="link" onclick={`return confirm(${JSON.stringify(t("Supprimer cette décision ?"))})`}>
+                          {t("Supprimer")}
+                        </button>
                       </form>
                     </td>
                   </tr>
@@ -1186,9 +1238,9 @@ export const TaskPage: FC<{
             </table>
           </div>
         ) : null}
-        <form method="post" action={`/tasks/${t.id}/decisions`} class="grid mt">
+        <form method="post" action={`/tasks/${tk.id}/decisions`} class="grid mt">
           <div>
-            <label>Pilote (numéro)</label>
+            <label>{t("Pilote (numéro)")}</label>
             <input type="text" name="pilot" list="pilot-keys" required />
             <datalist id="pilot-keys">
               {tracks.map((x) => (
@@ -1197,29 +1249,29 @@ export const TaskPage: FC<{
             </datalist>
           </div>
           <div>
-            <label>Nom (pilote sans trace)</label>
+            <label>{t("Nom (pilote sans trace)")}</label>
             <input type="text" name="name" />
           </div>
           <div>
-            <label>Décision</label>
+            <label>{t("Décision")}</label>
             <select name="kind">
               {Object.entries(DECISION_KINDS).map(([k, v]) => (
-                <option value={k}>{v.label}</option>
+                <option value={k}>{t(v.label)}</option>
               ))}
             </select>
           </div>
           <div>
-            <label>Valeur (points ou %)</label>
-            <input type="number" step="any" min="0" name="value" placeholder="bonus, pénalité" />
+            <label>{t("Valeur (points ou %)")}</label>
+            <input type="number" step="any" min="0" name="value" placeholder={t("bonus, pénalité")} />
           </div>
           <div style="grid-column:span 2">
-            <label>Motif</label>
-            <input type="text" name="reason" required placeholder="Aide à un pilote accidenté" />
+            <label>{t("Motif")}</label>
+            <input type="text" name="reason" required placeholder={t("Aide à un pilote accidenté")} />
           </div>
           <div style="align-self:end">
             <button>
               <Bi n="plus" />
-              Ajouter
+              {t("Ajouter")}
             </button>
           </div>
         </form>
@@ -1237,7 +1289,7 @@ export const TaskPage: FC<{
 
 /** Bloc « Calcul » : bouton, avancement ou bilan, classement. Rechargé seul par /static/run.js. */
 export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; settings: CompetitionSettings; tracks: number; stale: boolean }> = ({
-  t,
+  t: tk,
   run,
   running,
   settings,
@@ -1249,47 +1301,49 @@ export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; set
   return (
     <>
       <div class="row" style="justify-content:space-between">
-        <h2><Ic n="calc" c="blue" />Calcul</h2>
-        <form method="post" action={`/tasks/${t.id}/runs`} id="run-form">
+        <h2><Ic n="calc" c="blue" />{t("Calcul")}</h2>
+        <form method="post" action={`/tasks/${tk.id}/runs`} id="run-form">
           <button class="primary" disabled={running || !tracks}>
             {running ? <span class="spin" /> : <Bi n="play" />}
-            {running ? "Calcul en cours…" : "Lancer le calcul"}
+            {running ? t("Calcul en cours…") : t("Lancer le calcul")}
           </button>
         </form>
       </div>
-      <RunStatus run={run} tz={tz} taskId={t.id} />
+      <RunStatus run={run} tz={tz} taskId={tk.id} />
       {stale && !running && results ? (
-        <div class="note">Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.</div>
+        <div class="note">{t("Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.")}</div>
       ) : null}
-      {results ? <Results r={results} tz={tz} settings={settings} taskId={t.id} /> : null}
+      {results ? <Results r={results} tz={tz} settings={settings} taskId={tk.id} /> : null}
     </>
   );
 };
 
 const RunStatus: FC<{ run: RunRow | null; tz: string; taskId: number }> = ({ run, tz, taskId }) => {
-  if (!run) return <p class="muted">Aucun calcul pour l'instant.</p>;
-  const when = new Date(run.started_at).toLocaleString("fr-FR", { timeZone: tz, dateStyle: "short", timeStyle: "short" });
+  if (!run) return <p class="muted">{t("Aucun calcul pour l'instant.")}</p>;
+  const when = new Date(run.started_at).toLocaleString(locale(), { timeZone: tz, dateStyle: "short", timeStyle: "short" });
   if (run.status === "queued" || run.status === "running")
     // Rempli et mis à jour par /static/run.js.
     return (
       <div id="run-live" data-url={`/tasks/${taskId}/run.json`}>
         <p>
-          <span class="spin" /> Calcul en cours… {run.done} / {run.total} traces
+          <span class="spin" /> {t("Calcul en cours… {done} / {total} traces", { done: run.done, total: run.total })}
         </p>
       </div>
     );
-  if (run.status === "error") return <div class="err">Le calcul a échoué : {run.error}</div>;
+  if (run.status === "error") return <div class="err">{t("Le calcul a échoué : {error}", { error: t(run.error ?? "") })}</div>;
   const secs = run.finished_at ? Math.round((run.finished_at - run.started_at) / 1000) : null;
   return (
     <p class="small muted">
-      Calcul du {when}, {run.total} traces{secs !== null ? `, en ${secs} s` : ""}.
+      {secs !== null
+        ? t("Calcul du {when}, {n} traces, en {secs} s.", { when, n: run.total, secs })
+        : t("Calcul du {when}, {n} traces.", { when, n: run.total })}
     </p>
   );
 };
 
 const penalty = (p: PilotResult) =>
   p.airspacePenalty?.points !== undefined
-    ? `−${p.airspacePenalty.points.toFixed(1)} pts`
+    ? `−${t("{n} pts", { n: fr(p.airspacePenalty.points, 1) })}`
     : p.airspacePenalty?.fraction !== undefined
       ? `−${Math.round(p.airspacePenalty.fraction * 100)} %`
       : "";
@@ -1301,7 +1355,7 @@ const StatusTags: FC<{ p: PilotResult }> = ({ p }) => {
   const why = (kinds: string[]) =>
     [
       ...d.filter((x) => kinds.includes(x.kind)).map((x) => `${decisionLabel(x.kind, x.value)} : ${x.reason}`),
-      ...(kinds.includes("penalty") && p.airspacePenalty ? [`Espace aérien : ${penalty(p)}`] : []),
+      ...(kinds.includes("penalty") && p.airspacePenalty ? [t("Espace aérien : {penalty}", { penalty: penalty(p) })] : []),
     ].join("\n");
   const bonus = d.some((x) => x.kind === "bonus");
   const pen = d.some((x) => x.kind === "penalty" || x.kind === "penalty-percent") || Boolean(p.airspacePenalty);
@@ -1311,7 +1365,7 @@ const StatusTags: FC<{ p: PilotResult }> = ({ p }) => {
         <>
           {" "}
           <span class="chip t-bonus" title={why(["bonus"])}>
-            bonus
+            {t("bonus")}
           </span>
         </>
       ) : null}
@@ -1319,7 +1373,7 @@ const StatusTags: FC<{ p: PilotResult }> = ({ p }) => {
         <>
           {" "}
           <span class="chip t-pen" title={why(["penalty", "penalty-percent"])}>
-            pénalité
+            {t("pénalité")}
           </span>
         </>
       ) : null}
@@ -1327,7 +1381,7 @@ const StatusTags: FC<{ p: PilotResult }> = ({ p }) => {
         <>
           {" "}
           <span class="chip t-dec" title={why(["goal"])}>
-            accordé
+            {t("accordé")}
           </span>
         </>
       ) : null}
@@ -1340,10 +1394,10 @@ export function decisionLabel(kind: DecisionKind, value?: number | null): string
   const k = DECISION_KINDS[kind];
   if (!k) return kind;
   const v = value ?? 0;
-  if (kind === "bonus") return `Bonus ${v.toLocaleString("fr-FR")} pts`;
-  if (kind === "penalty") return `Pénalité ${v.toLocaleString("fr-FR")} pts`;
-  if (kind === "penalty-percent") return `Pénalité ${v.toLocaleString("fr-FR")} %`;
-  return k.label;
+  if (kind === "bonus") return t("Bonus {n} pts", { n: v.toLocaleString(locale()) });
+  if (kind === "penalty") return t("Pénalité {n} pts", { n: v.toLocaleString(locale()) });
+  if (kind === "penalty-percent") return t("Pénalité {n} %", { n: v.toLocaleString(locale()) });
+  return t(k.label);
 }
 
 function remark(p: PilotResult, tz: string): string {
@@ -1353,16 +1407,41 @@ function remark(p: PilotResult, tz: string): string {
 }
 
 function controlRemark(p: PilotResult, tz: string): string {
-  if (p.status === "GOAL" || p.status === "ABS" || p.status === "DNF" || p.error) return p.error ?? "";
+  if (p.status === "GOAL" || p.status === "ABS" || p.status === "DNF" || p.error) return engineError(p.error);
   const a = (p.approaches ?? []).find((x) => !x.reached);
   // Au-delà de 500 m, c'est un posé normal, pas une zone frôlée.
   if (!a?.closest || Math.abs(a.closest.distance) > 500) return "";
   const d = a.closest.distance;
-  const what = a.role === "sss" ? "Départ manqué" : `${a.name} manquée`;
-  return `${what} de ${Math.abs(d).toFixed(0)} m (${d >= 0 ? "dehors" : "dedans"}) à ${localTime(a.closest.time, tz)}`;
+  const params = { name: a.name, d: Math.abs(d).toFixed(0), time: localTime(a.closest.time, tz) };
+  if (a.role === "sss") return d >= 0 ? t("Départ manqué de {d} m (dehors) à {time}", params) : t("Départ manqué de {d} m (dedans) à {time}", params);
+  return d >= 0 ? t("{name} manquée de {d} m (dehors) à {time}", params) : t("{name} manquée de {d} m (dedans) à {time}", params);
 }
 
-const fr = (v: number, digits: number) => v.toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+/** Messages d'erreur du moteur (en français) : traduits, le détail technique gardé tel quel. */
+function engineError(e: string | null | undefined): string {
+  if (!e) return "";
+  const m = /^Trace illisible : (.*)$/s.exec(e);
+  if (m) return t("Trace illisible : {detail}", { detail: m[1]! });
+  return t(e);
+}
+// Textes venus du moteur ou de la base, traduits à l'affichage.
+N_("Aucun point GPS valide dans la trace.");
+N_("Pas de vol détecté dans la trace.");
+N_("aucun point marqué");
+N_("manche arrêtée de validité inférieure à 0,05");
+N_("Féminin");
+N_("Interrompu par un redémarrage du serveur.");
+
+/** Alertes de qualité de trace pour le leading ; les anciens calculs les gardaient en texte. */
+function leadingWarning(w: LeadingWarning | string): string {
+  if (typeof w === "string") return w;
+  if (w.kind === "sparse") return t("points espacés de {n} s en moyenne", { n: w.seconds });
+  if (w.kind === "gap") return t("trou de {d} dans la trace", { d: duration(w.seconds) });
+  return t("trace arrêtée avant l'atterrissage");
+}
+
+const fr = (v: number, digits: number) => v.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
 const pts = (v: number | null | undefined) => (v === null || v === undefined ? "" : fr(v, 1));
 
 /** Validité de la manche et répartition des points (S7F 10 et 11). */
@@ -1373,37 +1452,46 @@ const GapSummary: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r, 
   return (
     <div class="gap">
       <div>
-        <div class="muted small">Validité de la manche</div>
+        <div class="muted small">{t("Validité de la manche")}</div>
         <div class="big">{fr(v.task, 4)}</div>
         <div class="small">
-          décollage {fr(v.launch, 3)} × distance {fr(v.distance, 3)} × temps {fr(v.time, 3)}
-          {v.stopped !== null ? ` × arrêt ${fr(v.stopped, 3)}` : ""}
+          {t("décollage {a} × distance {b} × temps {c}", { a: fr(v.launch, 3), b: fr(v.distance, 3), c: fr(v.time, 3) })}
+          {v.stopped !== null ? ` × ${t("arrêt {v}", { v: fr(v.stopped, 3) })}` : ""}
         </div>
         <div class="small">
-          <strong>validité FTV {fr(winner / 10, 1)} %</strong> (vainqueur {pts(winner)} / 1000), celle du classement général
+          <strong>{t("validité FTV {pct} %", { pct: fr(winner / 10, 1) })}</strong>{" "}
+          {t("(vainqueur {pts} / 1000), celle du classement général", { pts: pts(winner) })}
         </div>
       </div>
       <div>
-        <div class="muted small">Points disponibles</div>
+        <div class="muted small">{t("Points disponibles")}</div>
         <div class="big">{fr(g.available.distance + g.available.time + g.available.leading + g.available.arrival, 1)}</div>
         <div class="small">
-          distance {pts(g.available.distance)} · temps {pts(g.available.time)} · leading {pts(g.available.leading)}
-          {g.timePointsReduction ? ` (dont ${pts(g.timePointsReduction)} repris au temps, manche arrêtée)` : ""}
+          {t("distance {d} · temps {t} · leading {l}", { d: pts(g.available.distance), t: pts(g.available.time), l: pts(g.available.leading) })}
+          {g.timePointsReduction ? ` ${t("(dont {pts} repris au temps, manche arrêtée)", { pts: pts(g.timePointsReduction) })}` : ""}
         </div>
       </div>
       <div>
-        <div class="muted small">Pilotes</div>
+        <div class="muted small">{t("Pilotes")}</div>
         <div class="big">{g.pilotsFlying}</div>
         <div class="small">
-          volants sur {g.pilotsPresent} présents · {g.pilotsEss} à l'ESS · {g.pilotsGoal} au goal (ratio {fr(g.goalRatio, 3)})
+          {t("volants sur {present} présents · {ess} à l'ESS · {goal} au goal (ratio {ratio})", {
+            present: g.pilotsPresent,
+            ess: g.pilotsEss,
+            goal: g.pilotsGoal,
+            ratio: fr(g.goalRatio, 3),
+          })}
         </div>
       </div>
       <div>
-        <div class="muted small">Formule</div>
-        <div class="big">{GAP_PROFILES[settings.gapProfile].split(" (")[0]}</div>
+        <div class="muted small">{t("Formule")}</div>
+        <div class="big">{t(GAP_PROFILES[settings.gapProfile]).split(" (")[0]}</div>
         <div class="small">
-          LTR {fr(g.leadingTimeRatio * 100, g.leadingTimeRatio * 100 % 1 ? 2 : 0)} % · meilleur temps {duration(g.bestTime)} · meilleure distance{" "}
-          {km(g.bestDistance)} km
+          {t("LTR {ltr} % · meilleur temps {time} · meilleure distance {d} km", {
+            ltr: fr(g.leadingTimeRatio * 100, (g.leadingTimeRatio * 100) % 1 ? 2 : 0),
+            time: duration(g.bestTime),
+            d: km(g.bestDistance),
+          })}
         </div>
       </div>
     </div>
@@ -1418,48 +1506,56 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
   const leadWarn = r.pilots.filter((p) => p.leadingWarnings?.length).length;
   return (
     <>
-      {withPoints ? <GapSummary r={r} settings={settings} /> : <div class="note">Ce calcul date d'avant les points GAP : relancez-le pour les obtenir.</div>}
+      {withPoints ? <GapSummary r={r} settings={settings} /> : <div class="note">{t("Ce calcul date d'avant les points GAP : relancez-le pour les obtenir.")}</div>}
       <p class="small">
-        {counts("GOAL")} au goal · {counts("ESS")} à l'ESS sans goal · {counts("DF")} posés · {counts("MIND")} à la distance minimale
-        {counts("ERREUR") ? ` · ${counts("ERREUR")} traces en erreur` : ""}
-        {counts("DNF") ? ` · ${counts("DNF")} restés au sol` : ""}
-        {counts("ABS") ? ` · ${counts("ABS")} absents` : ""}
+        {t("{goal} au goal · {ess} à l'ESS sans goal · {df} posés · {mind} à la distance minimale", {
+          goal: counts("GOAL"),
+          ess: counts("ESS"),
+          df: counts("DF"),
+          mind: counts("MIND"),
+        })}
+        {counts("ERREUR") ? ` · ${t("{n} traces en erreur", { n: counts("ERREUR") })}` : ""}
+        {counts("DNF") ? ` · ${t("{n} restés au sol", { n: counts("DNF") })}` : ""}
+        {counts("ABS") ? ` · ${t("{n} absents", { n: counts("ABS") })}` : ""}
         {leadWarn ? (
           <>
             {" "}
-            · <span class="lead-warn">⚠</span> {leadWarn} trace{leadWarn > 1 ? "s" : ""} au leading peut-être faussé (trou, points espacés ou arrêt avant l'atterrissage : survolez l'icône)
+            · <span class="lead-warn">⚠</span>{" "}
+            {leadWarn > 1
+              ? t("{n} traces au leading peut-être faussé (trou, points espacés ou arrêt avant l'atterrissage : survolez l'icône)", { n: leadWarn })
+              : t("{n} trace au leading peut-être faussé (trou, points espacés ou arrêt avant l'atterrissage : survolez l'icône)", { n: leadWarn })}
           </>
         ) : null}{" "}
-        · leading {LEADING_PROFILES[settings.leadingProfile]} ·{" "}
-        <a href={`/tasks/${taskId}/results.csv`}>exporter en CSV</a>
+        · {t("leading {profile}", { profile: t(LEADING_PROFILES[settings.leadingProfile]) })} ·{" "}
+        <a href={`/tasks/${taskId}/results.csv`}>{t("exporter en CSV")}</a>
       </p>
       <div class="scroll">
         <table>
           <thead>
             <tr>
               <th class="n">#</th>
-              <th>Pilote</th>
-              <th>Nom</th>
-              <th>Statut</th>
-              {withPoints ? <th class="n">Total</th> : null}
-              <th>Départ</th>
+              <th>{t("Pilote")}</th>
+              <th>{t("Nom")}</th>
+              <th>{t("Statut")}</th>
+              {withPoints ? <th class="n">{t("Total")}</th> : null}
+              <th>{t("Départ")}</th>
               <th>ESS</th>
-              <th class="n">Temps</th>
-              <th class="n">Distance</th>
-              {stopped ? <th class="n">Alt. à l'arrêt</th> : null}
+              <th class="n">{t("Temps")}</th>
+              <th class="n">{t("Distance")}</th>
+              {stopped ? <th class="n">{t("Alt. à l'arrêt")}</th> : null}
               <th class="n">LC</th>
               {withPoints ? (
                 <>
-                  <th class="n">Pts distance</th>
-                  <th class="n">Pts temps</th>
-                  <th class="n">Pts leading</th>
-                  <th class="n">Pénalité</th>
+                  <th class="n">{t("Pts distance")}</th>
+                  <th class="n">{t("Pts temps")}</th>
+                  <th class="n">{t("Pts leading")}</th>
+                  <th class="n">{t("Pénalité")}</th>
                 </>
               ) : (
-                <th class="n">Leading</th>
+                <th class="n">{t("Leading")}</th>
               )}
-              <th>Espace aérien</th>
-              <th>Remarque</th>
+              <th>{t("Espace aérien")}</th>
+              <th>{t("Remarque")}</th>
             </tr>
           </thead>
           <tbody>
@@ -1469,7 +1565,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                 <td>{p.id}</td>
                 <td>{p.fixes ? <a href={`/tasks/${taskId}/pilots/${encodeURIComponent(p.id)}`}>{p.name}</a> : p.name}</td>
                 <td>
-                  <span class={`chip s-${p.status}`} title={p.error ?? ""}>
+                  <span class={`chip s-${p.status}`} title={engineError(p.error)}>
                     {p.status}
                   </span>
                   <StatusTags p={p} />
@@ -1486,7 +1582,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                 {stopped ? <td class="n">{p.stop?.flying ? `${Math.round(p.stop.altitudeAboveGoal)} m` : ""}</td> : null}
                 <td class="n">
                   {p.leadingWarnings?.length ? (
-                    <span class="lead-warn" title={`Leading peut-être faussé : ${p.leadingWarnings.join(", ")}`}>
+                    <span class="lead-warn" title={t("Leading peut-être faussé : {why}", { why: p.leadingWarnings.map(leadingWarning).join(", ") })}>
                       ⚠
                     </span>
                   ) : null}
@@ -1517,7 +1613,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
             .filter((p) => p.error)
             .map((p) => (
               <li>
-                {p.id} : {p.error}
+                {p.id} : {engineError(p.error)}
               </li>
             ))}
         </ul>
@@ -1556,7 +1652,7 @@ export function resultsCsv(r: TaskScoring, tz: string): string {
     p.airspace.length ? Math.max(...p.airspace.map((a) => a.depth)).toFixed(1) : "",
     penalty(p),
     (p.decisions ?? []).map((d) => `${decisionLabel(d.kind, d.value)} : ${d.reason}`).join(" | "),
-    (p.leadingWarnings ?? []).join(" | "),
+    (p.leadingWarnings ?? []).map(leadingWarning).join(" | "),
   ]);
   return [head, ...rows].map((r) => r.map(q).join(",")).join("\n") + "\n";
 }
@@ -1585,16 +1681,16 @@ main{max-width:none}
 export const ViewerPage: FC<{ user: User; c: CompetitionRow; t: TaskRow; pilotKey: string; pilotName: string; data: string }> = ({
   user,
   c,
-  t,
+  t: tk,
   pilotKey,
   pilotName,
   data,
 }) => (
-  <Layout title={`${pilotName} · manche ${t.number}`} user={user}>
+  <Layout title={`${pilotName} · ${t("Manche {n}", { n: tk.number })}`} user={user}>
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
     <style dangerouslySetInnerHTML={{ __html: VIEWER_CSS }} />
     <div class="crumbs">
-      <a href="/">Mes compétitions</a> › <a href={`/competitions/${c.id}`}>{c.name}</a> › <a href={`/tasks/${t.id}`}>Manche {t.number}</a>
+      <a href="/">{t("Mes compétitions")}</a> › <a href={`/competitions/${c.id}`}>{c.name}</a> › <a href={`/tasks/${tk.id}`}>{t("Manche {n}", { n: tk.number })}</a>
     </div>
     <h1>
       {pilotName} <span class="muted">· {pilotKey}</span>
@@ -1608,10 +1704,10 @@ export const ViewerPage: FC<{ user: User; c: CompetitionRow; t: TaskRow; pilotKe
 );
 
 export const NotFound: FC<{ user?: User | null }> = ({ user }) => (
-  <Layout title="Introuvable" user={user ?? null}>
-    <h1>Page introuvable</h1>
+  <Layout title={t("Introuvable")} user={user ?? null}>
+    <h1>{t("Page introuvable")}</h1>
     <p>
-      <a href="/">Retour à mes compétitions</a>
+      <a href="/">{t("Retour à mes compétitions")}</a>
     </p>
   </Layout>
 );

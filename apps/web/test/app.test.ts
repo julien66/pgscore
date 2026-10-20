@@ -149,7 +149,7 @@ describe("interface web", () => {
     expect(decodeURIComponent(r.headers.get("location")!)).toContain("2 pilotes ajoutés");
     expect(r.headers.get("location")).toContain("/edit?");
     const html = await (await req(`${compUrl}/edit`)).text();
-    expect(html).toContain("2 inscrits · 1 femmes");
+    expect(html).toContain("2 inscrits · 1 femme");
     const rows = db.prepare("SELECT id, pilot_key FROM competition_pilots ORDER BY id").all() as Array<{ id: number; pilot_key: string }>;
     // Échange des numéros, retrait d'un pilote et ajout d'un nouveau en un seul enregistrement.
     const body = new URLSearchParams({

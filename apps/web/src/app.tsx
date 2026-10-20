@@ -20,6 +20,7 @@ import { pilotVersions, removeTrack, saveTrack, taskHasFile, trackHistory } from
 import { addDecision, deleteDecision, listDecisions, touchScoring } from "./decisions.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
+import { clientScript, isLang, lang, LANG_COOKIE, pickLang, t, withLang } from "./i18n.js";
 import { competitionStandings, extractStandings, lastScoringChange, standingsCsv } from "./standings.js";
 import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRankings, rankingMembers, setOverride, updateRanking } from "./rankings.js";
 import { listPilots, pilotsCsv, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
@@ -70,11 +71,31 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     return c.redirect("/");
   };
 
+  // Langue de l'interface : cookie, sinon langue du navigateur.
+  app.use("*", (c, next) => withLang(pickLang(getCookie(c, LANG_COOKIE), c.req.header("accept-language")), next));
+  app.get("/lang/:code", (c) => {
+    const code = c.req.param("code");
+    if (isLang(code)) setCookie(c, LANG_COOKIE, code, { path: "/", maxAge: 365 * 86400, sameSite: "Lax" });
+    // Retour à la page d'où vient le clic (même site seulement).
+    let back = c.req.query("back") ?? "/";
+    const ref = c.req.header("referer");
+    if (!c.req.query("back") && ref) {
+      try {
+        const u = new URL(ref);
+        if (u.host === new URL(c.req.url).host) back = u.pathname + u.search + u.hash;
+      } catch {
+        /* adresse illisible : accueil */
+      }
+    }
+    return c.redirect(back.startsWith("/") && !back.startsWith("//") ? back : "/");
+  });
+  app.get("/static/i18n.js", (c) => c.body(clientScript(lang()), 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache", vary: "cookie" }));
+
   // Les formulaires viennent de nos pages : on refuse les POST d'une autre origine.
   app.use("*", async (c, next) => {
     if (c.req.method === "POST") {
       const origin = c.req.header("origin");
-      if (origin && origin !== new URL(cfg.baseUrl).origin && origin !== new URL(c.req.url).origin) return c.text("Origine refusée", 403);
+      if (origin && origin !== new URL(cfg.baseUrl).origin && origin !== new URL(c.req.url).origin) return c.text(t("Origine refusée"), 403);
     }
     await next();
   });
@@ -104,7 +125,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   const loginPage = (c: Context, error?: string) =>
     c.html(
       <LoginPage
-        providers={oidc ? [{ href: "/auth/login/google", label: "Se connecter avec Google" }] : []}
+        providers={oidc ? [{ href: "/auth/login/google", label: t("Se connecter avec Google") }] : []}
         devLogin={cfg.devLogin === true}
         error={error ?? null}
       />,
@@ -123,7 +144,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   app.get("/auth/callback", async (c) => {
     if (!oidc) return c.notFound();
     const { code, state, error } = c.req.query();
-    if (error || !code || !state) return loginPage(c, error === "access_denied" ? "Connexion annulée." : "Connexion impossible.");
+    if (error || !code || !state) return loginPage(c, error === "access_denied" ? t("Connexion annulée.") : t("Connexion impossible."));
     try {
       return signIn(c, await handleCallback(db, oidc, code, state));
     } catch (e) {
@@ -135,7 +156,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     if (!cfg.devLogin) return c.notFound();
     const f = await c.req.parseBody();
     const email = String(f.email ?? "").trim().toLowerCase();
-    if (!email) return loginPage(c, "E-mail obligatoire.");
+    if (!email) return loginPage(c, t("E-mail obligatoire."));
     return signIn(c, upsertUser(db, "dev", email, email, String(f.name ?? "").trim() || null));
   });
 
@@ -204,9 +225,9 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     try {
       count = parseOpenAir(text).length;
     } catch (e) {
-      throw new FormError(`Fichier OpenAir illisible : ${(e as Error).message}`);
+      throw new FormError(t("Fichier OpenAir illisible : {error}", { error: (e as Error).message }));
     }
-    if (!count) throw new FormError("Aucune zone trouvée dans le fichier OpenAir.");
+    if (!count) throw new FormError(t("Aucune zone trouvée dans le fichier OpenAir."));
     return { name: file.name, text, count };
   };
 
@@ -282,14 +303,14 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
     const msg = c.req.query("msg");
-    return competitionPage(c, comp, { edit: true, ...(msg ? { notice: msg } : c.req.query("ok") ? { notice: "Enregistré." } : {}) });
+    return competitionPage(c, comp, { edit: true, ...(msg ? { notice: msg } : c.req.query("ok") ? { notice: t("Enregistré.") } : {}) });
   });
 
   app.get("/competitions/:id", (c) => {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
     const msg = c.req.query("msg");
-    return competitionPage(c, comp, msg ? { notice: msg } : c.req.query("ok") ? { notice: "Enregistré." } : {});
+    return competitionPage(c, comp, msg ? { notice: msg } : c.req.query("ok") ? { notice: t("Enregistré.") } : {});
   });
 
   app.post("/competitions/:id", async (c) => {
@@ -316,7 +337,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   });
 
   // --- Pilotes inscrits -------------------------------------------------------------------
-  const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
+  /** Singulier pour 1 (et 0 en français, comme « 0 pilote ajouté »). */
+  const one = (n: number) => n === 1 || (n === 0 && lang() === "fr");
   const backToPilots = (c: Context<Env>, comp: CompetitionRow, msg: string) =>
     c.redirect(`/competitions/${comp.id}/edit?msg=${encodeURIComponent(msg)}#pilots`);
 
@@ -325,10 +347,15 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     if (!comp) return notFound(c);
     const f = await c.req.parseBody();
     try {
-      if (!(f.file instanceof File) || !f.file.size) throw new FormError("Choisissez un fichier FSDB ou CSV.");
+      if (!(f.file instanceof File) || !f.file.size) throw new FormError(t("Choisissez un fichier FSDB ou CSV."));
       const list = pilotsFromFile(f.file.name, decodeText(new Uint8Array(await f.file.arrayBuffer())));
       const r = upsertPilots(db, comp.id, list);
-      return backToPilots(c, comp, `Import : ${plural(r.added, "pilote ajouté", "pilotes ajoutés")}, ${plural(r.updated, "mis à jour", "mis à jour")}.`);
+      const p = { added: r.added, updated: r.updated };
+      return backToPilots(
+        c,
+        comp,
+        one(r.added) ? t("Import : {added} pilote ajouté, {updated} mis à jour.", p) : t("Import : {added} pilotes ajoutés, {updated} mis à jour.", p),
+      );
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
       return competitionPage(c, comp, { edit: true, error: e.message });
@@ -341,8 +368,19 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const f = await c.req.parseBody();
     try {
       const r = savePilotTable(db, comp.id, f);
-      const parts = [r.added ? "pilote ajouté" : "", r.removed ? plural(r.removed, "pilote retiré", "pilotes retirés") : ""].filter(Boolean);
-      return backToPilots(c, comp, `Pilotes enregistrés${parts.length ? ` : ${parts.join(", ")}` : ""}.`);
+      const n = r.removed;
+      const msg = !n
+        ? r.added
+          ? t("Pilotes enregistrés : pilote ajouté.")
+          : t("Pilotes enregistrés.")
+        : r.added
+          ? one(n)
+            ? t("Pilotes enregistrés : pilote ajouté, {n} pilote retiré.", { n })
+            : t("Pilotes enregistrés : pilote ajouté, {n} pilotes retirés.", { n })
+          : one(n)
+            ? t("Pilotes enregistrés : {n} pilote retiré.", { n })
+            : t("Pilotes enregistrés : {n} pilotes retirés.", { n });
+      return backToPilots(c, comp, msg);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
       return competitionPage(c, comp, { edit: true, error: e.message });
@@ -416,7 +454,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     if (!comp) return notFound(c);
     const f = await c.req.parseBody();
     try {
-      return c.redirect(toRanking(comp, createRanking(db, comp.id, f), "Classement créé."));
+      return c.redirect(toRanking(comp, createRanking(db, comp.id, f), t("Classement créé.")));
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
       return standingsPage(c, comp, undefined, { error: e.message, create: true });
@@ -430,7 +468,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const f = await c.req.parseBody();
     try {
       updateRanking(db, r, f);
-      return c.redirect(toRanking(comp, r.row.id, "Classement enregistré."));
+      return c.redirect(toRanking(comp, r.row.id, t("Classement enregistré.")));
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
       return standingsPage(c, comp, String(r.row.id), { error: e.message });
@@ -442,7 +480,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const r = comp ? getRanking(db, comp.id, Number(c.req.param("rid"))) : null;
     if (!comp || !r) return notFound(c);
     deleteRanking(db, r);
-    return c.redirect(`/competitions/${comp.id}/standings?msg=${encodeURIComponent(`Classement « ${r.row.name} » supprimé.`)}`);
+    return c.redirect(`/competitions/${comp.id}/standings?msg=${encodeURIComponent(t("Classement « {name} » supprimé.", { name: r.row.name }))}`);
   });
 
   app.post("/competitions/:id/rankings/:rid/pilots", async (c) => {
@@ -452,7 +490,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const f = await c.req.parseBody();
     const how = String(f.how ?? "");
     try {
-      if (how !== "include" && how !== "exclude" && how !== "reset") throw new FormError("Action inconnue.");
+      if (how !== "include" && how !== "exclude" && how !== "reset") throw new FormError(t("Action inconnue."));
       setOverride(db, r, String(f.pilot ?? ""), how);
       return c.redirect(toRanking(comp, r.row.id));
     } catch (e) {
@@ -467,7 +505,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const f = await c.req.parseBody();
     try {
       const air = await readAirspace(f.airspace);
-      if (!air) throw new FormError("Choisissez un fichier OpenAir.");
+      if (!air) throw new FormError(t("Choisissez un fichier OpenAir."));
       db.prepare("UPDATE competitions SET airspace_name = ?, airspace_text = ? WHERE id = ?").run(air.name, air.text, comp.id);
       return c.redirect(`/competitions/${comp.id}/edit?ok=1#airspace`);
     } catch (e) {
@@ -504,18 +542,18 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         } catch (e) {
           throw new FormError((e as Error).message);
         }
-        if (!decoded) throw new FormError("Aucun QR code lisible dans l'image. Essayez une image plus nette ou collez le texte.");
+        if (!decoded) throw new FormError(t("Aucun QR code lisible dans l'image. Essayez une image plus nette ou collez le texte."));
         text = decoded;
       } else if (String(f.text ?? "").trim()) {
         source = "qr-text";
         text = String(f.text).trim();
-      } else throw new FormError("Envoyez un fichier .xctsk, une image du QR code ou son texte.");
+      } else throw new FormError(t("Envoyez un fichier .xctsk, une image du QR code ou son texte."));
       let task: Task;
       try {
         task = parseXctsk(text.trim());
         taskDistances(task);
       } catch (e) {
-        throw new FormError(`Manche illisible : ${(e as Error).message}`);
+        throw new FormError(t("Manche illisible : {error}", { error: (e as Error).message }));
       }
       const r = db
         .prepare("INSERT INTO tasks (competition_id, number, date, source, source_text, task, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
@@ -572,14 +610,21 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     const q = (k: string) => Number(c.req.query(k) ?? 0);
-    const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
+    // Une phrase par information.
+    const added = q("added");
+    const replaced = q("replaced");
+    const same = q("same");
     const parts = [
-      q("added") ? plural(q("added"), "trace ajoutée", "traces ajoutées") : "",
-      q("replaced") ? plural(q("replaced"), "trace remplacée", "traces remplacées") : "",
-      q("same") ? plural(q("same"), "fichier identique à la trace en place, ignoré", "fichiers identiques aux traces en place, ignorés") : "",
+      c.req.query("created") ? t("Manche créée : vérifiez le parcours sur la carte avant d'envoyer les traces.") : "",
+      added ? (one(added) ? t("{n} trace ajoutée.", { n: added }) : t("{n} traces ajoutées.", { n: added })) : "",
+      replaced ? (one(replaced) ? t("{n} trace remplacée.", { n: replaced }) : t("{n} traces remplacées.", { n: replaced })) : "",
+      same
+        ? one(same)
+          ? t("{n} fichier identique à la trace en place, ignoré.", { n: same })
+          : t("{n} fichiers identiques aux traces en place, ignorés.", { n: same })
+        : "",
     ].filter(Boolean);
-    if (c.req.query("created")) parts.unshift("Manche créée : vérifiez le parcours sur la carte avant d'envoyer les traces");
-    return taskPage(c, x.t, x.comp, parts.length ? { notice: `${parts.join(", ")}.` } : {});
+    return taskPage(c, x.t, x.comp, parts.length ? { notice: parts.join(" ") } : {});
   });
 
   app.post("/tasks/:id", async (c) => {
@@ -629,16 +674,16 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   app.post("/tasks/:id/tracks", async (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
-    if (Number(c.req.header("content-length") ?? 0) > MAX_UPLOAD) return taskPage(c, x.t, x.comp, { error: "Envoi trop gros (200 Mo au plus)." });
+    if (Number(c.req.header("content-length") ?? 0) > MAX_UPLOAD) return taskPage(c, x.t, x.comp, { error: t("Envoi trop gros (200 Mo au plus).") });
     const f = await c.req.parseBody({ all: true });
     const list = ([] as unknown[]).concat(f.files ?? []).filter((v): v is File => v instanceof File && v.size > 0);
     let igcs;
     try {
       igcs = collectIgc(await Promise.all(list.map(async (v) => ({ name: v.name, bytes: new Uint8Array(await v.arrayBuffer()) }))));
     } catch (e) {
-      return taskPage(c, x.t, x.comp, { error: `Archive illisible : ${(e as Error).message}` });
+      return taskPage(c, x.t, x.comp, { error: t("Archive illisible : {error}", { error: (e as Error).message }) });
     }
-    if (!igcs.length) return taskPage(c, x.t, x.comp, { error: "Aucun fichier IGC trouvé dans l'envoi." });
+    if (!igcs.length) return taskPage(c, x.t, x.comp, { error: t("Aucun fichier IGC trouvé dans l'envoi.") });
     // Fichiers écrits sur disque avant la base : une ligne de la base pointe toujours vers un fichier présent.
     const stored = igcs.map((g) => ({ g, sha256: tracks.put(g.bytes) }));
     const count = { added: 0, replaced: 0, same: 0 };
@@ -657,24 +702,24 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     if (!x) return notFound(c);
     const tr = db.prepare("SELECT * FROM tracks WHERE id = ? AND task_id = ?").get(Number(c.req.param("trackId")), x.t.id) as unknown as TrackRow | undefined;
     if (!tr) return notFound(c);
-    if (Number(c.req.header("content-length") ?? 0) > MAX_UPLOAD) return taskPage(c, x.t, x.comp, { error: "Envoi trop gros (200 Mo au plus)." });
+    if (Number(c.req.header("content-length") ?? 0) > MAX_UPLOAD) return taskPage(c, x.t, x.comp, { error: t("Envoi trop gros (200 Mo au plus).") });
     const f = await c.req.parseBody();
     const file = f.file instanceof File && f.file.size > 0 ? f.file : null;
-    if (!file) return taskPage(c, x.t, x.comp, { error: "Choisissez le nouveau fichier IGC." });
+    if (!file) return taskPage(c, x.t, x.comp, { error: t("Choisissez le nouveau fichier IGC.") });
     let igcs;
     try {
       igcs = collectIgc([{ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) }]);
     } catch (e) {
-      return taskPage(c, x.t, x.comp, { error: `Archive illisible : ${(e as Error).message}` });
+      return taskPage(c, x.t, x.comp, { error: t("Archive illisible : {error}", { error: (e as Error).message }) });
     }
     if (igcs.length !== 1) {
-      return taskPage(c, x.t, x.comp, { error: igcs.length ? "L'archive contient plusieurs traces : envoyez un seul fichier IGC." : "Ce fichier n'est pas une trace IGC." });
+      return taskPage(c, x.t, x.comp, { error: igcs.length ? t("L'archive contient plusieurs traces : envoyez un seul fichier IGC.") : t("Ce fichier n'est pas une trace IGC.") });
     }
     const g = igcs[0]!;
     const note = typeof f.note === "string" && f.note.trim() ? f.note.trim().slice(0, 500) : null;
     const sha256 = tracks.put(g.bytes);
     const how = saveTrack(db, x.t.id, c.get("user").id, { pilotKey: tr.pilot_key, pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
-    if (how === "same") return taskPage(c, x.t, x.comp, { notice: `Ce fichier est déjà la trace de ${tr.pilot_name ?? tr.pilot_key} : rien n'a changé.` });
+    if (how === "same") return taskPage(c, x.t, x.comp, { notice: t("Ce fichier est déjà la trace de {pilot} : rien n'a changé.", { pilot: tr.pilot_name ?? tr.pilot_key }) });
     return c.redirect(`/tasks/${x.t.id}?replaced=1`);
   });
 

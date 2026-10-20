@@ -5,10 +5,10 @@
   const el = document.getElementById("task-map");
   if (!el || !window.L) return;
   const G = JSON.parse(document.getElementById("task-geometry").textContent);
-  const ROLE = { takeoff: "Décollage", sss: "Départ", turnpoint: "Balise", ess: "ESS", goal: "Goal" };
+  const ROLE = { takeoff: T("Décollage"), sss: T("Départ"), turnpoint: T("Balise"), ess: "ESS", goal: "Goal" };
   const color = { takeoff: "#6b7280", sss: "#16a34a", turnpoint: "#2563eb", ess: "#9333ea", goal: "#dc2626" };
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-  const km = (m) => (m / 1000).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const km = (m) => (m / 1000).toLocaleString(window.I18N_LOCALE || "fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const map = L.map(el, { scrollWheelZoom: false, zoomSnap: 0.25 });
   // Vue initiale sur les balises : Leaflet en a besoin pour calculer l'emprise des cylindres.
   map.fitBounds(L.latLngBounds(G.zones.map((z) => [z.lat, z.lon])).pad(0.1));
@@ -18,7 +18,7 @@
     const c = color[z.role] || "#2563eb";
     const label = `${z.index + 1}. ${ROLE[z.role] || z.role} ${esc(z.name)}`;
     if (z.line) {
-      L.polyline([[z.line.a.lat, z.line.a.lon], [z.line.b.lat, z.line.b.lon]], { color: c, weight: 5 }).bindTooltip(`${label} · ligne de ${Math.round(z.radius * 2)} m`).addTo(map);
+      L.polyline([[z.line.a.lat, z.line.a.lon], [z.line.b.lat, z.line.b.lon]], { color: c, weight: 5 }).bindTooltip(`${label} · ${T("ligne de {n} m", { n: Math.round(z.radius * 2) })}`).addTo(map);
       L.polyline(z.line.semicircle.map((p) => [p.lat, p.lon]), { color: c, weight: 1, dashArray: "4 4" }).addTo(map);
     } else {
       const circle = L.circle([z.lat, z.lon], { radius: z.radius, color: c, weight: 2, fillOpacity: z.role === "sss" ? 0 : 0.08 })

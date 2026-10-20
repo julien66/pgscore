@@ -46,9 +46,12 @@ export interface LeadingQuality {
   maxGapAt: number | null;
   /** La trace s'arrête avant l'atterrissage, l'ESS, l'arrêt de manche ou la deadline. */
   endsInFlight: boolean;
-  /** Alertes lisibles ; vide si la trace est bonne. */
-  warnings: string[];
+  /** Alertes ; vide si la trace est bonne. */
+  warnings: LeadingWarning[];
 }
+
+/** Trace espacée (intervalle médian), trou (plus grand), ou trace arrêtée avant l'atterrissage. */
+export type LeadingWarning = { kind: "sparse"; seconds: number } | { kind: "gap"; seconds: number } | { kind: "ends-in-flight" };
 
 /** Seuils d'alerte : intervalle médian au-delà duquel la trace est jugée espacée, et trou signalé. */
 export const LEADING_SPARSE_INTERVAL = 5;
@@ -63,13 +66,10 @@ export function leadingQuality(times: number[], endsInFlight: boolean): LeadingQ
   gaps.forEach((g, i) => {
     if (g > maxGap) [maxGap, maxGapAt] = [g, times[i]!];
   });
-  const warnings: string[] = [];
-  if (medianInterval > LEADING_SPARSE_INTERVAL) warnings.push(`un point toutes les ${Math.round(medianInterval)} s`);
-  if (maxGap >= LEADING_GAP) {
-    const m = Math.floor(maxGap / 60);
-    warnings.push(`trou de ${m ? `${m} min ` : ""}${String(Math.round(maxGap % 60)).padStart(m ? 2 : 1, "0")} s`);
-  }
-  if (endsInFlight) warnings.push("la trace s'arrête avant l'atterrissage");
+  const warnings: LeadingWarning[] = [];
+  if (medianInterval > LEADING_SPARSE_INTERVAL) warnings.push({ kind: "sparse", seconds: Math.round(medianInterval) });
+  if (maxGap >= LEADING_GAP) warnings.push({ kind: "gap", seconds: Math.round(maxGap) });
+  if (endsInFlight) warnings.push({ kind: "ends-in-flight" });
   return { fixes: times.length, medianInterval, maxGap, maxGapAt, endsInFlight, warnings };
 }
 

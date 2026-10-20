@@ -22,7 +22,7 @@
         if (fresh && cur) cur.innerHTML = fresh.innerHTML;
       } catch {
         box.checked = !box.checked;
-        alert("Impossible d'enregistrer : réessayez.");
+        alert(T("Impossible d'enregistrer : réessayez."));
       } finally {
         box.disabled = false;
       }

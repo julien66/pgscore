@@ -7,6 +7,7 @@ import {
   type LeadingProfile,
   type Task,
 } from "@pgscore/engine";
+import { N_, t } from "./i18n.js";
 
 /** Réglages d'une compétition : paramètres GAP (S7F 5) et choix de règlement. */
 export interface CompetitionSettings extends CompetitionParameters {
@@ -30,19 +31,19 @@ export const DEFAULT_SETTINGS: CompetitionSettings = {
 };
 
 export const GAP_PROFILES: Record<GapProfile, string> = {
-  S7F2026: "S7F 2026 (texte FAI)",
-  PWCA: "PWCA 2026 (comme SVL)",
+  S7F2026: N_("S7F 2026 (texte FAI)"),
+  PWCA: N_("PWCA 2026 (comme SVL)"),
 };
 
 export const LEADING_PROFILES: Record<LeadingProfile, string> = {
-  S7F2026: "S7F 2026 (texte FAI)",
-  PWCA: "PWCA (comme SVL)",
+  S7F2026: N_("S7F 2026 (texte FAI)"),
+  PWCA: N_("PWCA (comme SVL)"),
 };
 
 export const PENALTY_RULES: Record<AirspacePenaltyRule, string> = {
-  s7a: "S7A 2026 : 0 à 100 % des points entre 0 et 100 m",
-  "pwca-soft": "PWCA « soft » : 1000 points à 100 m",
-  "pwca-hard": "PWCA « hard » : 1000 points à 50 m",
+  s7a: N_("S7A 2026 : 0 à 100 % des points entre 0 et 100 m"),
+  "pwca-soft": N_("PWCA « soft » : 1000 points à 100 m"),
+  "pwca-hard": N_("PWCA « hard » : 1000 points à 50 m"),
 };
 
 export function parseSettings(json: string): CompetitionSettings {
@@ -53,7 +54,7 @@ export class FormError extends Error {}
 
 function num(form: Record<string, unknown>, key: string, label: string): number {
   const v = Number(String(form[key] ?? "").replace(",", "."));
-  if (!Number.isFinite(v)) throw new FormError(`${label} : nombre attendu.`);
+  if (!Number.isFinite(v)) throw new FormError(t("{label} : nombre attendu.", { label }));
   return v;
 }
 
@@ -69,20 +70,20 @@ function isTimeZone(tz: string): boolean {
 /** Réglages lus depuis le formulaire (distances en km, temps en minutes, FTV en %). */
 export function settingsFromForm(form: Record<string, unknown>): CompetitionSettings {
   const gapProfile = String(form.gapProfile ?? DEFAULT_SETTINGS.gapProfile) as GapProfile;
-  if (!(gapProfile in GAP_PROFILES)) throw new FormError("Formule de points inconnue.");
+  if (!(gapProfile in GAP_PROFILES)) throw new FormError(t("Formule de points inconnue."));
   const leadingProfile = String(form.leadingProfile) as LeadingProfile;
   const airspacePenaltyRule = String(form.airspacePenaltyRule) as AirspacePenaltyRule;
-  if (!(leadingProfile in LEADING_PROFILES)) throw new FormError("Profil de leading inconnu.");
-  if (!(airspacePenaltyRule in PENALTY_RULES)) throw new FormError("Barème d'espace aérien inconnu.");
+  if (!(leadingProfile in LEADING_PROFILES)) throw new FormError(t("Profil de leading inconnu."));
+  if (!(airspacePenaltyRule in PENALTY_RULES)) throw new FormError(t("Barème d'espace aérien inconnu."));
   const timeZone = String(form.timeZone ?? "").trim() || DEFAULT_SETTINGS.timeZone;
-  if (!isTimeZone(timeZone)) throw new FormError(`Fuseau horaire inconnu : ${timeZone}`);
+  if (!isTimeZone(timeZone)) throw new FormError(t("Fuseau horaire inconnu : {timeZone}", { timeZone }));
   let params;
   try {
     params = competitionParameters({
-      nominalDistance: num(form, "nominalDistance", "Distance nominale") * 1000,
-      minimumDistance: num(form, "minimumDistance", "Distance minimale") * 1000,
-      nominalTime: num(form, "nominalTime", "Temps nominal") * 60,
-      ftvFactor: num(form, "ftvFactor", "Facteur FTV") / 100,
+      nominalDistance: num(form, "nominalDistance", t("Distance nominale")) * 1000,
+      minimumDistance: num(form, "minimumDistance", t("Distance minimale")) * 1000,
+      nominalTime: num(form, "nominalTime", t("Temps nominal")) * 60,
+      ftvFactor: num(form, "ftvFactor", t("Facteur FTV")) / 100,
     });
   } catch (e) {
     throw new FormError((e as Error).message);
@@ -108,13 +109,13 @@ export function taskScoringFromForm(form: Record<string, unknown>): TaskScoringS
   const ltr = String(form.leadingTimeRatio ?? "").trim().replace(",", ".");
   if (ltr) {
     const v = Number(ltr);
-    if (!(v >= 0 && v <= 26.5)) throw new FormError("Leading Time Ratio : entre 0 et 26 %.");
+    if (!(v >= 0 && v <= 26.5)) throw new FormError(t("Leading Time Ratio : entre 0 et 26 %."));
     out.leadingTimeRatio = v / 100;
   }
   const present = String(form.pilotsPresent ?? "").trim();
   if (present) {
     const v = Number(present);
-    if (!(Number.isInteger(v) && v >= 0)) throw new FormError("Pilotes présents : nombre entier attendu.");
+    if (!(Number.isInteger(v) && v >= 0)) throw new FormError(t("Pilotes présents : nombre entier attendu."));
     out.pilotsPresent = v;
   }
   return out;

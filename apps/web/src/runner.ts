@@ -3,6 +3,7 @@ import type { CompetitionRow, Db, RunDetail, RunStep, TaskRow } from "./db.js";
 import { engineDecisions, listDecisions } from "./decisions.js";
 import { parseSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
+import { t } from "./i18n.js";
 
 /**
  * Calcul d'une manche, lancé à la main. Il tourne dans le processus du serveur, un pilote à la fois,
@@ -14,9 +15,9 @@ const running = new Set<number>();
 export const isRunning = (taskId: number) => running.has(taskId);
 
 export function startRun(db: Db, tracks: TrackStore, taskId: number, userId: number): number {
-  if (running.has(taskId)) throw new Error("Un calcul est déjà en cours pour cette manche.");
+  if (running.has(taskId)) throw new Error(t("Un calcul est déjà en cours pour cette manche."));
   const total = (db.prepare("SELECT COUNT(*) n FROM tracks WHERE task_id = ?").get(taskId) as { n: number }).n;
-  if (!total) throw new Error("Aucune trace : envoyez les fichiers IGC avant de lancer le calcul.");
+  if (!total) throw new Error(t("Aucune trace : envoyez les fichiers IGC avant de lancer le calcul."));
   const r = db
     .prepare("INSERT INTO runs (task_id, status, done, total, started_by, started_at) VALUES (?, 'queued', 0, ?, ?, ?)")
     .run(taskId, total, userId, Date.now());
@@ -35,9 +36,9 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
     // 1. Manche, paramètres et espaces aériens.
     report("prepare", 0, {});
     await tick();
-    const t = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as unknown as TaskRow;
-    const comp = db.prepare("SELECT * FROM competitions WHERE id = ?").get(t.competition_id) as unknown as CompetitionRow;
-    const task = JSON.parse(t.task) as StoredTask;
+    const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as unknown as TaskRow;
+    const comp = db.prepare("SELECT * FROM competitions WHERE id = ?").get(row.competition_id) as unknown as CompetitionRow;
+    const task = JSON.parse(row.task) as StoredTask;
     const s = parseSettings(comp.params);
     const options = {
       params: s,
@@ -76,7 +77,7 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
       // Avant le leading, ERREUR vaut aussi pour une trace sans vol : le statut final est celui du classement.
       detail.counts[r.error ? "ERREUR" : r.status] = (detail.counts[r.error ? "ERREUR" : r.status] ?? 0) + 1;
       if (r.airspace.length) detail.airspaceInfringements = (detail.airspaceInfringements ?? 0) + 1;
-      const note = r.error ?? (r.airspace.length ? `espace aérien ${r.airspace[0]!.name}` : undefined);
+      const note = r.error ?? (r.airspace.length ? t("espace aérien {name}", { name: r.airspace[0]!.name }) : undefined);
       detail.recent = [{ name: r.name, status: r.error ? "ERREUR" : r.status, distance: r.distance, ...(note ? { note } : {}) }, ...detail.recent].slice(0, 6);
       report("control", i + 1, detail);
     }

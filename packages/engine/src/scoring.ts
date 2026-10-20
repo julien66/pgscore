@@ -1,7 +1,7 @@
 import { controlFlight, zoneApproaches, type FlightControl, type ZoneApproach } from "./control.js";
 import { taskDistances, type TaskDistances } from "./distances.js";
 import { parseIgc } from "./igc.js";
-import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingTrack, type LeadingProfile, type LeadingTrack } from "./leading.js";
+import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingTrack, type LeadingProfile, type LeadingTrack, type LeadingWarning } from "./leading.js";
 import {
   airspaceInfringements,
   airspacePenalty,
@@ -99,7 +99,7 @@ export interface PilotResult {
   leadingCoefficient: number | null;
   leadingFactor: number | null;
   /** Alertes sur la trace qui peuvent fausser le leading (trace espacée, trou, arrêt en vol). */
-  leadingWarnings?: string[];
+  leadingWarnings?: LeadingWarning[];
   airspace: AirspaceResult[];
   /** Pénalité d'espace aérien : en points (PWCA) ou en part des points du pilote (S7A, entre 0 et 1). */
   airspacePenalty: { points?: number; fraction?: number } | null;

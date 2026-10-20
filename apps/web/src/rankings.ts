@@ -1,5 +1,6 @@
 import type { Db, PilotRow, RankingRow } from "./db.js";
 import { FormError } from "./settings.js";
+import { lang, locale, N_, t } from "./i18n.js";
 
 /**
  * Classements extraits du général : mêmes scores de manche et même FTV, on garde les pilotes concernés
@@ -8,21 +9,21 @@ import { FormError } from "./settings.js";
  */
 
 export const RULE_FIELDS = {
-  gender: "Genre",
-  nation: "Nation",
-  glider_brand: "Marque voile",
-  glider_model: "Modèle voile",
-  glider_class: "Classe de voile",
-  harness_brand: "Marque sellette",
-  harness_model: "Modèle sellette",
-  weight_max: "PTV max (kg)",
+  gender: N_("Genre"),
+  nation: N_("Nation"),
+  glider_brand: N_("Marque voile"),
+  glider_model: N_("Modèle voile"),
+  glider_class: N_("Classe de voile"),
+  harness_brand: N_("Marque sellette"),
+  harness_model: N_("Modèle sellette"),
+  weight_max: N_("PTV max (kg)"),
 } as const satisfies Partial<Record<keyof PilotRow, string>>;
 export type RuleField = keyof typeof RULE_FIELDS;
 
 export const RULE_OPS = {
-  in: "est l'un de",
-  not_in: "n'est aucun de",
-  contains: "contient",
+  in: N_("est l'un de"),
+  not_in: N_("n'est aucun de"),
+  contains: N_("contient"),
   lt: "<",
   lte: "≤",
   gt: ">",
@@ -66,8 +67,10 @@ export function matches(rule: RankingRule, p: PilotRow): boolean {
 }
 
 export function describeRule(rule: RankingRule): string {
-  if (!rule.conditions.length) return "pilotes choisis à la main";
-  return rule.conditions.map((c) => `${RULE_FIELDS[c.field].toLowerCase()} ${RULE_OPS[c.op]} ${c.value}`).join(" et ");
+  if (!rule.conditions.length) return t("pilotes choisis à la main");
+  // En allemand, les noms gardent leur majuscule.
+  const field = (f: RuleField) => (lang() === "de" ? t(RULE_FIELDS[f]) : t(RULE_FIELDS[f]).toLocaleLowerCase(locale()));
+  return new Intl.ListFormat(locale(), { type: "conjunction" }).format(rule.conditions.map((c) => `${field(c.field)} ${t(RULE_OPS[c.op])} ${c.value}`));
 }
 
 /** Lit la règle du formulaire : champs field1/op1/value1, field2…; une condition sans valeur est ignorée. */
@@ -78,12 +81,16 @@ export function ruleFromForm(form: Record<string, unknown>): RankingRule {
     const op = String(form[`op${i}`] ?? "") as RuleOp;
     const value = String(form[`value${i}`] ?? "").trim();
     if (!field || !value) continue;
-    if (!(field in RULE_FIELDS)) throw new FormError("Critère inconnu.");
-    if (!(op in RULE_OPS)) throw new FormError("Comparaison inconnue.");
+    if (!(field in RULE_FIELDS)) throw new FormError(t("Critère inconnu."));
+    if (!(op in RULE_OPS)) throw new FormError(t("Comparaison inconnue."));
     const numeric = field === "weight_max";
     if (numeric !== NUMERIC_OPS.includes(op))
-      throw new FormError(numeric ? "PTV max : comparez avec <, ≤, > ou ≥." : `${RULE_FIELDS[field]} : comparez avec « est l'un de », « n'est aucun de » ou « contient ».`);
-    if (numeric && !Number.isFinite(Number(value.replace(",", ".")))) throw new FormError("PTV max : un nombre de kg est attendu.");
+      throw new FormError(
+        numeric
+          ? t("PTV max : comparez avec <, ≤, > ou ≥.")
+          : t("{field} : comparez avec « est l'un de », « n'est aucun de » ou « contient ».", { field: t(RULE_FIELDS[field]) }),
+      );
+    if (numeric && !Number.isFinite(Number(value.replace(",", ".")))) throw new FormError(t("PTV max : un nombre de kg est attendu."));
     conditions.push({ field, op, value: numeric ? String(Number(value.replace(",", "."))) : value });
   }
   return { conditions };
@@ -119,7 +126,7 @@ export function rankingMembers(r: Ranking, pilots: PilotRow[]): Set<string> {
 
 export function createRanking(db: Db, compId: number, form: Record<string, unknown>): number {
   const name = String(form.name ?? "").trim();
-  if (!name) throw new FormError("Nom du classement obligatoire.");
+  if (!name) throw new FormError(t("Nom du classement obligatoire."));
   const rule = ruleFromForm(form);
   return Number(
     db.prepare("INSERT INTO competition_rankings (competition_id, name, rule, created_at) VALUES (?, ?, ?, ?)").run(compId, name, JSON.stringify(rule), Date.now())
@@ -129,7 +136,7 @@ export function createRanking(db: Db, compId: number, form: Record<string, unkno
 
 export function updateRanking(db: Db, r: Ranking, form: Record<string, unknown>): void {
   const name = String(form.name ?? "").trim();
-  if (!name) throw new FormError("Nom du classement obligatoire.");
+  if (!name) throw new FormError(t("Nom du classement obligatoire."));
   db.prepare("UPDATE competition_rankings SET name = ?, rule = ? WHERE id = ?").run(name, JSON.stringify(ruleFromForm(form)), r.row.id);
 }
 
@@ -140,7 +147,7 @@ export function deleteRanking(db: Db, r: Ranking): void {
 /** Ajoute (included) ou retire un pilote à la main ; « reset » revient à la règle. */
 export function setOverride(db: Db, r: Ranking, pilotKey: string, how: "include" | "exclude" | "reset"): void {
   const key = pilotKey.trim();
-  if (!key) throw new FormError("Numéro du pilote obligatoire.");
+  if (!key) throw new FormError(t("Numéro du pilote obligatoire."));
   if (how === "reset") db.prepare("DELETE FROM ranking_overrides WHERE ranking_id = ? AND pilot_key = ?").run(r.row.id, key);
   else
     db.prepare("INSERT INTO ranking_overrides (ranking_id, pilot_key, included) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET included = excluded.included").run(

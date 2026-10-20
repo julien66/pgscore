@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Db, User } from "./db.js";
+import { t } from "./i18n.js";
 
 /**
  * Connexion par un service externe (OpenID Connect, Google par défaut). Aucun mot de passe n'est
@@ -36,7 +37,7 @@ function discover(issuer: string): Promise<Discovery> {
   let d = discoveries.get(issuer);
   if (!d) {
     d = fetch(`${issuer}/.well-known/openid-configuration`).then(async (r) => {
-      if (!r.ok) throw new Error(`Découverte OpenID impossible (${r.status})`);
+      if (!r.ok) throw new Error(t("Découverte OpenID impossible ({status})", { status: r.status }));
       return (await r.json()) as Discovery;
     });
     d.catch(() => discoveries.delete(issuer));
@@ -82,7 +83,7 @@ export async function handleCallback(db: Db, cfg: OidcConfig, code: string, stat
     | { verifier: string; nonce: string; expires_at: number }
     | undefined;
   db.prepare("DELETE FROM login_states WHERE state = ?").run(state);
-  if (!st || st.expires_at < Date.now()) throw new Error("Demande de connexion expirée, recommencez.");
+  if (!st || st.expires_at < Date.now()) throw new Error(t("Demande de connexion expirée, recommencez."));
 
   const d = await discover(cfg.issuer);
   const r = await fetch(d.token_endpoint, {
@@ -97,9 +98,9 @@ export async function handleCallback(db: Db, cfg: OidcConfig, code: string, stat
       code_verifier: st.verifier,
     }),
   });
-  if (!r.ok) throw new Error(`Le fournisseur a refusé la connexion (${r.status}).`);
+  if (!r.ok) throw new Error(t("Le fournisseur a refusé la connexion ({status}).", { status: r.status }));
   const tok = (await r.json()) as { id_token?: string };
-  if (!tok.id_token) throw new Error("Pas de jeton d'identité dans la réponse.");
+  if (!tok.id_token) throw new Error(t("Pas de jeton d'identité dans la réponse."));
   const claims = JSON.parse(Buffer.from(tok.id_token.split(".")[1] ?? "", "base64url").toString("utf8")) as {
     iss: string;
     aud: string | string[];
@@ -112,10 +113,10 @@ export async function handleCallback(db: Db, cfg: OidcConfig, code: string, stat
   };
   const issuers = [d.issuer, cfg.issuer, cfg.issuer.replace(/^https:\/\//, "")];
   const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-  if (!issuers.includes(claims.iss)) throw new Error("Émetteur du jeton inattendu.");
-  if (!aud.includes(cfg.clientId)) throw new Error("Jeton destiné à une autre application.");
-  if (claims.exp * 1000 < Date.now()) throw new Error("Jeton expiré.");
-  if (claims.nonce !== st.nonce) throw new Error("Jeton rejoué ou altéré.");
+  if (!issuers.includes(claims.iss)) throw new Error(t("Émetteur du jeton inattendu."));
+  if (!aud.includes(cfg.clientId)) throw new Error(t("Jeton destiné à une autre application."));
+  if (claims.exp * 1000 < Date.now()) throw new Error(t("Jeton expiré."));
+  if (claims.nonce !== st.nonce) throw new Error(t("Jeton rejoué ou altéré."));
   return upsertUser(db, cfg.provider, claims.sub, claims.email_verified === false ? null : (claims.email ?? null), claims.name ?? null);
 }
 

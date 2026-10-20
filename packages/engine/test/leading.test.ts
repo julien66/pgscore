@@ -51,11 +51,11 @@ describe("régularité de la trace pour le leading", () => {
   });
 
   it("signale une trace espacée, un trou et un arrêt avant l'atterrissage", () => {
-    expect(leadingQuality(every(10, 300), false).warnings).toEqual(["un point toutes les 10 s"]);
+    expect(leadingQuality(every(10, 300), false).warnings).toEqual([{ kind: "sparse", seconds: 10 }]);
     const holed = [...every(1, 600), ...every(1, 600, t0 + 600_000 + 90 * 60_000)];
     const q = leadingQuality(holed, true);
     expect(q.maxGap).toBe(5401);
     expect(q.maxGapAt).toBe(t0 + 599_000);
-    expect(q.warnings).toEqual(["trou de 90 min 01 s", "la trace s'arrête avant l'atterrissage"]);
+    expect(q.warnings).toEqual([{ kind: "gap", seconds: 5401 }, { kind: "ends-in-flight" }]);
   });
 });

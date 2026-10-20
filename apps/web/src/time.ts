@@ -1,3 +1,5 @@
+import { locale, t } from "./i18n.js";
+
 /** Heures : la manche est en UTC (comme XCTrack), l'affichage et la saisie en heure locale du site. */
 
 function offsetMinutes(utcMs: number, timeZone: string): number {
@@ -34,7 +36,7 @@ export function utcHmsToLocal(hms: string, date: string | null, timeZone: string
 /** Heure locale saisie "HH:MM[:SS]" le jour donné → "HH:MM:SS" UTC. */
 export function localHmsToUtc(hms: string, date: string | null, timeZone: string): string {
   const mt = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(hms.trim());
-  if (!mt) throw new Error(`Heure invalide : « ${hms} » (attendu HH:MM ou HH:MM:SS).`);
+  if (!mt) throw new Error(t("Heure invalide : « {value} » (attendu HH:MM ou HH:MM:SS).", { value: hms }));
   const day = date ? Date.parse(`${date}T00:00:00Z`) : Date.UTC(2026, 0, 1);
   const naive = day + (Number(mt[1]) * 3600 + Number(mt[2]) * 60 + Number(mt[3] ?? 0)) * 1000;
   // Deux passes pour tomber juste autour d'un changement d'heure.
@@ -52,4 +54,4 @@ export function duration(seconds: number | null | undefined): string {
 }
 
 export const km = (m: number | null | undefined, digits = 2) =>
-  m === null || m === undefined ? "" : (m / 1000).toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  m === null || m === undefined ? "" : (m / 1000).toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });

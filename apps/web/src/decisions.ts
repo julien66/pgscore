@@ -1,16 +1,17 @@
 import type { DecisionKind, PilotDecision } from "@pgscore/engine";
 import type { Db, DecisionRow } from "./db.js";
 import { FormError } from "./settings.js";
+import { N_, t } from "./i18n.js";
 
 /** Décisions proposées dans la page de la manche, avec l'unité de leur valeur s'il en faut une. */
 export const DECISION_KINDS: Record<DecisionKind, { label: string; unit?: string }> = {
-  bonus: { label: "Bonus", unit: "points" },
-  penalty: { label: "Pénalité", unit: "points" },
-  "penalty-percent": { label: "Pénalité en pourcentage", unit: "%" },
-  goal: { label: "Goal accordé" },
-  launched: { label: "A décollé sans trace (distance minimale)" },
-  dnf: { label: "Présent, n'a pas volé (DNF)" },
-  abs: { label: "Absent (ABS)" },
+  bonus: { label: N_("Bonus"), unit: "points" },
+  penalty: { label: N_("Pénalité"), unit: "points" },
+  "penalty-percent": { label: N_("Pénalité en pourcentage"), unit: "%" },
+  goal: { label: N_("Goal accordé") },
+  launched: { label: N_("A décollé sans trace (distance minimale)") },
+  dnf: { label: N_("Présent, n'a pas volé (DNF)") },
+  abs: { label: N_("Absent (ABS)") },
 };
 
 export function listDecisions(db: Db, taskId: number): DecisionRow[] {
@@ -28,14 +29,14 @@ export function addDecision(db: Db, taskId: number, userId: number, form: Record
   const name = String(form.name ?? "").trim() || null;
   const kind = String(form.kind ?? "") as DecisionKind;
   const reason = String(form.reason ?? "").trim();
-  if (!pilot) throw new FormError("Numéro du pilote obligatoire.");
-  if (!(kind in DECISION_KINDS)) throw new FormError("Type de décision inconnu.");
-  if (!reason) throw new FormError("Motif obligatoire : il apparaît dans les résultats.");
+  if (!pilot) throw new FormError(t("Numéro du pilote obligatoire."));
+  if (!(kind in DECISION_KINDS)) throw new FormError(t("Type de décision inconnu."));
+  if (!reason) throw new FormError(t("Motif obligatoire : il apparaît dans les résultats."));
   let value: number | null = null;
   if (DECISION_KINDS[kind].unit) {
     value = Number(String(form.value ?? "").replace(",", "."));
-    if (!(Number.isFinite(value) && value > 0)) throw new FormError("Valeur attendue : un nombre positif.");
-    if (kind === "penalty-percent" && value > 100) throw new FormError("Pourcentage : 100 au plus.");
+    if (!(Number.isFinite(value) && value > 0)) throw new FormError(t("Valeur attendue : un nombre positif."));
+    if (kind === "penalty-percent" && value > 100) throw new FormError(t("Pourcentage : 100 au plus."));
   }
   const now = Date.now();
   db.prepare(

@@ -13,6 +13,7 @@ import {
   type Task,
 } from "@pgscore/engine";
 import type { CompetitionSettings } from "./settings.js";
+import { t } from "./i18n.js";
 
 /**
  * Données de la vue d'une trace : zones de la manche, route optimisée, espaces aériens proches,
@@ -122,7 +123,7 @@ export function viewerData(
   pilot: { key: string; name: string | null },
   date: string | null,
 ): ViewerData {
-  if (!versions.length) throw new Error("Aucune trace pour ce pilote.");
+  if (!versions.length) throw new Error(t("Aucune trace pour ce pilote."));
   const dist = taskDistances(task);
   const tps = task.turnpoints;
   const flights = versions.map((v) => ({ meta: v.meta, flight: parseIgc(v.igc) }));
