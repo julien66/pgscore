@@ -118,6 +118,7 @@ const ICONS = {
   userMinus: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/>',
   login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
   refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  qr: '<rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/>',
   zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
   unlock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
   key: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
@@ -1453,6 +1454,12 @@ export const TaskPage: FC<{
         <p class="small muted legend">
           <span style="color:#16a34a">● {t("départ")}</span> <span style="color:#2563eb">● {t("balise")}</span> <span style="color:#9333ea">● ESS</span>{" "}
           <span style="color:#dc2626">● goal</span> · {t("trait noir : route optimisée (distance de la manche), longueur de chaque branche")}
+        </p>
+        <p class="small">
+          <a class="act" href={`/tasks/${tk.id}/qr.svg`} target="_blank" rel="noopener">
+            <Bi n="qr" /> {t("QR code de la manche (XCTrack)")}
+          </a>{" "}
+          · <a href={`/tasks/${tk.id}/qr.txt`} target="_blank" rel="noopener">{t("texte du QR code")}</a>
         </p>
         <p class="small muted">
           {task.type === "race" ? t("Race to goal") : t("Time trial")} · {t("portes {gates}", { gates: task.startGates.map(loc).join(", ") || t("aucune") })} ·{" "}

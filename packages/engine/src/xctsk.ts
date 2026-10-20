@@ -218,3 +218,31 @@ export function parseXctsk(text: string): Task {
   if (data.version === 2 || Array.isArray(data.t)) return parseXctskQr(t);
   return parseXctskV1(t);
 }
+
+/** Manche → texte de QR code XCTrack (« XCTSK: », version 2), relu à l'identique par parseXctskQr. */
+export function taskToXctskQr(task: Task): string {
+  const z = (tp: TaskTurnpoint) => {
+    const w = tp.zone.waypoint;
+    const radius = tp.zone.kind === "goal-line" ? tp.zone.length / 2 : tp.zone.radius;
+    return encodePolylineInts([Math.round(w.lon * 1e5), Math.round(w.lat * 1e5), Math.round(w.altitude ?? 0), Math.round(radius)]);
+  };
+  const utc = (t: string) => `${t}Z`;
+  const goal = task.turnpoints[task.turnpoints.length - 1]!;
+  const data: V2Task = {
+    version: 2,
+    taskType: "CLASSIC",
+    // Le décollage n'est pas typé dans le QR code : XCTrack le reconnaît comme premier point avant le SSS.
+    t: task.turnpoints.map((tp) => ({
+      z: z(tp),
+      n: tp.zone.waypoint.name,
+      ...(tp.zone.waypoint.description ? { d: tp.zone.waypoint.description } : {}),
+      ...(tp.role === "sss" ? { t: 2 } : tp.role === "ess" ? { t: 3 } : {}),
+    })),
+    s: { g: task.startGates.map(utc), d: task.startDirection === "enter" ? 1 : 2, t: task.type === "time-trial" ? 2 : 1 },
+    g: { ...(task.deadline ? { d: utc(task.deadline) } : {}), t: goal.zone.kind === "goal-line" ? 1 : 2 },
+  };
+  if (task.sourceEarthModel === "FAI_SPHERE") data.e = 1;
+  if (task.takeoffOpen) data.to = utc(task.takeoffOpen);
+  if (task.takeoffClose) data.tc = utc(task.takeoffClose);
+  return `XCTSK:${JSON.stringify(data)}`;
+}

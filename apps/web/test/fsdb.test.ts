@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { strFromU8, unzipSync, zipSync, strToU8 } from "fflate";
 import { describe, expect, it } from "vitest";
+import { parseXctskQr } from "@pgscore/engine";
 import { createApp } from "../src/app.js";
 import { openDb, type CompetitionRow } from "../src/db.js";
 import { TrackStore } from "../src/track-store.js";
@@ -94,6 +95,14 @@ describe("échange avec FS (FSDB)", () => {
     expect(again.a.pilots).toHaveLength(2);
     expect(again.a.tasks[0]!.decisions).toHaveLength(2);
     expect(again.a.tasks[0]!.task.startGates).toEqual(["11:30:00"]);
+    // QR code XCTrack de la manche : texte relu à l'identique, image SVG.
+    const taskId = (db.prepare("SELECT id FROM tasks WHERE competition_id = ?").get(r.id) as { id: number }).id;
+    const qrText = await (await req(`/tasks/${taskId}/qr.txt`)).text();
+    expect(qrText.startsWith("XCTSK:")).toBe(true);
+    expect(parseXctskQr(qrText).turnpoints).toEqual(task.turnpoints);
+    const svg = await req(`/tasks/${taskId}/qr.svg`);
+    expect(svg.headers.get("content-type")).toContain("image/svg+xml");
+    expect((await svg.text()).startsWith("<svg")).toBe(true);
     const dl = await req(`/api/competitions/${r.id}/fsdb`);
     expect(dl.status).toBe(200);
     expect(dl.headers.get("content-disposition")).toContain("coupe-de-test-fs.fsdb");

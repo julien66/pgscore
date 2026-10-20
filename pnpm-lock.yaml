@@ -37,6 +37,9 @@ importers:
       pngjs:
         specifier: ^7.0.0
         version: 7.0.0
+      qrcode-generator:
+        specifier: 2.0.4
+        version: 2.0.4
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -770,6 +773,9 @@ packages:
     resolution: {integrity: sha512-dYDWdjSl5RNb7SgPxGQcRU+GtvP7s2fpkrY0r432PcOIaZ0/rBcxEZnQN67iJhFuQiVw754JDoPruPCNdGsbjg==}
     engines: {node: '>=12.0.0'}
 
+  qrcode-generator@2.0.4:
+    resolution: {integrity: sha512-mZSiP6RnbHl4xL2Ap5HfkjLnmxfKcPWpWe/c+5XxCuetEenqmNFf1FH/ftXPCtFG5/TDobjsjz6sSNL0Sr8Z9g==}
+
   quickselect@2.0.0:
     resolution: {integrity: sha512-RKJ22hX8mHe3Y6wH/N3wCM6BWtjaxIyyUIkpHOvfFnxdI4yD4tBXEBKSbriGujF6jnSVkJrffuo6vxACiSSxIw==}
 
@@ -1397,6 +1403,8 @@ snapshots:
       '@protobufjs/utf8': 1.1.2
       '@types/node': 26.6.5
       long: 5.3.2
+
+  qrcode-generator@2.0.4: {}
 
   quickselect@2.0.0: {}
 

@@ -1,5 +1,7 @@
 /** Traductions es : texte français → texte traduit. Les clés absentes restent en français. */
 const dict: Record<string, string> = {
+  "QR code de la manche (XCTrack)": "Código QR de la manga (XCTrack)",
+  "texte du QR code": "texto del código QR",
   "Logiciel libre, licence AGPL-3.0": "Software libre, licencia AGPL-3.0",
   "Il est publié sous licence GNU AGPL-3.0 : toute version modifiée mise en ligne doit, elle aussi, publier son code.": "Se publica bajo la licencia GNU AGPL-3.0: toda versión modificada puesta en línea debe publicar también su código.",
   "À propos de pgscore": "Acerca de pgscore",

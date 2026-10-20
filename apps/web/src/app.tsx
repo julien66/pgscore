@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { parseOpenAir, parseXctsk, taskDistances, type Task } from "@pgscore/engine";
+import { parseOpenAir, parseXctsk, taskDistances, taskToXctskQr, type Task } from "@pgscore/engine";
+import qrcode from "qrcode-generator";
 import {
   apiTokenUser,
   createApiToken,
@@ -1014,6 +1015,21 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     }, 200, { "cache-control": "no-store" });
   });
 
+  // QR code XCTrack de la manche, écrit depuis la manche enregistrée (celle qui est calculée).
+  app.get("/tasks/:id/qr.svg", (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    const qr = qrcode(0, "L");
+    qr.addData(taskToXctskQr(JSON.parse(x.t.task) as Task), "Byte");
+    qr.make();
+    const svg = qr.createSvgTag({ cellSize: 6, margin: 24, scalable: true });
+    return c.body(svg, 200, { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "no-cache" });
+  });
+  app.get("/tasks/:id/qr.txt", (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    return c.text(taskToXctskQr(JSON.parse(x.t.task) as Task));
+  });
   app.get("/tasks/:id/results.csv", (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);

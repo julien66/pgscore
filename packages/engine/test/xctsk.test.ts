@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { encodePolylineInts, decodePolylineInts, parseXctsk } from "../src/xctsk.js";
+import { encodePolylineInts, decodePolylineInts, parseXctsk, parseXctskQr, taskToXctskQr } from "../src/xctsk.js";
 
 // Manche 1 de la PWC Baixo Guandu 2026 (balises relevées sur scoring.pwca.org).
 const pwcaT1 = {
@@ -88,5 +88,23 @@ describe("QR code réel PWCA Baixo Guandu 2026, manche 1", () => {
     expect(task.startGates).toEqual(["15:45:00"]);
     expect(task.deadline).toBe("20:00:00");
     expect(task.turnpoints[5]!.zone.kind).toBe("goal-line");
+  });
+});
+
+describe("écriture du QR code XCTrack", () => {
+  for (const f of ["pwca-baixo-guandu-2026-t1", "pwca-baixo-guandu-2026-t2", "pwca-feltre-2025-t3", "pwca-gemona-2026-t3"]) {
+    it(`relit à l'identique la manche ${f}`, () => {
+      const text = readFileSync(new URL(`fixtures/${f}.qr.txt`, import.meta.url), "utf8").trim();
+      const task = parseXctskQr(text);
+      const out = taskToXctskQr(task);
+      expect(out.startsWith("XCTSK:")).toBe(true);
+      expect(parseXctskQr(out)).toEqual(task);
+    });
+  }
+  it("écrit une ligne de goal avec sa demi-longueur et un time trial", () => {
+    const task = parseXctskQr(readFileSync(new URL("fixtures/pwca-baixo-guandu-2026-t1.qr.txt", import.meta.url), "utf8"));
+    const tt = { ...task, type: "time-trial" as const };
+    expect(parseXctskQr(taskToXctskQr(tt)).type).toBe("time-trial");
+    expect(JSON.parse(taskToXctskQr(task).slice(6)).g.t).toBe(1);
   });
 });
