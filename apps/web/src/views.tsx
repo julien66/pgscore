@@ -67,7 +67,7 @@ table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{
 [data-swap].loading{opacity:.55;transition:opacity .15s}
 .tabs a.tab-end{margin-left:auto}
 table.rk.sport-hidden .sp{display:none}table.rk .sp-open{display:none}table.rk:not(.sport-hidden) .sp-open{display:inline}table.rk:not(.sport-hidden) .sp-closed{display:none}
-.sp-toggle{font-size:11px;text-transform:none;letter-spacing:0;color:var(--accent)}
+td.gear{line-height:1.25}.sp-toggle{font-size:11px;text-transform:none;letter-spacing:0;color:var(--accent)}
 .details h3{font-size:16px;margin:22px 0 6px}.details ul{margin:4px 0 10px;padding-left:20px}
 table.calc{margin:4px 0 8px}table.calc th{width:190px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text);vertical-align:top}
 table.calc td.how{white-space:normal;color:var(--muted);font-size:13px}table.calc td.val{width:110px;vertical-align:top;font-variant-numeric:tabular-nums}
@@ -661,7 +661,9 @@ const FtvCell: FC<{ ts: { score: number; fraction: number; counted: number } | u
 const identity = (registry: PilotRow[], keys: string[]) => {
   const reg = new Map(registry.map((p) => [p.pilot_key, p]));
   const of = (k: string) => reg.get(k);
-  const gear = (x: PilotRow | undefined) => [x?.glider_brand, x?.glider_model].filter(Boolean).join(" ");
+  const glider = (x: PilotRow | undefined) => [x?.glider_brand, x?.glider_model].filter(Boolean).join(" ");
+  const harness = (x: PilotRow | undefined) => [x?.harness_brand, x?.harness_model].filter(Boolean).join(" ");
+  const gear = (x: PilotRow | undefined) => glider(x) || harness(x);
   const has = (f: (x: PilotRow | undefined) => unknown) => keys.some((k) => Boolean(f(of(k))));
   const show = { gender: has((x) => x?.gender), nation: has((x) => x?.nation), gear: has(gear), sponsor: has((x) => x?.sponsor) };
   const Head: FC = () => (
@@ -679,8 +681,9 @@ const identity = (registry: PilotRow[], keys: string[]) => {
         {show.gender ? <td>{x?.gender ?? ""}</td> : null}
         {show.nation ? <td>{x?.nation ?? ""}</td> : null}
         {show.gear ? (
-          <td class="small" title={x?.glider_class ?? ""}>
-            {gear(x)}
+          <td class="small gear" title={x?.glider_class ?? ""}>
+            {glider(x)}
+            {harness(x) ? <div class="muted">{harness(x)}</div> : null}
           </td>
         ) : null}
         {show.sponsor ? <td class="small">{x?.sponsor ?? ""}</td> : null}
