@@ -260,8 +260,9 @@ const compStats = (c: HomeComp): string[] => {
     out.push(s.pilots === 1 ? t("1 participant") : t("{n} participants", { n: s.pilots }));
     if (s.flown > 0) out.push(t("{n} km volés", { n: Math.round(s.flown / 1000).toLocaleString(locale()) }));
   }
-  if (c.winners?.overall) out.push(t("vainqueur : {name}", { name: c.winners.overall }));
-  if (c.winners?.women) out.push(t("vainqueure féminine : {name}", { name: c.winners.women }));
+  const w = c.winners;
+  if (w?.overall && w.women && w.women !== w.overall) out.push(t("Vainqueurs : {a} et {b}", { a: w.overall, b: w.women }));
+  else if (w?.overall || w?.women) out.push(t("Vainqueur : {name}", { name: (w.overall || w.women)! }));
   return out;
 };
 const CompList: FC<{ list: HomeComp[] }> = ({ list }) => (

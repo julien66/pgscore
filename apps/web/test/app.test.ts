@@ -169,7 +169,7 @@ describe("interface web", () => {
     expect(comp).toContain("Ana Vainqueur");
     expect(comp).toContain("640,5");
     // Liste des compétitions : manches, participants, km volés et, compétition terminée, vainqueur du général.
-    expect(await (await req("/")).text()).toContain("1 manche · 2 participants · 103 km volés · vainqueur : Ana Vainqueur");
+    expect(await (await req("/")).text()).toContain("1 manche · 2 participants · 103 km volés · Vainqueur : Ana Vainqueur");
     const csv = await (await req(`${compUrl}/standings.csv`)).text();
     expect(csv.split("\n")[1]).toBe("1,12,Ana Vainqueur,1000.0,1000.0,1000.0,1000.0");
     expect(await (await req(`${compUrl}?all=1`)).text()).toContain("Bruno Second");
@@ -271,9 +271,9 @@ describe("interface web", () => {
     expect(rk.map((r) => r.name)).toEqual(["Féminin"]);
     const fem = await (await req(`${compUrl}/standings.csv?r=${rk[0]!.id}`)).text();
     expect(fem.split("\n").slice(1, 3).map((l) => l.split(",").slice(0, 3).join(","))).toEqual(["1,12,Ana", "2,9,Chloé"]);
-    expect(await (await req("/")).text()).toContain("vainqueur : Ana · vainqueure féminine : Ana");
+    expect(await (await req("/")).text()).toContain("Vainqueur : Ana");
     db.prepare("UPDATE competition_pilots SET gender = 'M' WHERE pilot_key = '12'").run();
-    expect(await (await req("/")).text()).toContain("vainqueur : Ana · vainqueure féminine : Chloé");
+    expect(await (await req("/")).text()).toContain("Vainqueurs : Ana et Chloé");
     db.prepare("UPDATE competition_pilots SET gender = 'F' WHERE pilot_key = '12'").run();
     // Serial : EN-C ou EN-D, poids ≤ 110 ; puis Dan ajouté à la main et Ana retirée.
     const rc = await req(`${compUrl}/rankings`, {
