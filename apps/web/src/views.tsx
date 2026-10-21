@@ -2212,8 +2212,8 @@ const TaskResults: FC<{
               <th class="n sp">{t("Pts distance")}</th>
               <th class="n sp">{t("Pts leading")}</th>
               <th class="n sp">{t("Pts temps")}</th>
-              {elevated ? <th class="n sp">{t("Alt. au goal")}</th> : null}
-              {elevated ? <th class="n sp">{t("Réduction pts temps (elevated goal)")}</th> : null}
+              {elevated ? <th class="n sp">{t("Alt. goal")}</th> : null}
+              {elevated ? <th class="n sp">{t("Réduc. pts temps")}</th> : null}
               {withPen ? <th class="n sp">{t("Pénalité")}</th> : null}
               <TotalHead />
             </tr>
@@ -2318,14 +2318,14 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
               <th class="n">{t("Temps")}</th>
               <th class="n">{t("Distance")}</th>
               {stopped ? <th class="n">{t("Alt. à l'arrêt")}</th> : null}
-              {elevated ? <th class="n">{t("Alt. au goal")}</th> : null}
-              {elevated ? <th class="n">{t("Réduction pts temps (elevated goal)")}</th> : null}
               <th class="n">LC</th>
               {withPoints ? (
                 <>
                   <th class="n">{t("Pts distance")}</th>
                   <th class="n">{t("Pts temps")}</th>
                   <th class="n">{t("Pts leading")}</th>
+                {elevated ? <th class="n">{t("Alt. goal")}</th> : null}
+                {elevated ? <th class="n">{t("Réduc. pts temps")}</th> : null}
                   <th class="n">{t("Pénalité")}</th>
                 </>
               ) : (
@@ -2357,14 +2357,6 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                 <td class="n">{duration(p.speedSectionTime)}</td>
                 <td class="n">{km(p.distance)} km</td>
                 {stopped ? <td class="n">{p.stop?.flying ? `${Math.round(p.stop.altitudeAboveGoal)} m` : ""}</td> : null}
-                {elevated ? (
-                  <td class="n" title={p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1 ? t("Points de temps × {f} (elevated goal passé trop bas)", { f: p.goalAltitudeFactor.toFixed(3) }) : undefined}>
-                    {p.goalAltitude != null ? `${Math.round(p.goalAltitude)} m` : ""}
-                  </td>
-                ) : null}
-                {elevated ? (
-                  <td class="n">{p.goalAltitudeLoss ? `−${pts(p.goalAltitudeLoss)}` : ""}</td>
-                ) : null}
                 <td class="n">
                   {p.leadingWarnings?.length ? (
                     <span class="lead-warn" title={t("Leading peut-être faussé : {why}", { why: p.leadingWarnings.map(leadingWarning).join(", ") })}>
@@ -2378,6 +2370,14 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                     <td class="n">{pts(p.points?.distance)}</td>
                     <td class="n">{pts(p.points?.time)}</td>
                     <td class="n">{pts(p.points?.leading)}</td>
+                  {elevated ? (
+                    <td class="n" title={p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1 ? t("Points de temps × {f} (elevated goal passé trop bas)", { f: p.goalAltitudeFactor.toFixed(3) }) : undefined}>
+                      {p.goalAltitude != null ? `${Math.round(p.goalAltitude)} m` : ""}
+                    </td>
+                  ) : null}
+                  {elevated ? (
+                    <td class="n">{p.goalAltitudeLoss ? `−${pts(p.goalAltitudeLoss)}` : ""}</td>
+                  ) : null}
                     <td class="n pen">{p.penaltyPoints ? `${p.penaltyPoints > 0 ? "−" : "+"}${pts(Math.abs(p.penaltyPoints))}` : ""}</td>
                   </>
                 ) : (
