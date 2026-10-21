@@ -741,8 +741,8 @@ const dict: Record<string, string> = {
   "{n} pilotes retirés.": "{n} pilotos retirados.",
   "{n} pilote des traces à inscrire": "{n} piloto de los tracks por inscribir",
   "{n} pilotes des traces à inscrire": "{n} pilotos de los tracks por inscribir",
-  "Les pilotes des traces envoyées qui ne sont pas encore dans la liste sont ajoutés en bas du tableau, avec le numéro et le nom de leur trace. Complétez-les (nation, sponsor…) puis enregistrez : ils sont alors inscrits et leurs infos apparaissent dans les classements. Corrigez le numéro d'une trace rangée sous un nom (« erico-oliveira ») : elle sera rattachée au bon numéro.": "Los pilotos de los tracks enviados que aún no están en la lista se añaden al final de la tabla, con el número y el nombre de su track. Complételos (nación, patrocinador…) y guarde: quedan inscritos y sus datos aparecen en las clasificaciones. Corrija el número de un track guardado con un nombre («erico-oliveira»): se vinculará al número correcto.",
   "Ne pas inscrire ce pilote": "No inscribir a este piloto",
   "depuis les traces": "de los tracks",
+  "Ces traces n'ont pas de nom de pilote : elles sont proposées en bas du tableau, sous le nom de leur fichier ou de leur instrument. Indiquez le numéro et le nom du pilote, puis enregistrez : la trace suit ce numéro.": "Estos tracks no tienen nombre de piloto: aparecen al final de la tabla, con el nombre de su archivo o de su instrumento. Indique el número y el nombre del piloto y guarde: el track sigue ese número.",
 };
 export default dict;

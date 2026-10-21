@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { DecisionKind } from "@pgscore/engine";
 import type { TrackStore } from "./track-store.js";
+import { registerTrackPilots } from "./pilots.js";
 
 /** Base SQLite de l'appli. Un seul fichier, migrations appliquées à l'ouverture. */
 export type Db = DatabaseSync;
@@ -201,6 +202,10 @@ export const MIGRATIONS: Migration[] = [
    DROP TABLE tracks;
    ALTER TABLE tracks_new RENAME TO tracks;
    CREATE INDEX tracks_task_pilot ON tracks (task_id, pilot_key);`,
+  // Pilotes des traces déjà envoyées inscrits d'office dans la liste de leur compétition.
+  (db) => {
+    for (const { id } of db.prepare("SELECT id FROM competitions").all() as Array<{ id: number }>) registerTrackPilots(db, id);
+  },
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {

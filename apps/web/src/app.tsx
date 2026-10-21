@@ -28,7 +28,7 @@ import { localHmsToUtc } from "./time.js";
 import { clientScript, isLang, lang, LANG_COOKIE, pickLang, t, withLang } from "./i18n.js";
 import { competitionStandings, competitionSummaries, competitionWinner, extractStandings, lastScoringChange, standingsCsv } from "./standings.js";
 import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRankings, rankingMembers, setOverride, updateRanking } from "./rankings.js";
-import { listPilots, pilotsCsv, trackPilots, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
+import { listPilots, pilotsCsv, registerTrackPilots, trackPilots, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
 import { vendorFile } from "./vendor.js";
 import { exportCompetition, importCompetition, writeArchive } from "./archive.js";
@@ -1072,6 +1072,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       const pilotKey = bySha.get(sha256) ?? pilotKeyForTrack(g.filename, g.text, registry, used);
       count[saveTrack(db, x.t.id, me(c).id, { pilotKey, pilotName: regName.get(pilotKey) ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
     }
+    // Pilotes des traces pas encore inscrits : ajoutés à la liste des pilotes de la compétition.
+    registerTrackPilots(db, x.comp.id);
     db.exec("COMMIT");
     return c.redirect(`/tasks/${x.t.id}/edit?${new URLSearchParams([...Object.entries(count).filter(([, n]) => n).map(([k, n]) => [k, String(n)]), ["open", "tracks"]])}#tracks`);
   });

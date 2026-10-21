@@ -775,7 +775,7 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; trackPilots: Arra
       {trackPilots.length ? (
         <p class="note">
           {t(
-            "Les pilotes des traces envoyées qui ne sont pas encore dans la liste sont ajoutés en bas du tableau, avec le numéro et le nom de leur trace. Complétez-les (nation, sponsor…) puis enregistrez : ils sont alors inscrits et leurs infos apparaissent dans les classements. Corrigez le numéro d'une trace rangée sous un nom (« erico-oliveira ») : elle sera rattachée au bon numéro.",
+            "Ces traces n'ont pas de nom de pilote : elles sont proposées en bas du tableau, sous le nom de leur fichier ou de leur instrument. Indiquez le numéro et le nom du pilote, puis enregistrez : la trace suit ce numéro.",
           )}
         </p>
       ) : null}
@@ -834,6 +834,7 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; trackPilots: Arra
                     );
                   })}
                   <td class="small muted">
+                    <input type="hidden" name={`from.${i}`} value={p.pilot_key} />
                     <label title={t("Ne pas inscrire ce pilote")}>
                       <input type="checkbox" name={`skip.${i}`} value="1" /> {t("depuis les traces")}
                     </label>

@@ -1,6 +1,7 @@
 import { child, children, parseXml, type XmlEl } from "./xml.js";
 import type { Db, PilotRow } from "./db.js";
 import { FormError } from "./settings.js";
+import { nameKey } from "./files.js";
 import { N_, t } from "./i18n.js";
 
 /** Champs d'un pilote inscrit, sans l'identifiant en base. */
@@ -75,6 +76,38 @@ export function splitBrand(v: string): { brand: string | null; model: string | n
   if (!t) return { brand: null, model: null };
   const i = t.indexOf(" ");
   return i < 0 ? { brand: t, model: null } : { brand: t.slice(0, i), model: t.slice(i + 1) };
+}
+
+/**
+ * Inscrit d'office les pilotes des traces qui ne sont pas encore dans la liste : numéro et nom de leur
+ * trace. Une trace sans nom de pilote (seulement l'instrument) n'est pas inscrite. Un nom déjà inscrit
+ * n'est pas ajouté une seconde fois ; s'il l'était sous un nom de trace (« rene-test ») et arrive avec un
+ * numéro, l'inscrit prend ce numéro et ses traces le suivent. Sans transaction propre. Rend le nombre d'inscrits ajoutés.
+ */
+export function registerTrackPilots(db: Db, compId: number): number {
+  const byName = new Map(
+    (db.prepare("SELECT pilot_key, name FROM competition_pilots WHERE competition_id = ?").all(compId) as Array<{ pilot_key: string; name: string }>).map((r) => [nameKey(r.name), r.pilot_key]),
+  );
+  const ins = db.prepare("INSERT OR IGNORE INTO competition_pilots (competition_id, pilot_key, name) VALUES (?, ?, ?)");
+  const numeric = (k: string) => /^\d+$/.test(k);
+  let n = 0;
+  for (const p of trackPilots(db, compId)) {
+    if (p.name === p.pilot_key) continue;
+    const k = nameKey(p.name);
+    if (!k) continue;
+    const other = byName.get(k);
+    if (other !== undefined) {
+      if (!numeric(other) && numeric(p.pilot_key)) {
+        db.prepare("UPDATE competition_pilots SET pilot_key = ? WHERE competition_id = ? AND pilot_key = ?").run(p.pilot_key, compId, other);
+        db.prepare("UPDATE OR IGNORE tracks SET pilot_key = ? WHERE pilot_key = ? AND task_id IN (SELECT id FROM tasks WHERE competition_id = ?)").run(p.pilot_key, other, compId);
+        byName.set(k, p.pilot_key);
+      }
+      continue;
+    }
+    byName.set(k, p.pilot_key);
+    n += Number(ins.run(compId, p.pilot_key, p.name).changes);
+  }
+  return n;
 }
 
 // --- Import ---------------------------------------------------------------------------------
@@ -292,9 +325,13 @@ export function savePilotTable(db: Db, compId: number, form: Record<string, unkn
   }
   if (added && seen.has(added.pilot_key)) throw new FormError(t("Numéro {key} déjà inscrit.", { key: added.pilot_key }));
   const imported: PilotFields[] = [];
-  for (const raw of fromTracks.values()) {
+  // Numéro d'origine (celui des traces) d'une ligne reprise des traces, si on l'a corrigé.
+  const moves: Array<[string, string]> = [];
+  for (const [i, raw] of fromTracks) {
     if (!String(raw.pilot_key ?? "").trim()) continue;
     const p = cleanPilot(raw);
+    const from = String(form[`from.${i}`] ?? "");
+    if (from && from !== p.pilot_key) moves.push([from, p.pilot_key]);
     if (seen.has(p.pilot_key) || p.pilot_key === added?.pilot_key || imported.some((x) => x.pilot_key === p.pilot_key))
       throw new FormError(t("Numéro {key} en double.", { key: p.pilot_key }));
     imported.push(p);
@@ -315,6 +352,8 @@ export function savePilotTable(db: Db, compId: number, form: Record<string, unkn
   }
   const fresh2 = [...(added ? [added] : []), ...imported];
   if (fresh2.length) upsertPilots(db, compId, fresh2);
+  const move = db.prepare("UPDATE OR IGNORE tracks SET pilot_key = ? WHERE pilot_key = ? AND task_id IN (SELECT id FROM tasks WHERE competition_id = ?)");
+  for (const [from, to] of moves) move.run(to, from, compId);
   return { saved: kept.length, removed: [...removed].filter((id) => own.has(id)).length, added: fresh2.length };
 }
 

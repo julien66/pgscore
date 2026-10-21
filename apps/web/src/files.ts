@@ -118,6 +118,8 @@ export function pilotKeyForTrack(
   let key: string;
   if (keys.has(fileKey) && (!fromName || fromName === fileKey)) key = fileKey;
   else if (cid && keys.has(cid)) key = cid;
+  // Fichier nommé par un numéro pas encore inscrit (archive PWCA) : ce numéro est celui du pilote.
+  else if (bare && !keys.has(fileKey)) key = fileKey;
   else if (fromName) key = fromName;
   else if (keys.has(fileKey)) key = fileKey;
   else if (bare) key = fileKey;
