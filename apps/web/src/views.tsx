@@ -1206,6 +1206,8 @@ export interface Board {
   pilots: PilotRow[];
   rankings: Array<{ r: Ranking; count: number }>;
   current: Ranking | null;
+  /** Pilotes du classement choisi (féminin…), pour filtrer le détail d'une manche. */
+  members?: Set<string>;
   create: boolean;
   all: boolean;
   /** Créateur ou administrateur : création et réglage des classements, officialisation des manches. */
@@ -1290,7 +1292,21 @@ const StandingsBoard: FC<{ c: CompetitionRow; b: Board }> = ({ c, b }) => {
       ) : (
         <>
           {current && !pilots.length && b.canEdit ? <p class="small muted">{t("Aucun pilote inscrit : importez la liste dans le bloc Pilotes de la compétition.")}</p> : null}
-          <StandingsTable c={c} s={s} rid={current?.row.id} registry={pilots} />
+          {s.view?.detail ? (
+            // Manche seule : le tableau détaillé de la page de la manche (distances, temps, points).
+            <TaskResults
+              r={s.view.detail.results}
+              tz={s.view.detail.timeZone}
+              goalAlt={goalAltitudeOf(JSON.parse(s.view.task.t.task) as Task)}
+              taskId={s.view.task.t.id}
+              speedSection={s.view.detail.speedSection}
+              registry={pilots}
+              only={current ? b.members : undefined}
+              rid={current?.row.id}
+            />
+          ) : (
+            <StandingsTable c={c} s={s} rid={current?.row.id} registry={pilots} />
+          )}
           {current && b.canEdit ? (
             <details class="fold" id="ranking-settings" open={Boolean(b.error)}>
               <summary>{t("Règle et pilotes de ce classement")} <span class="small muted">· {describeRule(current.rule)}</span></summary>

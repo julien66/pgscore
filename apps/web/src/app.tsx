@@ -519,6 +519,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
           pilots: x.pilots,
           rankings: x.rankings.map((r) => ({ r, count: x.members.get(r.row.id)!.size })),
           current: x.current,
+          members: x.current ? x.members.get(x.current.row.id) : undefined,
           create: Boolean(bq.create) && canEdit(c, comp),
           canEdit: canEdit(c, comp),
           all: Boolean(bq.all),

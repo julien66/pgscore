@@ -1,6 +1,6 @@
-import { competitionRanking, type CompetitionRanking, type Task, type TaskScoring } from "@pgscore/engine";
+import { competitionRanking, taskDistances, type CompetitionRanking, type Task, type TaskScoring } from "@pgscore/engine";
 import type { CompetitionRow, Db, TaskRow } from "./db.js";
-import { parseSettings } from "./settings.js";
+import { controlTask, parseSettings } from "./settings.js";
 import { listPilots } from "./pilots.js";
 import { listRankings, rankingMembers } from "./rankings.js";
 
@@ -40,7 +40,14 @@ export interface Standings {
   /** Toutes les manches officielles calculées, même quand la vue s'arrête à l'une d'elles (onglets des manches). */
   official: StandingsTask[];
   /** Vue à la manche : la manche choisie, seule ou en cumul jusqu'à elle. */
-  view?: { task: StandingsTask; cumulative: boolean };
+  view?: { task: StandingsTask; cumulative: boolean; detail?: TaskDetail };
+}
+
+/** Manche seule : son dernier calcul complet, pour le tableau détaillé de la page de la manche. */
+export interface TaskDetail {
+  results: TaskScoring;
+  timeZone: string;
+  speedSection: number;
 }
 
 /** Vue demandée : une manche (id), seule ou en cumul des manches officielles jusqu'à elle. */
@@ -61,6 +68,7 @@ export function competitionStandings(db: Db, comp: CompetitionRow, view: Standin
   const ranked: StandingsTask[] = [];
   // Nom des inscrits plutôt que celui des traces.
   const names = new Map(listPilots(db, comp.id).map((p) => [p.pilot_key, p.name]));
+  let viewed: TaskScoring | undefined;
   for (const t of rows) {
     const run = db
       .prepare("SELECT results, started_at FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1")
@@ -77,6 +85,7 @@ export function competitionStandings(db: Db, comp: CompetitionRow, view: Standin
     st.goal = r.pilots.filter((p) => p.status === "GOAL").length;
     st.winner = Math.max(0, ...r.pilots.map((p) => p.total ?? 0));
     if (!st.official) continue;
+    if (t.id === view.task) viewed = r;
     const task = JSON.parse(t.task) as Task;
     const a = r.gap.available;
     st.validity = r.gap.validity.task;
@@ -88,7 +97,8 @@ export function competitionStandings(db: Db, comp: CompetitionRow, view: Standin
       results: r.pilots.map((p) => ({ pilot: p.id, name: names.get(p.id) ?? p.name, total: p.total })),
     });
   }
-  const ftv = parseSettings(comp.params).ftvFactor;
+  const settings = parseSettings(comp.params);
+  const ftv = settings.ftvFactor;
   const at = view.task === undefined ? -1 : ranked.findIndex((x) => x.t.id === view.task);
   if (at < 0) return { tasks, ranked, official: ranked, ranking: competitionRanking(inputs, ftv) };
   const task = ranked[at]!;
@@ -102,8 +112,13 @@ export function competitionStandings(db: Db, comp: CompetitionRow, view: Standin
       view: { task, cumulative: true },
     };
   }
-  // Manche seule : ses points, sans FTV (facteur 0, donc tout compte).
-  return { tasks: [task], ranked: [task], official: ranked, ranking: competitionRanking([inputs[at]!], 0), view: { task, cumulative: false } };
+  // Manche seule : ses points, sans FTV (facteur 0, donc tout compte), et le détail de son calcul.
+  const detail: TaskDetail = {
+    results: viewed!,
+    timeZone: settings.timeZone,
+    speedSection: taskDistances(controlTask(JSON.parse(task.t.task) as Task, settings)).speedSection,
+  };
+  return { tasks: [task], ranked: [task], official: ranked, ranking: competitionRanking([inputs[at]!], 0), view: { task, cumulative: false, detail } };
 }
 
 export function standingsCsv(s: Standings): string {

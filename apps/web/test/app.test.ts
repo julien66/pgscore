@@ -209,6 +209,9 @@ describe("interface web", () => {
     expect(page).toContain("Toutes les manches");
     expect(page).toContain("Cumul après M4");
     expect(page).toContain(`/tasks/${id2}#results`);
+    // Manche seule : le tableau détaillé de la manche ; cumul : le tableau du général.
+    expect(page).toContain("Pts distance");
+    expect(await (await req(`${compUrl}?m=${id2}&cum=1`)).text()).not.toContain("Pts distance");
   });
 
   it("importe, modifie et retire les pilotes inscrits", async () => {
