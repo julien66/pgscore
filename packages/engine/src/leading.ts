@@ -101,6 +101,14 @@ function weightIntegral(from: number, to: number): number {
 }
 
 /**
+ * Distance de section de vitesse du leading, en km : comme SVL, la plus courte depuis le bord du SSS, sans
+ * tolérance de cylindre (la distance restante des pilotes se calcule elle aussi sur les rayons nominaux).
+ */
+export function leadingSpeedSectionKm(task: Task): number {
+  return taskDistances(task, { relativeTolerance: 0 }).speedSectionShortest / 1000;
+}
+
+/**
  * Courbe minToESS d'un pilote à partir de son contrôle de vol. La distance jusqu'à l'ESS depuis un
  * fix est la route optimisée par les zones pas encore atteintes jusqu'au centre de l'ESS, moins son rayon.
  */
@@ -111,7 +119,7 @@ export function leadingTrack(task: Task, control: FlightControl): LeadingTrack |
   const essIdx = essIdxRaw >= 0 ? essIdxRaw : tps.length - 1;
   if (control.sssTime === null || control.firstStartGate === null) return null;
 
-  const ssKm = taskDistances(task).speedSection / 1000;
+  const ssKm = leadingSpeedSectionKm(task);
   const deadline = task.deadline ? timeOfDay(task.deadline, control.firstStartGate) : Infinity;
   const taskTime = (ms: number) => (Math.min(ms, deadline) - control.firstStartGate!) / 1000;
   const centre = findTaskAreaCentre(tps.map((t) => t.zone.waypoint));

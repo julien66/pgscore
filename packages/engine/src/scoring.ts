@@ -1,7 +1,7 @@
 import { controlFlight, zoneApproaches, type FlightControl, type ZoneApproach } from "./control.js";
 import { taskDistances, type TaskDistances } from "./distances.js";
 import { parseIgc } from "./igc.js";
-import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingTrack, type LeadingTrack, type LeadingWarning } from "./leading.js";
+import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingSpeedSectionKm, leadingTrack, type LeadingTrack, type LeadingWarning } from "./leading.js";
 import {
   airspaceInfringements,
   airspacePenalty,
@@ -227,7 +227,7 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
 export function finishScoring(task: Task, controlled: ControlledPilot[], options: ScoringOptions): TaskScoring {
   const distances = taskDistances(task);
   const pilots = applyDecisions(controlled, options.decisions ?? [], distances.task, options.params.minimumDistance);
-  const ssKm = distances.speedSection / 1000;
+  const ssKm = leadingSpeedSectionKm(task);
   const absent = (r: PilotResult) => r.status === "ABS" || r.status === "DNF";
   const withLeading = pilots.filter((p) => p.leading && p.control && !absent(p.result));
   let lcMin: number | null = null;
@@ -241,7 +241,8 @@ export function finishScoring(task: Task, controlled: ControlledPilot[], options
       return (day + ((h ?? 0) * 3600 + (m ?? 0) * 60 + (s ?? 0)) * 1000 - gate) / 1000;
     };
     // Manche arrêtée : les vols s'arrêtent à l'heure d'arrêt (leadingTrack), maxTime aussi. SVL (PWCA) prend
-    // l'heure d'annonce de l'arrêt comme fin de manche (« Maximum task time »).
+    // en général l'heure d'annonce de l'arrêt comme fin de manche (« Maximum task time », Feltre 2025 T3),
+    // mais pas toujours (Sopot 2026 T2 : arrêt à 15:51, 15:46) ; taskEndTime donne alors la valeur publiée.
     const cap = task.deadline ? at(task.deadline) : Infinity;
     const end = options.taskEndTime ?? (options.gapProfile === "PWCA" && c0.stopped ? task.stopAnnouncement : undefined);
     maxTime = leadingMaxTime(withLeading.map((p) => p.leading!), cap, end ? at(end) : undefined);

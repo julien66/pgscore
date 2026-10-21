@@ -10,6 +10,12 @@ export interface TaskDistances {
   launchToEss: number;
   /** Distance de la section de vitesse : décollage → ESS moins la partie avant le SSS. */
   speedSection: number;
+  /**
+   * Section de vitesse la plus courte : route optimisée depuis n'importe quel point du cylindre du SSS
+   * jusqu'au bord de l'ESS, sans passer par le décollage. C'est la « Speed Section distance (shortest) »
+   * de SVL ; elle sert au leading.
+   */
+  speedSectionShortest: number;
   /** Route optimisée complète (décollage → centre du goal). */
   route: OptimizedRoute;
 }
@@ -73,5 +79,7 @@ export function taskDistances(task: Task, options: TaskDistanceOptions = {}): Ta
   const launchToEss = toEss.distance;
   const preStart = toEss.route.legs.slice(0, sssIdx).reduce((s, v) => s + v, 0);
 
-  return { task: task_, launchToEss, speedSection: launchToEss - preStart, route: full };
+  const speedSectionShortest = routeToEdge(tps.slice(sssIdx, ess + 1)).distance;
+
+  return { task: task_, launchToEss, speedSection: launchToEss - preStart, speedSectionShortest, route: full };
 }
