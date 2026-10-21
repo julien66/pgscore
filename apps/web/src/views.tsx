@@ -1421,6 +1421,32 @@ export const TaskPage: FC<{
             </button>
           </div>
         </form>
+        <details class="mt">
+          <summary>{t("Remplacer la définition de la manche (QR code corrigé)")}</summary>
+          <form method="post" action={`/tasks/${tk.id}/definition`} enctype="multipart/form-data">
+            <p class="small muted">
+              {t("Balises, portes de départ et deadline sont remplacées ; les autres réglages de la manche et les traces sont gardés. Une seule des trois sources suffit.")}
+            </p>
+            <div class="grid">
+              <div>
+                <label>{t("Fichier XCTrack (.xctsk)")}</label>
+                <input type="file" name="xctsk" accept=".xctsk,.json,.txt" />
+              </div>
+              <div>
+                <label>{t("Image du QR code (PNG ou JPEG)")}</label>
+                <input type="file" name="qr" accept="image/png,image/jpeg" />
+              </div>
+            </div>
+            <label class="mt">{t("Ou texte du QR code (commence par XCTSK:)")}</label>
+            <textarea name="text" placeholder="XCTSK:{...}"></textarea>
+            <p class="mt">
+              <button>
+                <Bi n="upload" />
+                {t("Remplacer")}
+              </button>
+            </p>
+          </form>
+        </details>
       </details>
 
       <div class="card" id="tracks">

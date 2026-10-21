@@ -40,6 +40,8 @@ const dict: Record<string, string> = {
   "vide : 0 % + 5 m (S7F 2026)": "leer: 0 % + 5 m (S7F 2026)",
   "Tolérance des cylindres : pourcentage entre 0 et 1 attendu.": "Zylindertoleranz: Prozentsatz zwischen 0 und 1 erwartet.",
   "vide : 0,1 % (PWCA)": "leer: 0,1 % (PWCA)",
+  "Remplacer la définition de la manche (QR code corrigé)": "Aufgabendefinition ersetzen (korrigierter QR-Code)",
+  "Balises, portes de départ et deadline sont remplacées ; les autres réglages de la manche et les traces sont gardés. Une seule des trois sources suffit.": "Wendepunkte, Startfenster und Deadline werden ersetzt; die übrigen Einstellungen und die Tracks bleiben erhalten. Eine der drei Quellen genügt.",
   "Finesse du bonus d'altitude : nombre positif attendu.": "Gleitzahl des Höhenbonus: positive Zahl erwartet.",
   "Un bon logiciel de scoring ouvert à toute la communauté, c'est aussi la possibilité de faire évoluer la compétition elle-même : tester de nouvelles règles et de nouveaux formats compétitifs bien plus facilement, les appliquer à des manches réelles et comparer les classements obtenus.": "Eine gute, für die ganze Community offene Wertungssoftware ermöglicht es auch, den Wettkampf selbst weiterzuentwickeln: neue Regeln und neue Wettkampfformate viel leichter ausprobieren, sie auf echte Tasks anwenden und die Ranglisten vergleichen.",
   "Sur les épaules des pionniers": "Auf den Schultern der Pioniere",

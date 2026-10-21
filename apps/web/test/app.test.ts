@@ -110,6 +110,13 @@ describe("interface web", () => {
     expect(stored().elevatedGoal).toBe(300);
     await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, elevatedGoal: "" }) });
     expect(stored().elevatedGoal).toBeUndefined();
+    // Nouvelle définition (QR corrigé) : réglages de calcul gardés, balises remplacées.
+    await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, elevatedGoal: "250" }) });
+    const fd = new FormData();
+    fd.append("text", QR);
+    expect((await req(`${taskUrl}/definition`, { method: "POST", body: fd })).status).toBe(302);
+    expect(stored().elevatedGoal).toBe(250);
+    expect(stored().type).not.toBe(other);
     // Portes et deadline en heures locales (le fuseau par défaut de la compétition s'applique).
     await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, startGates: "15:00, 15:15", deadline: "19:30" }) });
     expect(stored().startGates.length).toBe(2);

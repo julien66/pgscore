@@ -23,7 +23,7 @@ import { isRunning, startRun, startRuns } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
 import { pilotVersions, removeAllTracks, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
 import { addDecision, deleteDecision, listDecisions, touchScoring } from "./decisions.js";
-import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
+import { controlTask, DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
 import { clientScript, isLang, lang, LANG_COOKIE, pickLang, t, withLang } from "./i18n.js";
 import { competitionStandings, extractStandings, lastScoringChange, standingsCsv } from "./standings.js";
@@ -781,6 +781,37 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     return c.html(<NewTaskPage user={c.get("user")} c={comp} number={n} />);
   });
 
+  /** Définition de la manche envoyée par formulaire : fichier .xctsk, image du QR code ou son texte. */
+  const readTaskDefinition = async (f: Record<string, unknown>): Promise<{ source: string; text: string; task: Task }> => {
+    let source: string;
+    let text: string;
+    if (f.xctsk instanceof File && f.xctsk.size) {
+      source = "xctsk";
+      text = decodeText(new Uint8Array(await f.xctsk.arrayBuffer()));
+    } else if (f.qr instanceof File && f.qr.size) {
+      source = "qr-image";
+      let decoded;
+      try {
+        decoded = decodeQrImage(new Uint8Array(await f.qr.arrayBuffer()));
+      } catch (e) {
+        throw new FormError((e as Error).message);
+      }
+      if (!decoded) throw new FormError(t("Aucun QR code lisible dans l'image. Essayez une image plus nette ou collez le texte."));
+      text = decoded;
+    } else if (String(f.text ?? "").trim()) {
+      source = "qr-text";
+      text = String(f.text).trim();
+    } else throw new FormError(t("Envoyez un fichier .xctsk, une image du QR code ou son texte."));
+    let task: Task;
+    try {
+      task = parseXctsk(text.trim());
+      taskDistances(task);
+    } catch (e) {
+      throw new FormError(t("Manche illisible : {error}", { error: (e as Error).message }));
+    }
+    return { source, text, task };
+  };
+
   app.post("/competitions/:id/tasks", async (c) => {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
@@ -788,32 +819,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const number = Number(f.number) || 1;
     const date = String(f.date ?? "") || null;
     try {
-      let source: string;
-      let text: string;
-      if (f.xctsk instanceof File && f.xctsk.size) {
-        source = "xctsk";
-        text = decodeText(new Uint8Array(await f.xctsk.arrayBuffer()));
-      } else if (f.qr instanceof File && f.qr.size) {
-        source = "qr-image";
-        let decoded;
-        try {
-          decoded = decodeQrImage(new Uint8Array(await f.qr.arrayBuffer()));
-        } catch (e) {
-          throw new FormError((e as Error).message);
-        }
-        if (!decoded) throw new FormError(t("Aucun QR code lisible dans l'image. Essayez une image plus nette ou collez le texte."));
-        text = decoded;
-      } else if (String(f.text ?? "").trim()) {
-        source = "qr-text";
-        text = String(f.text).trim();
-      } else throw new FormError(t("Envoyez un fichier .xctsk, une image du QR code ou son texte."));
-      let task: Task;
-      try {
-        task = parseXctsk(text.trim());
-        taskDistances(task);
-      } catch (e) {
-        throw new FormError(t("Manche illisible : {error}", { error: (e as Error).message }));
-      }
+      const { source, text, task } = await readTaskDefinition(f);
       const r = db
         .prepare("INSERT INTO tasks (competition_id, number, date, source, source_text, task, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
         .run(comp.id, number, date, source, text, JSON.stringify(task), Date.now());
@@ -849,11 +855,11 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         t={t}
         task={task}
         settings={parseSettings(comp.params)}
-        distances={taskDistances(task)}
+        distances={taskDistances(controlTask(task, parseSettings(comp.params)))}
         tracks={tracks}
         history={trackHistory(db, t.id)}
         decisions={listDecisions(db, t.id)}
-        geometry={JSON.stringify(taskGeometry(task))}
+        geometry={JSON.stringify(taskGeometry(controlTask(task, parseSettings(comp.params))))}
         run={run}
         done={
           (db.prepare("SELECT * FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1").get(t.id) as unknown as RunRow | undefined) ?? null
@@ -970,6 +976,28 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     }
     db.prepare("UPDATE tasks SET date = ?, task = ? WHERE id = ?").run(date, JSON.stringify(task), x.t.id);
     if (JSON.stringify(task) !== x.t.task) touchScoring(db, x.t.id);
+    return c.redirect(`/tasks/${x.t.id}/edit#task-settings`);
+  });
+
+  // Nouvelle définition (QR corrigé) : balises, portes et deadline remplacées ; les réglages de calcul
+  // de la manche (elevated goal, tolérance, LTR, arrêt…) sont gardés.
+  app.post("/tasks/:id/definition", async (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    const f = await c.req.parseBody();
+    let def;
+    try {
+      def = await readTaskDefinition(f);
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return taskPage(c, x.t, x.comp, { edit: true, error: e.message });
+    }
+    const old = JSON.parse(x.t.task) as StoredTask;
+    const replaced = new Set(["type", "turnpoints", "startGates", "takeoffOpen", "takeoffClose", "deadline", "startDirection", "sourceEarthModel"]);
+    const kept = Object.fromEntries(Object.entries(old).filter(([k]) => !replaced.has(k)));
+    const task: StoredTask = { ...kept, ...def.task };
+    db.prepare("UPDATE tasks SET source = ?, source_text = ?, task = ? WHERE id = ?").run(def.source, def.text, JSON.stringify(task), x.t.id);
+    touchScoring(db, x.t.id);
     return c.redirect(`/tasks/${x.t.id}/edit#task-settings`);
   });
 
