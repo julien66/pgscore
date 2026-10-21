@@ -2189,6 +2189,7 @@ const TaskResults: FC<{
 }> = ({ r, tz, taskId, speedSection, registry, only, rid }) => {
   const shown = only ? r.pilots.filter((p) => only.has(p.id)) : r.pilots;
   const withPen = shown.some((p) => p.penaltyPoints);
+  const elevated = shown.some((p) => p.goalAltitudeFactor !== undefined);
   const id = identity(registry, shown.map((p) => p.id));
   if (!r.gap) return <div class="note">{t("Ce calcul date d'avant les points GAP : relancez-le pour les obtenir.")}</div>;
   if (only && !shown.length) return <p class="muted">{t("Aucun pilote de ce classement dans les résultats de la manche.")}</p>;
@@ -2211,6 +2212,8 @@ const TaskResults: FC<{
               <th class="n sp">{t("Pts distance")}</th>
               <th class="n sp">{t("Pts leading")}</th>
               <th class="n sp">{t("Pts temps")}</th>
+              {elevated ? <th class="n sp">{t("Alt. au goal")}</th> : null}
+              {elevated ? <th class="n sp">{t("Réduction pts temps (elevated goal)")}</th> : null}
               {withPen ? <th class="n sp">{t("Pénalité")}</th> : null}
               <TotalHead />
             </tr>
@@ -2236,6 +2239,8 @@ const TaskResults: FC<{
                   <td class="n sp">{pts(p.points?.distance)}</td>
                   <td class="n sp">{pts(p.points?.leading)}</td>
                   <td class="n sp">{pts(p.points?.time)}</td>
+                  {elevated ? <td class="n sp">{p.goalAltitude != null && p.status === "GOAL" ? `${Math.round(p.goalAltitude)} m` : ""}</td> : null}
+                  {elevated ? <td class="n sp pen">{p.goalAltitudeLoss ? `−${pts(p.goalAltitudeLoss)}` : ""}</td> : null}
                   {withPen ? <td class="n sp pen">{p.penaltyPoints ? `${p.penaltyPoints > 0 ? "−" : "+"}${pts(Math.abs(p.penaltyPoints))}` : ""}</td> : null}
                   <td class="n">
                     <strong>{pts(p.total)}</strong>
