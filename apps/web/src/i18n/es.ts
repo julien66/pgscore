@@ -32,7 +32,7 @@ const dict: Record<string, string> = {
   "{task} : elevated goal de {m} m retrouvé d'après les points publiés.": "{task}: elevated goal de {m} m deducido de los puntos publicados.",
   "Alt. goal": "Alt. gol",
   "Points de temps × {f} (elevated goal passé trop bas)": "Puntos de tiempo × {f} (elevated goal cruzado demasiado bajo)",
-  "Réduc. pts temps": "Reduc. pts tiempo",
+  "Elevated goal": "Elevated goal",
   "Finesse du bonus d'altitude : nombre positif attendu.": "Planeo de la bonificación de altura: se espera un número positivo.",
   "Un bon logiciel de scoring ouvert à toute la communauté, c'est aussi la possibilité de faire évoluer la compétition elle-même : tester de nouvelles règles et de nouveaux formats compétitifs bien plus facilement, les appliquer à des manches réelles et comparer les classements obtenus.": "Un buen programa de puntuación abierto a toda la comunidad permite también hacer evolucionar la propia competición: probar nuevas reglas y nuevos formatos competitivos con mucha más facilidad, aplicarlos a mangas reales y comparar las clasificaciones obtenidas.",
   "Sur les épaules des pionniers": "A hombros de los pioneros",

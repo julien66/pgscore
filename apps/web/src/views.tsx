@@ -2181,8 +2181,8 @@ const TaskDetails: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r,
 /** Altitude publiée du goal (AMSL), pour afficher les passages de l'elevated goal en hauteur au-dessus du goal. */
 export const goalAltitudeOf = (task: Task): number => task.turnpoints.at(-1)?.zone.waypoint.altitude ?? 0;
 
-/** Hauteur de passage au-dessus du goal publié, « 225 m AGL ». */
-const goalHeight = (p: PilotResult, goalAlt: number) => (p.goalAltitude != null ? `${Math.round(p.goalAltitude - goalAlt)} m AGL` : "");
+/** Hauteur de passage au-dessus du goal publié, « 225 m ». */
+const goalHeight = (p: PilotResult, goalAlt: number) => (p.goalAltitude != null ? `${Math.round(p.goalAltitude - goalAlt)} m` : "");
 
 const TaskResults: FC<{
   r: TaskScoring;
@@ -2216,11 +2216,11 @@ const TaskResults: FC<{
               <th class="n sp">{t("Temps")}</th>
               <th class="n sp">{t("Vitesse (km/h)")}</th>
               <th class="n sp">{t("Distance (km)")}</th>
+              {elevated ? <th class="n sp">{t("Alt. goal")}</th> : null}
               <th class="n sp">{t("Pts distance")}</th>
               <th class="n sp">{t("Pts leading")}</th>
               <th class="n sp">{t("Pts temps")}</th>
-              {elevated ? <th class="n sp">{t("Alt. goal")}</th> : null}
-              {elevated ? <th class="n sp">{t("Réduc. pts temps")}</th> : null}
+              {elevated ? <th class="n sp">{t("Elevated goal")}</th> : null}
               {withPen ? <th class="n sp">{t("Pénalité")}</th> : null}
               <TotalHead />
             </tr>
@@ -2243,10 +2243,10 @@ const TaskResults: FC<{
                   <td class="n sp">{timed ? duration(p.speedSectionTime) : ""}</td>
                   <td class="n sp">{timed ? fr((speedSection / p.speedSectionTime!) * 3.6, 1) : ""}</td>
                   <td class="n sp">{absent ? <span class="chip">{p.status}</span> : p.error ? <span class="chip s-ERREUR">{t("Erreur")}</span> : km(p.distance)}</td>
+                  {elevated ? <td class="n sp">{p.status === "GOAL" ? goalHeight(p, goalAlt) : ""}</td> : null}
                   <td class="n sp">{pts(p.points?.distance)}</td>
                   <td class="n sp">{pts(p.points?.leading)}</td>
                   <td class="n sp">{pts(p.points?.time)}</td>
-                  {elevated ? <td class="n sp">{p.status === "GOAL" ? goalHeight(p, goalAlt) : ""}</td> : null}
                   {elevated ? <td class="n sp pen">{p.goalAltitudeLoss ? `−${pts(p.goalAltitudeLoss)}` : ""}</td> : null}
                   {withPen ? <td class="n sp pen">{p.penaltyPoints ? `${p.penaltyPoints > 0 ? "−" : "+"}${pts(Math.abs(p.penaltyPoints))}` : ""}</td> : null}
                   <td class="n">
@@ -2329,11 +2329,11 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
               <th class="n">LC</th>
               {withPoints ? (
                 <>
+                  {elevated ? <th class="n">{t("Alt. goal")}</th> : null}
                   <th class="n">{t("Pts distance")}</th>
                   <th class="n">{t("Pts temps")}</th>
                   <th class="n">{t("Pts leading")}</th>
-                {elevated ? <th class="n">{t("Alt. goal")}</th> : null}
-                {elevated ? <th class="n">{t("Réduc. pts temps")}</th> : null}
+                {elevated ? <th class="n">{t("Elevated goal")}</th> : null}
                   <th class="n">{t("Pénalité")}</th>
                 </>
               ) : (
@@ -2375,14 +2375,14 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                 </td>
                 {withPoints ? (
                   <>
+                    {elevated ? (
+                      <td class="n" title={p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1 ? t("Points de temps × {f} (elevated goal passé trop bas)", { f: p.goalAltitudeFactor.toFixed(3) }) : undefined}>
+                        {goalHeight(p, goalAlt)}
+                      </td>
+                    ) : null}
                     <td class="n">{pts(p.points?.distance)}</td>
                     <td class="n">{pts(p.points?.time)}</td>
                     <td class="n">{pts(p.points?.leading)}</td>
-                  {elevated ? (
-                    <td class="n" title={p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1 ? t("Points de temps × {f} (elevated goal passé trop bas)", { f: p.goalAltitudeFactor.toFixed(3) }) : undefined}>
-                      {goalHeight(p, goalAlt)}
-                    </td>
-                  ) : null}
                   {elevated ? (
                     <td class="n">{p.goalAltitudeLoss ? `−${pts(p.goalAltitudeLoss)}` : ""}</td>
                   ) : null}
