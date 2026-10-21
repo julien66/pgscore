@@ -26,7 +26,7 @@ import { addDecision, deleteDecision, listDecisions, touchScoring } from "./deci
 import { controlTask, DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
 import { clientScript, isLang, lang, LANG_COOKIE, pickLang, t, withLang } from "./i18n.js";
-import { competitionStandings, extractStandings, lastScoringChange, standingsCsv } from "./standings.js";
+import { competitionStandings, competitionSummaries, competitionWinner, extractStandings, lastScoringChange, standingsCsv } from "./standings.js";
 import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRankings, rankingMembers, setOverride, updateRanking } from "./rankings.js";
 import { listPilots, pilotsCsv, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
@@ -254,12 +254,15 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       )
       .all() as unknown as Array<CompetitionRow & { owner_name: string | null; owner_email: string | null; scored_at: number | null }>;
     const user = c.get("user");
+    // Chiffres de chaque compétition, et vainqueur du général une fois terminée.
+    const sums = competitionSummaries(db);
+    const detail = <T extends CompetitionRow>(r: T) => ({ ...r, summary: sums.get(r.id), winner: competitionWinner(db, r) });
     const recent = rows
       .filter((r) => r.scored_at && r.owner_id !== user?.id)
       .sort((a, b) => b.scored_at! - a.scored_at!)
       .slice(0, 30)
-      .map((r) => ({ ...r, owner: r.owner_name || "", scoredAt: r.scored_at! }));
-    return c.html(<HomePage user={user} mine={user ? rows.filter((r) => r.owner_id === user.id) : []} recent={recent} error={c.req.query("error") ?? null} notice={c.req.query("msg") ?? null} />);
+      .map((r) => detail({ ...r, owner: r.owner_name || "", scoredAt: r.scored_at! }));
+    return c.html(<HomePage user={user} mine={user ? rows.filter((r) => r.owner_id === user.id).map(detail) : []} recent={recent} error={c.req.query("error") ?? null} notice={c.req.query("msg") ?? null} />);
   });
 
   // --- Clés d'API (page « Mon compte ») ------------------------------------------------------

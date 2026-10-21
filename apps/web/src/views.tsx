@@ -6,7 +6,7 @@ import type { CompetitionRow, DecisionRow, PilotRow, RunRow, TaskRow, TrackHisto
 import { DECISION_KINDS } from "./decisions.js";
 import { GAP_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
-import type { Standings } from "./standings.js";
+import type { CompetitionSummary, Standings } from "./standings.js";
 import { lang, LANGS, locale, N_, t } from "./i18n.js";
 import { PILOT_COLUMNS } from "./pilots.js";
 import { describeRule, RULE_FIELDS, RULE_OPS, type Ranking } from "./rankings.js";
@@ -61,7 +61,7 @@ details.card.fold>summary{color:inherit;margin:0}details.card.fold>summary h2{ma
 .tm-leg span{display:inline-block;background:rgba(17,24,39,.85);color:#fff;font:600 11px/16px system-ui;padding:1px 6px;border-radius:8px;white-space:nowrap}
 .upl{margin-top:8px}.upl p{margin:4px 0}
 .list li.task{flex-wrap:wrap;row-gap:2px}.list .task-rk{flex-basis:100%;color:var(--muted)}.list form.official{margin-left:auto}.list form.official .check{color:var(--muted)}
-.list.runs li{display:block}.list.runs .bar{margin-top:6px}
+.list.comps li{flex-wrap:wrap;row-gap:2px}.list .comp-stats{flex-basis:100%}.list.runs li{display:block}.list.runs .bar{margin-top:6px}
 .lead-warn{color:var(--warn);cursor:help;margin-right:4px}
 table.pilots td{padding:3px 4px}table.pilots input[type=text],table.pilots select{padding:4px 6px;font-size:13px}
 table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{width:190px}table.pilots tr.new td{background:var(--chip)}
@@ -250,9 +250,20 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
   </Layout>
 );
 
-type HomeComp = CompetitionRow & { owner?: string; scoredAt?: number };
+type HomeComp = CompetitionRow & { owner?: string; scoredAt?: number; summary?: CompetitionSummary; winner?: string | null };
+const compStats = (c: HomeComp): string[] => {
+  const s = c.summary;
+  const out: string[] = [];
+  if (s) {
+    out.push(s.tasks === 1 ? t("1 manche") : t("{n} manches", { n: s.tasks }));
+    out.push(s.pilots === 1 ? t("1 participant") : t("{n} participants", { n: s.pilots }));
+    if (s.flown > 0) out.push(t("{n} km volés", { n: Math.round(s.flown / 1000).toLocaleString(locale()) }));
+  }
+  if (c.winner) out.push(t("vainqueur : {name}", { name: c.winner }));
+  return out;
+};
 const CompList: FC<{ list: HomeComp[] }> = ({ list }) => (
-  <ul class="list">
+  <ul class="list comps">
     {list.map((c) => (
       <li>
         <a href={`/competitions/${c.id}`}>
@@ -268,6 +279,7 @@ const CompList: FC<{ list: HomeComp[] }> = ({ list }) => (
             .filter(Boolean)
             .join(" · ")}
         </span>
+        {compStats(c).length ? <span class="comp-stats small">{compStats(c).join(" · ")}</span> : null}
       </li>
     ))}
   </ul>

@@ -105,3 +105,44 @@ export function extractStandings(s: Standings, keys: Set<string>): Standings {
   });
   return { ...s, ranking: { ...s.ranking, pilots } };
 }
+
+export interface CompetitionSummary {
+  /** Nombre de manches. */
+  tasks: number;
+  /** Pilotes inscrits, à défaut pilotes ayant une trace ou un résultat. */
+  pilots: number;
+  /** Somme des distances parcourues (9.3) au dernier calcul de chaque manche, en mètres. */
+  flown: number;
+}
+
+/** Chiffres de la liste des compétitions : manches, participants, distance volée. */
+export function competitionSummaries(db: Db): Map<number, CompetitionSummary> {
+  const rows = db
+    .prepare(
+      `WITH last AS (
+         SELECT t.competition_id, j.value
+           FROM tasks t
+           JOIN runs r ON r.id = (SELECT MAX(id) FROM runs WHERE task_id = t.id AND status = 'done')
+           JOIN json_each(r.results, '$.pilots') j
+       )
+       SELECT c.id,
+              (SELECT COUNT(*) FROM tasks t WHERE t.competition_id = c.id) AS tasks,
+              (SELECT COUNT(*) FROM competition_pilots p WHERE p.competition_id = c.id) AS registered,
+              (SELECT COUNT(*) FROM (
+                 SELECT tr.pilot_key FROM tracks tr JOIN tasks t ON t.id = tr.task_id WHERE t.competition_id = c.id
+                 UNION
+                 SELECT CAST(json_extract(j.value, '$.id') AS TEXT) FROM last j WHERE j.competition_id = c.id)) AS tracked,
+              (SELECT COALESCE(SUM(json_extract(j.value, '$.flownDistance')), 0) FROM last j WHERE j.competition_id = c.id) AS flown
+         FROM competitions c`,
+    )
+    .all() as Array<{ id: number; tasks: number; registered: number; tracked: number; flown: number }>;
+  return new Map(rows.map((r) => [r.id, { tasks: r.tasks, pilots: r.registered || r.tracked, flown: r.flown }]));
+}
+
+/** Vainqueur du classement général (ex aequo réunis), une fois la compétition terminée. */
+export function competitionWinner(db: Db, comp: CompetitionRow, today = new Date().toISOString().slice(0, 10)): string | null {
+  const end = comp.end_date || comp.start_date;
+  if (!end || end >= today) return null;
+  const pilots = competitionStandings(db, comp).ranking.pilots.filter((p) => p.rank === 1 && p.total > 0);
+  return pilots.length ? pilots.map((p) => p.name).join(", ") : null;
+}

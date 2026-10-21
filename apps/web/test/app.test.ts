@@ -150,8 +150,8 @@ describe("interface web", () => {
     // Résultats déjà calculés (sans traces) : seuls les totaux et la validité servent au classement.
     const results = {
       pilots: [
-        { id: "12", name: "Ana Vainqueur", total: 1000 },
-        { id: "7", name: "Bruno Second", total: 640.5 },
+        { id: "12", name: "Ana Vainqueur", total: 1000, flownDistance: 62_300 },
+        { id: "7", name: "Bruno Second", total: 640.5, flownDistance: 40_200 },
       ],
       gap: { validity: { task: 1 }, available: { distance: 400, time: 350, leading: 250, arrival: 0 } },
     };
@@ -168,6 +168,8 @@ describe("interface web", () => {
     comp = await (await req(compUrl)).text();
     expect(comp).toContain("Ana Vainqueur");
     expect(comp).toContain("640,5");
+    // Liste des compétitions : manches, participants, km volés et, compétition terminée, vainqueur du général.
+    expect(await (await req("/")).text()).toContain("1 manche · 2 participants · 103 km volés · vainqueur : Ana Vainqueur");
     const csv = await (await req(`${compUrl}/standings.csv`)).text();
     expect(csv.split("\n")[1]).toBe("1,12,Ana Vainqueur,1000.0,1000.0,1000.0,1000.0");
     expect(await (await req(`${compUrl}?all=1`)).text()).toContain("Bruno Second");
