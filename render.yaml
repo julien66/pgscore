@@ -9,6 +9,8 @@ services:
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @pgscore/engine build
     startCommand: cd apps/web && npx tsx src/main.tsx
     healthCheckPath: /healthz
+    # Déploiement seulement quand la vérification GitHub (CI : types et tests) est passée.
+    autoDeployTrigger: checksPass
     disk:
       name: data
       mountPath: /var/data
