@@ -39,6 +39,7 @@ const dict: Record<string, string> = {
   "Tolérance des cylindres (%)": "Cylinder tolerance (%)",
   "vide : 0 % + 5 m (S7F 2026)": "empty: 0% + 5 m (S7F 2026)",
   "Tolérance des cylindres : pourcentage entre 0 et 1 attendu.": "Cylinder tolerance: a percentage between 0 and 1 is expected.",
+  "vide : 0,1 % (PWCA)": "empty: 0.1% (PWCA)",
   "Finesse du bonus d'altitude : nombre positif attendu.": "Altitude bonus glide ratio: a positive number is expected.",
   "Un bon logiciel de scoring ouvert à toute la communauté, c'est aussi la possibilité de faire évoluer la compétition elle-même : tester de nouvelles règles et de nouveaux formats compétitifs bien plus facilement, les appliquer à des manches réelles et comparer les classements obtenus.": "A good scoring software open to the whole community also makes it possible to move competition itself forward: try new rules and new competitive formats much more easily, apply them to real tasks and compare the resulting rankings.",
   "Sur les épaules des pionniers": "Standing on the shoulders of pioneers",

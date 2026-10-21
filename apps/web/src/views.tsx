@@ -1380,7 +1380,7 @@ export const TaskPage: FC<{
           </div>
           <div>
             <label>{t("Tolérance des cylindres (%)")}</label>
-            <input type="number" step="any" min="0" max="1" name="cylinderTolerance" placeholder={t("vide : 0 % + 5 m (S7F 2026)")} value={task.cylinderTolerance ? String(+(task.cylinderTolerance * 100).toFixed(4)) : ""} />
+            <input type="number" step="any" min="0" max="1" name="cylinderTolerance" placeholder={settings.gapProfile === "PWCA" ? t("vide : 0,1 % (PWCA)") : t("vide : 0 % + 5 m (S7F 2026)")} value={task.cylinderTolerance !== undefined ? String(+(task.cylinderTolerance * 100).toFixed(4)) : ""} />
           </div>
           <div>
             <label>{t("Elevated goal : hauteur au-dessus du goal (m)")}</label>

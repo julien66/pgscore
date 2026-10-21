@@ -12,7 +12,7 @@ import {
   type LatLon,
   type Task,
 } from "@pgscore/engine";
-import type { CompetitionSettings } from "./settings.js";
+import { controlTask, type CompetitionSettings } from "./settings.js";
 import { t } from "./i18n.js";
 
 /**
@@ -123,6 +123,7 @@ export function viewerData(
   pilot: { key: string; name: string | null },
   date: string | null,
 ): ViewerData {
+  task = controlTask(task, settings);
   if (!versions.length) throw new Error(t("Aucune trace pour ce pilote."));
   const dist = taskDistances(task);
   const tps = task.turnpoints;

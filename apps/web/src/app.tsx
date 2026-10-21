@@ -944,10 +944,10 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         if (dl) task.deadline = localHmsToUtc(dl, date, tz);
         else delete task.deadline;
       }
-      // Tolérance relative des cylindres (9.1.1), saisie en % ; vide ou 0 = S7F 2026 (5 m seulement).
+      // Tolérance relative des cylindres (9.1.1), saisie en % ; vide = celle de la formule (0,1 % PWCA, 0 % S7F).
       const ct = String(f.cylinderTolerance ?? "").trim().replace(",", ".");
-      if (ct === "" || Number(ct) === 0) delete task.cylinderTolerance;
-      else if (Number.isFinite(Number(ct)) && Number(ct) > 0 && Number(ct) <= 1) task.cylinderTolerance = Number(ct) / 100;
+      if (ct === "") delete task.cylinderTolerance;
+      else if (Number.isFinite(Number(ct)) && Number(ct) >= 0 && Number(ct) <= 1) task.cylinderTolerance = Number(ct) / 100;
       else throw new Error(t("Tolérance des cylindres : pourcentage entre 0 et 1 attendu."));
       // Elevated goal (13.1) : hauteur au-dessus de l'altitude publiée du goal ; vide ou 0 = goal ordinaire.
       const eg = String(f.elevatedGoal ?? "").trim().replace(",", ".");

@@ -112,3 +112,12 @@ export function taskScoringFromForm(form: Record<string, unknown>): TaskScoringS
   }
   return out;
 }
+
+/** Tolérance relative des cylindres de la PWCA : 0,1 % (le S7F 2026 n'en garde aucune). */
+export const PWCA_CYLINDER_TOLERANCE = 0.001;
+
+/** Manche telle qu'on la contrôle : tolérance des cylindres de la formule si la manche n'en fixe pas. */
+export function controlTask<T extends { cylinderTolerance?: number }>(task: T, s: Pick<CompetitionSettings, "gapProfile">): T {
+  if (task.cylinderTolerance !== undefined || s.gapProfile !== "PWCA") return task;
+  return { ...task, cylinderTolerance: PWCA_CYLINDER_TOLERANCE };
+}

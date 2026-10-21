@@ -1,7 +1,7 @@
 import { controlPilot, finishScoringBest, parseOpenAir, type ControlledPilot, type Task } from "@pgscore/engine";
 import type { CompetitionRow, Db, RunDetail, RunStep, TaskRow } from "./db.js";
 import { engineDecisions, listDecisions } from "./decisions.js";
-import { parseSettings, type StoredTask } from "./settings.js";
+import { controlTask, parseSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
 import { t } from "./i18n.js";
 
@@ -67,8 +67,8 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
     await tick();
     const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as unknown as TaskRow;
     const comp = db.prepare("SELECT * FROM competitions WHERE id = ?").get(row.competition_id) as unknown as CompetitionRow;
-    const task = JSON.parse(row.task) as StoredTask;
     const s = parseSettings(comp.params);
+    const task = controlTask(JSON.parse(row.task) as StoredTask, s);
     const options = {
       params: s,
       airspaces: comp.airspace_text ? parseOpenAir(comp.airspace_text) : [],
