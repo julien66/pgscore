@@ -33,7 +33,7 @@ button,.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;bord
 button.danger{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:600}.card.danger{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 button.link{border:0;background:none;color:var(--muted);padding:0;font-size:13px}a.act{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:13px}a.act:hover,button.link.print-rk:hover{color:var(--accent);text-decoration:none}a.act .bi{color:#21a366}.acts{display:inline-flex;gap:16px;align-items:center;flex-wrap:wrap;margin-right:8px;vertical-align:middle}body.printing .print-me .acts,body.printing a.act{display:none!important}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.mt{margin-top:12px}
-.muted{color:var(--muted)}.badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;background:var(--accent);color:var(--accent-ink)}details.replace{display:inline-block;margin-right:8px}details.replace summary{cursor:pointer;color:var(--accent);font-size:14px}details.replace form{display:flex;flex-direction:column;gap:6px;margin-top:6px;min-width:260px}.small{font-size:13px}.badge.warn{background:var(--warn);color:#fff}
+.muted{color:var(--muted)}.badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;background:var(--accent);color:var(--accent-ink)}details.replace{display:inline-block;margin-right:8px}details.replace summary{cursor:pointer;color:var(--accent);font-size:14px}details.replace form{display:flex;flex-direction:column;gap:6px;margin-top:6px;min-width:260px}.small{font-size:13px}.badge.warn{background:var(--warn);color:#fff}tr.from-tracks td{background:var(--chip)}
 .err{background:color-mix(in srgb,var(--bad) 12%,var(--card));border:1px solid var(--bad);color:var(--text);padding:10px 12px;border-radius:8px;margin-bottom:16px}
 .note{background:var(--chip);padding:10px 12px;border-radius:8px;margin-bottom:16px}
 table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
@@ -469,6 +469,8 @@ export const CompetitionPage: FC<{
   tasks: TaskRow[];
   board: Board;
   pilots: PilotRow[];
+  /** Pilotes vus dans les traces, pas encore dans la liste des inscrits. */
+  trackPilots?: Array<{ pilot_key: string; name: string }>;
   airspaceCount: number | null;
   error?: string | null;
   notice?: string | null;
@@ -479,7 +481,7 @@ export const CompetitionPage: FC<{
   canDelete?: boolean;
   /** Calculs en cours ou en attente (après un import) : dernier calcul de chaque manche. */
   runs?: CompRun[] | null;
-}> = ({ user, c, v, tasks, board, pilots, airspaceCount, error, notice, edit, canEdit, canDelete, runs }) => (
+}> = ({ user, c, v, tasks, board, pilots, trackPilots, airspaceCount, error, notice, edit, canEdit, canDelete, runs }) => (
   <Layout title={edit ? `${t("Éditer")} · ${c.name}` : c.name} user={user}>
     <div class="crumbs">
       <a href="/">{t("Compétitions")}</a>
@@ -502,7 +504,7 @@ export const CompetitionPage: FC<{
     {runs ? <CompRuns c={c} runs={runs} /> : null}
     {edit && canEdit ? (
       <>
-        <CompetitionEdit c={c} v={v} pilots={pilots} airspaceCount={airspaceCount} open={Boolean(error)} />
+        <CompetitionEdit c={c} v={v} pilots={pilots} trackPilots={trackPilots ?? []} airspaceCount={airspaceCount} open={Boolean(error)} />
         {canDelete ? (
           <div class="card danger" id="delete">
             <h2><Ic n="trash" c="red" />{t("Supprimer la compétition")}</h2>
@@ -666,10 +668,11 @@ const CompetitionMain: FC<{ c: CompetitionRow; tasks: TaskRow[]; board: Board }>
 );
 
 /** Onglet « Éditer » : réglages de la compétition, espace aérien, pilotes. */
-const CompetitionEdit: FC<{ c: CompetitionRow; v: CompetitionFormValues; pilots: PilotRow[]; airspaceCount: number | null; open: boolean }> = ({
+const CompetitionEdit: FC<{ c: CompetitionRow; v: CompetitionFormValues; pilots: PilotRow[]; trackPilots: Array<{ pilot_key: string; name: string }>; airspaceCount: number | null; open: boolean }> = ({
   c,
   v,
   pilots,
+  trackPilots,
   airspaceCount,
   open,
 }) => (
@@ -725,13 +728,13 @@ const CompetitionEdit: FC<{ c: CompetitionRow; v: CompetitionFormValues; pilots:
       </p>
     </details>
 
-    <PilotsBlock c={c} pilots={pilots} open={open} />
+    <PilotsBlock c={c} pilots={pilots} trackPilots={trackPilots} open={open} />
     <script src="/static/competition.js" />
   </>
 );
 
 /** Pilotes inscrits : import FSDB/CSV et tableau modifiable. */
-const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> = ({ c, pilots, open }) => {
+const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; trackPilots: Array<{ pilot_key: string; name: string }>; open: boolean }> = ({ c, pilots, trackPilots, open }) => {
   const women = pilots.filter((p) => p.gender === "F").length;
   const cell = (p: PilotRow | null, key: (typeof PILOT_COLUMNS)[number]["key"]) => {
     const name = p ? `p.${p.id}.${key}` : `new.${key}`;
@@ -754,7 +757,7 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
     return <input type="text" name={name} value={v === null ? "" : String(v)} class={`in-${size}`} placeholder={p ? "" : t(PILOT_COLUMNS.find((x) => x.key === key)!.label)} />;
   };
   return (
-    <details class="card fold" id="pilots" open={open}>
+    <details class="card fold" id="pilots" open={open || trackPilots.length > 0}>
       <summary>
         <h2>
           <Ic n="users" c="purple" />
@@ -765,9 +768,17 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
                   women ? ` · ${women === 1 ? t("{n} femme", { n: 1 }) : t("{n} femmes", { n: women })}` : ""
                 }`
               : t("aucun inscrit")}
+            {trackPilots.length ? ` · ${trackPilots.length === 1 ? t("{n} pilote des traces à inscrire", { n: 1 }) : t("{n} pilotes des traces à inscrire", { n: trackPilots.length })}` : ""}
           </span>
         </h2>
       </summary>
+      {trackPilots.length ? (
+        <p class="note">
+          {t(
+            "Les pilotes des traces envoyées qui ne sont pas encore dans la liste sont ajoutés en bas du tableau, avec le numéro et le nom de leur trace. Complétez-les (nation, sponsor…) puis enregistrez : ils sont alors inscrits et leurs infos apparaissent dans les classements. Corrigez le numéro d'une trace rangée sous un nom (« erico-oliveira ») : elle sera rattachée au bon numéro.",
+          )}
+        </p>
+      ) : null}
       <form method="post" action={`/competitions/${c.id}/pilots/import`} enctype="multipart/form-data" class="row">
         <input type="file" name="file" accept=".fsdb,.xml,.csv,.txt" required />
         <button>
@@ -800,6 +811,32 @@ const PilotsBlock: FC<{ c: CompetitionRow; pilots: PilotRow[]; open: boolean }> 
                   ))}
                   <td>
                     <input type="checkbox" name={`del.${p.id}`} value="1" title={t("Retirer ce pilote à l'enregistrement")} />
+                  </td>
+                </tr>
+              ))}
+              {trackPilots.map((p, i) => (
+                <tr class="from-tracks">
+                  {PILOT_COLUMNS.map((col) => {
+                    const v = col.key === "pilot_key" ? p.pilot_key : col.key === "name" ? p.name : "";
+                    const size = col.key === "pilot_key" || col.key === "nation" || col.key === "weight_max" || col.key === "glider_class" ? "s" : col.key === "name" ? "l" : "m";
+                    return (
+                      <td>
+                        {col.key === "gender" ? (
+                          <select name={`add.${i}.gender`}>
+                            <option value="">–</option>
+                            <option value="F">F</option>
+                            <option value="M">M</option>
+                          </select>
+                        ) : (
+                          <input type="text" name={`add.${i}.${col.key}`} value={v} class={`in-${size}`} />
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td class="small muted">
+                    <label title={t("Ne pas inscrire ce pilote")}>
+                      <input type="checkbox" name={`skip.${i}`} value="1" /> {t("depuis les traces")}
+                    </label>
                   </td>
                 </tr>
               ))}

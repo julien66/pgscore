@@ -28,7 +28,7 @@ import { localHmsToUtc } from "./time.js";
 import { clientScript, isLang, lang, LANG_COOKIE, pickLang, t, withLang } from "./i18n.js";
 import { competitionStandings, competitionSummaries, competitionWinner, extractStandings, lastScoringChange, standingsCsv } from "./standings.js";
 import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRankings, rankingMembers, setOverride, updateRanking } from "./rankings.js";
-import { listPilots, pilotsCsv, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
+import { listPilots, pilotsCsv, trackPilots, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
 import { vendorFile } from "./vendor.js";
 import { exportCompetition, importCompetition, writeArchive } from "./archive.js";
@@ -526,6 +526,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
           notice: bq.notice ?? null,
         }}
         pilots={x.pilots}
+        trackPilots={trackPilots(db, comp.id)}
         airspaceCount={count}
         error={extra.error ?? null}
         notice={extra.notice ?? null}
@@ -658,17 +659,14 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     try {
       const r = savePilotTable(db, comp.id, f);
       const n = r.removed;
-      const msg = !n
-        ? r.added
-          ? t("Pilotes enregistrés : pilote ajouté.")
-          : t("Pilotes enregistrés.")
-        : r.added
-          ? one(n)
-            ? t("Pilotes enregistrés : pilote ajouté, {n} pilote retiré.", { n })
-            : t("Pilotes enregistrés : pilote ajouté, {n} pilotes retirés.", { n })
-          : one(n)
-            ? t("Pilotes enregistrés : {n} pilote retiré.", { n })
-            : t("Pilotes enregistrés : {n} pilotes retirés.", { n });
+      const a = r.added;
+      const msg = [
+        t("Pilotes enregistrés."),
+        a ? (a === 1 ? t("{n} pilote ajouté.", { n: a }) : t("{n} pilotes ajoutés.", { n: a })) : "",
+        n ? (one(n) ? t("{n} pilote retiré.", { n }) : t("{n} pilotes retirés.", { n })) : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
       return backToPilots(c, comp, msg);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;

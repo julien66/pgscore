@@ -735,5 +735,14 @@ const dict: Record<string, string> = {
   "Rattacher": "Zuordnen",
   "Pilote inscrit…": "Gemeldeter Pilot…",
   "Rattacher la trace": "Track zuordnen",
+  "{n} pilote ajouté.": "{n} Pilot hinzugefügt.",
+  "{n} pilotes ajoutés.": "{n} Piloten hinzugefügt.",
+  "{n} pilote retiré.": "{n} Pilot entfernt.",
+  "{n} pilotes retirés.": "{n} Piloten entfernt.",
+  "{n} pilote des traces à inscrire": "{n} Pilot aus den Tracks zu melden",
+  "{n} pilotes des traces à inscrire": "{n} Piloten aus den Tracks zu melden",
+  "Les pilotes des traces envoyées qui ne sont pas encore dans la liste sont ajoutés en bas du tableau, avec le numéro et le nom de leur trace. Complétez-les (nation, sponsor…) puis enregistrez : ils sont alors inscrits et leurs infos apparaissent dans les classements. Corrigez le numéro d'une trace rangée sous un nom (« erico-oliveira ») : elle sera rattachée au bon numéro.": "Piloten aus den hochgeladenen Tracks, die noch nicht in der Liste stehen, werden unten in der Tabelle ergänzt, mit Nummer und Name aus ihrem Track. Vervollständigen Sie sie (Nation, Sponsor…) und speichern Sie: dann sind sie gemeldet und ihre Angaben erscheinen in den Wertungen. Korrigieren Sie die Nummer eines unter einem Namen abgelegten Tracks („erico-oliveira“): er wird der richtigen Nummer zugeordnet.",
+  "Ne pas inscrire ce pilote": "Diesen Piloten nicht melden",
+  "depuis les traces": "aus den Tracks",
 };
 export default dict;

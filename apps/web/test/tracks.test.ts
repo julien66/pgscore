@@ -126,6 +126,27 @@ describe("fichiers IGC hors de la base", () => {
     expect(page).toContain("Changer de pilote");
   });
 
+  it("propose les pilotes des traces dans la liste des pilotes de la compétition", async () => {
+    const { db, req, url } = await minimalTask();
+    await req(`${url}/tracks`, { method: "POST", body: upload("42.igc", IGC) });
+    await req(`${url}/tracks`, { method: "POST", body: upload("vol.igc", IGC2) });
+    const comp = (db.prepare("SELECT id FROM competitions").get() as { id: number }).id;
+    const page = await (await req(`/competitions/${comp}/edit`)).text();
+    expect(page).toContain("2 pilotes des traces à inscrire");
+    expect(page).toContain('name="add.0.pilot_key" value="42"');
+    expect(page).toContain('name="add.1.pilot_key" value="rene-test"');
+    // Enregistrement : 42 inscrit avec son sponsor, la trace « rene-test » corrigée en 710 la suit.
+    const body = new URLSearchParams({ "add.0.pilot_key": "42", "add.0.name": "René Test", "add.0.sponsor": "Acme", "add.1.pilot_key": "710", "add.1.name": "Rene Test" });
+    const r = await req(`/competitions/${comp}/pilots`, { method: "POST", body });
+    expect(decodeURIComponent(r.headers.get("location")!)).toContain("2 pilotes ajoutés");
+    expect(db.prepare("SELECT pilot_key, sponsor FROM competition_pilots ORDER BY id").all()).toEqual([
+      { pilot_key: "42", sponsor: "Acme" },
+      { pilot_key: "710", sponsor: null },
+    ]);
+    expect((db.prepare("SELECT pilot_key FROM tracks ORDER BY id").all() as Array<{ pilot_key: string }>).map((x) => x.pilot_key)).toEqual(["42", "710"]);
+    expect(await (await req(`/competitions/${comp}/edit`)).text()).not.toContain("depuis les traces");
+  });
+
   it("signale les traces sans pilote inscrit et les rattache d'un clic", async () => {
     const { db, req, url } = await minimalTask();
     const comp = (db.prepare("SELECT id FROM competitions").get() as { id: number }).id;

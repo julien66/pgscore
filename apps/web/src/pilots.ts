@@ -214,6 +214,25 @@ export function listPilots(db: Db, compId: number): PilotRow[] {
 
 const FIELDS = PILOT_COLUMNS.map((c) => c.key);
 
+/**
+ * Pilotes présents dans les traces des manches mais pas dans la liste des inscrits : numéro de la trace
+ * et nom le plus fréquent de leurs traces. Ils servent à remplir la liste des pilotes de la compétition.
+ */
+export function trackPilots(db: Db, compId: number): Array<{ pilot_key: string; name: string }> {
+  const rows = db
+    .prepare(
+      `SELECT tr.pilot_key AS k, tr.pilot_name AS n, COUNT(*) AS c FROM tracks tr JOIN tasks t ON t.id = tr.task_id
+       WHERE t.competition_id = ? AND tr.pilot_key NOT IN (SELECT pilot_key FROM competition_pilots WHERE competition_id = ?)
+       GROUP BY tr.pilot_key, tr.pilot_name ORDER BY c DESC`,
+    )
+    .all(compId, compId) as Array<{ k: string; n: string | null; c: number }>;
+  const out = new Map<string, string>();
+  for (const r of rows) if (!out.has(r.k) || (r.n && out.get(r.k) === r.k)) out.set(r.k, r.n?.trim() || r.k);
+  return [...out]
+    .map(([pilot_key, name]) => ({ pilot_key, name }))
+    .sort((a, b) => (Number(a.pilot_key) || Infinity) - (Number(b.pilot_key) || Infinity) || a.pilot_key.localeCompare(b.pilot_key));
+}
+
 /** Ajoute ou remplace des pilotes (par numéro). Renvoie le nombre d'ajouts et de mises à jour. */
 export function upsertPilots(db: Db, compId: number, list: PilotFields[]): { added: number; updated: number } {
   const exists = db.prepare("SELECT 1 FROM competition_pilots WHERE competition_id = ? AND pilot_key = ?");
@@ -246,7 +265,11 @@ export function savePilotTable(db: Db, compId: number, form: Record<string, unkn
   const byId = new Map<number, Partial<Record<keyof PilotFields, unknown>>>();
   const fresh: Partial<Record<keyof PilotFields, unknown>> = {};
   const removed = new Set<number>();
+  // Pilotes repris des traces (« add.<n>.<champ> ») : ajoutés à l'enregistrement, sauf case « skip.<n> ».
+  const fromTracks = new Map<string, Partial<Record<keyof PilotFields, unknown>>>();
   for (const [k, v] of Object.entries(form)) {
+    const a = /^add\.(\d+)\.(\w+)$/.exec(k);
+    if (a && FIELDS.includes(a[2] as keyof PilotFields) && !form[`skip.${a[1]}`]) fromTracks.set(a[1]!, { ...(fromTracks.get(a[1]!) ?? {}), [a[2]!]: v === "" && a[2] === "gender" ? null : v });
     const del = /^del\.(\d+)$/.exec(k);
     if (del) removed.add(Number(del[1]));
     const m = /^(?:p\.(\d+)|new)\.(\w+)$/.exec(k);
@@ -268,6 +291,14 @@ export function savePilotTable(db: Db, compId: number, form: Record<string, unkn
     seen.set(p.pilot_key, id);
   }
   if (added && seen.has(added.pilot_key)) throw new FormError(t("Numéro {key} déjà inscrit.", { key: added.pilot_key }));
+  const imported: PilotFields[] = [];
+  for (const raw of fromTracks.values()) {
+    if (!String(raw.pilot_key ?? "").trim()) continue;
+    const p = cleanPilot(raw);
+    if (seen.has(p.pilot_key) || p.pilot_key === added?.pilot_key || imported.some((x) => x.pilot_key === p.pilot_key))
+      throw new FormError(t("Numéro {key} en double.", { key: p.pilot_key }));
+    imported.push(p);
+  }
   const set = db.prepare(`UPDATE competition_pilots SET ${FIELDS.map((f) => `${f} = ?`).join(", ")} WHERE id = ? AND competition_id = ?`);
   const drop = db.prepare("DELETE FROM competition_pilots WHERE id = ? AND competition_id = ?");
   db.exec("BEGIN");
@@ -282,8 +313,9 @@ export function savePilotTable(db: Db, compId: number, form: Record<string, unkn
     db.exec("ROLLBACK");
     throw e;
   }
-  if (added) upsertPilots(db, compId, [added]);
-  return { saved: kept.length, removed: [...removed].filter((id) => own.has(id)).length, added: added ? 1 : 0 };
+  const fresh2 = [...(added ? [added] : []), ...imported];
+  if (fresh2.length) upsertPilots(db, compId, fresh2);
+  return { saved: kept.length, removed: [...removed].filter((id) => own.has(id)).length, added: fresh2.length };
 }
 
 export function pilotsCsv(rows: PilotRow[]): string {
