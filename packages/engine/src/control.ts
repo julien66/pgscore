@@ -102,9 +102,9 @@ function localXY(centre: LatLon, p: LatLon): { x: number; y: number } {
  * intérieur ou extérieur, dans n'importe quel sens. L'heure est celle du second fix.
  * Renvoie les index des fixes qui réalisent un passage.
  */
-function cylinderCrossings(pts: IgcFix[], centre: LatLon, radius: number): number[] {
-  const inner = Math.min(radius * (1 - RELATIVE_TOLERANCE), radius - ABSOLUTE_TOLERANCE);
-  const outer = Math.max(radius * (1 + RELATIVE_TOLERANCE), radius + ABSOLUTE_TOLERANCE);
+function cylinderCrossings(pts: IgcFix[], centre: LatLon, radius: number, relative = RELATIVE_TOLERANCE): number[] {
+  const inner = Math.min(radius * (1 - relative), radius - ABSOLUTE_TOLERANCE);
+  const outer = Math.max(radius * (1 + relative), radius + ABSOLUTE_TOLERANCE);
   const out: number[] = [];
   // Position de chaque fix par rapport aux deux bords (dedans, bande, dehors). L'estimation sphérique
   // suffit quand elle est loin des deux bords ; près d'un bord, distance WGS84 exacte.
@@ -246,7 +246,7 @@ function controlUntil(task: Task, valid: IgcFix[], end: number): FlightControl {
   // Orientation de la ligne de goal : perpendiculaire à la route optimisée qui y arrive (6.2.3.1).
   const crossingsOf = (i: number): number[] => {
     const z = tps[i]!.zone;
-    if (z.kind === "cylinder") return cylinderCrossings(pts, z.waypoint, z.radius);
+    if (z.kind === "cylinder") return cylinderCrossings(pts, z.waypoint, z.radius, task.cylinderTolerance ?? RELATIVE_TOLERANCE);
     const prev = distances.route.points[i - 1]!;
     const v = localXY(z.waypoint, prev);
     const n = Math.hypot(v.x, v.y) || 1;

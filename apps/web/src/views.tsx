@@ -1379,6 +1379,10 @@ export const TaskPage: FC<{
             <input type="text" name="deadline" placeholder="HH:MM" value={loc(task.deadline).replace(/:00$/, "")} />
           </div>
           <div>
+            <label>{t("Tolérance des cylindres (%)")}</label>
+            <input type="number" step="any" min="0" max="1" name="cylinderTolerance" placeholder={t("vide : 0 % + 5 m (S7F 2026)")} value={task.cylinderTolerance ? String(+(task.cylinderTolerance * 100).toFixed(4)) : ""} />
+          </div>
+          <div>
             <label>{t("Elevated goal : hauteur au-dessus du goal (m)")}</label>
             <input type="number" step="1" min="0" max="1000" name="elevatedGoal" placeholder={t("vide : goal ordinaire (S7F : 300)")} value={task.elevatedGoal ? String(task.elevatedGoal) : ""} />
           </div>

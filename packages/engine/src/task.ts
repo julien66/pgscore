@@ -59,6 +59,11 @@ export interface Task {
    * les points de temps sont réduits (300 m par défaut dans le S7F). Absent : goal ordinaire.
    */
   elevatedGoal?: number;
+  /**
+   * Tolérance relative des cylindres (9.1.1), en part du rayon : 0 en S7F 2026 (seuls les 5 m absolus comptent).
+   * Certaines compétitions gardent l'ancienne valeur, 0,001 (0,1 %).
+   */
+  cylinderTolerance?: number;
   /** Indication d'origine (enter/exit) gardée pour l'affichage : le S7F 2026 ne l'utilise plus. */
   startDirection?: "enter" | "exit";
   /** Modèle terrestre déclaré par le fichier source ; le contrôle utilise toujours WGS84. */
