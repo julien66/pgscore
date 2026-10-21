@@ -54,6 +54,11 @@ export interface Task {
   scoreBackTime?: number;
   /** Manche arrêtée : finesse du bonus d'altitude (13.4.6), 2,5 par défaut ; FS la règle dans sa formule (bonus_gr). */
   bonusGlideRatio?: number;
+  /**
+   * Elevated goal (6.2.3.2, 13.1) : hauteur, en mètres au-dessus de l'altitude publiée du goal, sous laquelle
+   * les points de temps sont réduits (300 m par défaut dans le S7F). Absent : goal ordinaire.
+   */
+  elevatedGoal?: number;
   /** Indication d'origine (enter/exit) gardée pour l'affichage : le S7F 2026 ne l'utilise plus. */
   startDirection?: "enter" | "exit";
   /** Modèle terrestre déclaré par le fichier source ; le contrôle utilise toujours WGS84. */

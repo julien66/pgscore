@@ -31,6 +31,8 @@ export interface FlightControl {
   startTime: number | null;
   essTime: number | null;
   goalTime: number | null;
+  /** Altitude (GNSS, sinon pression) du fix qui valide le goal, en mètres (elevated goal, 13.1). */
+  goalAltitude: number | null;
   /** Temps de la section de vitesse, en secondes. */
   speedSectionTime: number | null;
   madeEss: boolean;
@@ -224,6 +226,7 @@ function controlUntil(task: Task, valid: IgcFix[], end: number): FlightControl {
     startTime: null,
     essTime: null,
     goalTime: null,
+    goalAltitude: null,
     speedSectionTime: null,
     madeEss: false,
     madeGoal: false,
@@ -292,6 +295,7 @@ function controlUntil(task: Task, valid: IgcFix[], end: number): FlightControl {
   }
   result.essTime = at(ess);
   result.goalTime = at(goalIdx);
+  result.goalAltitude = validated.find((v) => v.index === goalIdx)?.altitude ?? null;
   result.madeEss = result.essTime !== null;
   result.madeGoal = result.goalTime !== null;
   if (result.essTime !== null && result.startTime !== null) {

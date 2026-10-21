@@ -8,7 +8,7 @@ import {
   airspacePenaltyFractionS7A,
   type Airspace,
 } from "./openair.js";
-import { GAP_RULES, scoreGap, type GapProfile, type GapPoints, type GapTaskScore } from "./gap.js";
+import { GAP_RULES, goalAltitudeFactor, scoreGap, type GapProfile, type GapPoints, type GapTaskScore } from "./gap.js";
 import { scoredDistance, type CompetitionParameters } from "./params.js";
 import type { Task } from "./task.js";
 
@@ -97,6 +97,9 @@ export interface PilotResult {
   stop: { flying: boolean; altitudeAboveGoal: number; bonusDistance: number } | null;
   leadingCoefficient: number | null;
   leadingFactor: number | null;
+  /** Elevated goal (13.1) : altitude de passage du goal et facteur appliqué aux points de temps. */
+  goalAltitude?: number | null;
+  goalAltitudeFactor?: number;
   /** Alertes sur la trace qui peuvent fausser le leading (trace espacée, trou, arrêt en vol). */
   leadingWarnings?: LeadingWarning[];
   airspace: AirspaceResult[];
@@ -188,6 +191,11 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
       ? { flying: c.stopped.flyingAtStop, altitudeAboveGoal: c.stopped.altitudeAboveGoal, bonusDistance: c.stopped.bonusDistance }
       : null,
   };
+  if (task.elevatedGoal && c.madeGoal) {
+    r.goalAltitude = c.goalAltitude;
+    const goalAlt = task.turnpoints.at(-1)!.zone.waypoint.altitude ?? 0;
+    r.goalAltitudeFactor = c.goalAltitude === null ? 1 : goalAltitudeFactor(c.goalAltitude, goalAlt, task.elevatedGoal);
+  }
   if (!c.flight) r.error = "Pas de vol détecté dans la trace.";
   r.approaches = zoneApproaches(task, c);
 
@@ -263,6 +271,7 @@ export function finishScoring(task: Task, controlled: ControlledPilot[], options
       startTime: r.startTime,
       leadingFactor: r.leadingFactor,
       flyingAtStop: r.stop?.flying ?? false,
+      ...(r.status === "GOAL" && r.goalAltitudeFactor !== undefined ? { goalAltitudeFactor: r.goalAltitudeFactor } : {}),
       penalty: penaltyOf(r),
     })),
   });

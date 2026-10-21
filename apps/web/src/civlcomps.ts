@@ -1,6 +1,6 @@
 import { unzipSync } from "fflate";
 import { createHash } from "node:crypto";
-import { taskDistances, type TaskTurnpoint } from "@pgscore/engine";
+import { controlFlight, goalAltitudeFactor, parseIgc, taskDistances, type TaskTurnpoint } from "@pgscore/engine";
 import { ARCHIVE_FORMAT, ARCHIVE_VERSION, type ArchiveFile, type ArchiveTask, type CompetitionArchive } from "./archive.js";
 import { t } from "./i18n.js";
 import { cleanPilot, splitBrand, type PilotFields } from "./pilots.js";
@@ -175,6 +175,8 @@ export interface CivlPilotRow {
   /** Somme des colonnes de points (distance, leading, temps…) et total publié, s'ils sont lisibles. */
   pointsSum: number | null;
   total: number | null;
+  /** Points de temps publiés (avant réduction d'elevated goal, que FS applique seulement au total). */
+  timePoints: number | null;
 }
 
 export interface CivlTaskPage {
@@ -220,13 +222,15 @@ const num = (s: string | undefined) => {
 };
 
 /** Colonnes « … Points » et « Total » d'une ligne de résultats. */
-function pointsOf(headers: string[], r: string[]): { pointsSum: number | null; total: number | null } {
+function pointsOf(headers: string[], r: string[]): { pointsSum: number | null; total: number | null; timePoints: number | null } {
+  const iTime = headers.findIndex((h) => /^Time Points$/i.test(h));
+  const timePoints = iTime >= 0 && r[iTime] !== "" && Number.isFinite(Number(r[iTime])) ? Number(r[iTime]) : null;
   const cols = headers.map((h, i) => (/Points$/i.test(h) ? i : -1)).filter((i) => i >= 0);
   const iTotal = headers.indexOf("Total");
   const total = iTotal >= 0 && r[iTotal] !== "" ? Number(r[iTotal]) : NaN;
-  if (!cols.length || !Number.isFinite(total)) return { pointsSum: null, total: null };
+  if (!cols.length || !Number.isFinite(total)) return { pointsSum: null, total: null, timePoints };
   const sum = cols.reduce((acc, i) => acc + (Number(r[i]) || 0), 0);
-  return { pointsSum: sum, total };
+  return { pointsSum: sum, total, timePoints };
 }
 
 export function parseTaskPage(html: string): CivlTaskPage {
@@ -455,6 +459,32 @@ export interface CivlImportProgress {
  * Lit un événement civlcomps.org et le décrit comme une archive pgscore, prête pour writeArchive.
  * Avec `store`, chaque trace est rangée dès qu'elle est décompressée.
  */
+/**
+ * Élévation d'un elevated goal (13.1) qui explique le mieux les écarts publiés : pour chaque pilote au goal,
+ * la réduction de ses points de temps doit égaler l'écart entre la somme de ses points et son total.
+ * Renvoie undefined si aucune élévation n'explique mieux les écarts qu'un goal ordinaire.
+ */
+export function fitElevatedGoal(task: StoredTask, goalAltitudes: Map<string, number>, timePoints: Map<string, number>, gaps: Map<string, number>): number | undefined {
+  const goalAlt = task.turnpoints.at(-1)!.zone.waypoint.altitude ?? 0;
+  const misses = (elevation: number) => {
+    let n = 0;
+    for (const [k, alt] of goalAltitudes) {
+      const tp = timePoints.get(k) ?? 0;
+      const reduction = Math.round(tp * (1 - goalAltitudeFactor(alt, goalAlt, elevation)) * 10) / 10;
+      if (Math.abs(reduction - (gaps.get(k) ?? 0)) > 0.15) n++;
+    }
+    return n;
+  };
+  let best = { elevation: 0, misses: misses(0) };
+  // Valeurs rondes d'abord : à égalité, 300 m l'emporte sur 290 m.
+  const candidates = [100, 50, 10].flatMap((step) => Array.from({ length: 1000 / step }, (_, i) => (i + 1) * step));
+  for (const e of new Set(candidates)) {
+    const m = misses(e);
+    if (m < best.misses) best = { elevation: e, misses: m };
+  }
+  return best.elevation || undefined;
+}
+
 export async function civlToArchive(
   url: string,
   fetcher: Fetcher = httpFetcher,
@@ -532,20 +562,22 @@ export async function civlToArchive(
       if (p.points < 0) decisions.push({ ...base, kind: "bonus", value: -p.points });
     }
 
-    // Pénalités que FS a appliquées sans les lister (petites pénalités d'espace aérien…) : le total publié est
-    // plus bas que la somme des points, une fois les pénalités listées déduites.
+    // Écart entre la somme des points et le total publié, une fois les pénalités listées déduites : elevated goal
+    // (FS publie les points de temps sans la réduction, 13.1) ou pénalités que FS n'a pas listées.
+    const unexplained = new Map<string, number>();
     for (const r of page.pilots) {
-      if (r.pointsSum === null || r.total === null) continue;
+      if (r.pointsSum === null || r.total === null || r.total <= 0) continue;
       let expected = r.pointsSum;
       for (const d of decisions.filter((x) => x.pilot_key === r.key)) {
         if (d.kind === "penalty-percent") expected -= (r.pointsSum * (d.value ?? 0)) / 100;
         if (d.kind === "penalty") expected -= d.value ?? 0;
         if (d.kind === "bonus") expected += d.value ?? 0;
       }
-      const missing = Math.round((Math.max(0, expected) - r.total) * 10) / 10;
-      if (missing >= 0.2 && r.total > 0)
-        decisions.push({ pilot_key: r.key, pilot_name: r.name, kind: "penalty", value: missing, reason: t("Pénalité appliquée par FS, non détaillée sur civlcomps.org"), created_at: Date.now() });
+      unexplained.set(r.key, Math.round((Math.max(0, expected) - r.total) * 10) / 10);
     }
+    const timePoints = new Map(page.pilots.filter((r) => r.timePoints).map((r) => [r.key, r.timePoints!]));
+    const fitGoal = [...unexplained].some(([k, v]) => v >= 0.2 && timePoints.has(k));
+    const goalAltitudes = new Map<string, number>();
 
     // Absents et non partis, comme les a notés l'organisateur (leur trace éventuelle ne compte pas).
     for (const r of page.pilots) {
@@ -581,8 +613,37 @@ export async function civlToArchive(
         files[file] = store ? { stored: sha256, size: data.length } : data;
         const filename = (path.split(/[\\/]/).pop() ?? path).replace(/#U([0-9a-f]{4})/gi, (_, x: string) => String.fromCharCode(parseInt(x, 16)));
         tracks.push({ pilot_key: key, pilot_name: names.get(key) ?? null, filename, sha256, size: data.length, uploaded_at: Date.now(), note: null, file });
+        if (fitGoal && timePoints.has(key)) {
+          try {
+            const c = controlFlight(task, parseIgc(dec.decode(data)).fixes);
+            if (c.madeGoal && c.goalAltitude !== null) goalAltitudes.set(key, c.goalAltitude);
+          } catch {
+            // Trace illisible : elle sera signalée au calcul.
+          }
+        }
       }
     } else warnings.push(t("{task} : pas de traces publiées.", { task: link.label }));
+
+    // Elevated goal : FS ne publie pas l'élévation, on la retrouve par les altitudes de passage du goal.
+    const factors = new Map<string, number>();
+    if (goalAltitudes.size) {
+      const elevation = fitElevatedGoal(task, goalAltitudes, timePoints, unexplained);
+      if (elevation) {
+        task.elevatedGoal = elevation;
+        const goalAlt = task.turnpoints.at(-1)!.zone.waypoint.altitude ?? 0;
+        for (const [k, alt] of goalAltitudes) factors.set(k, goalAltitudeFactor(alt, goalAlt, elevation));
+        warnings.push(t("{task} : elevated goal de {m} m retrouvé d'après les points publiés.", { task: link.label, m: elevation }));
+      }
+    }
+    // Ce qui reste : pénalités appliquées par FS sans être listées (petites pénalités d'espace aérien…).
+    for (const r of page.pilots) {
+      const gap = unexplained.get(r.key);
+      if (gap === undefined) continue;
+      const reduction = Math.round((timePoints.get(r.key) ?? 0) * (1 - (factors.get(r.key) ?? 1)) * 10) / 10;
+      const missing = Math.round((gap - reduction) * 10) / 10;
+      if (missing >= 0.2)
+        decisions.push({ pilot_key: r.key, pilot_name: r.name, kind: "penalty", value: missing, reason: t("Pénalité appliquée par FS, non détaillée sur civlcomps.org"), created_at: Date.now() });
+    }
 
     tasks.push({
       number: n,

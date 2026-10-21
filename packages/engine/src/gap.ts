@@ -59,6 +59,8 @@ export interface GapPilotInput {
   leadingFactor: number | null;
   /** Manche arrêtée : le pilote volait encore à l'heure d'arrêt. */
   flyingAtStop?: boolean;
+  /** Elevated goal (13.1) : facteur des points de temps selon l'altitude de passage du goal (0,8 à 1). */
+  goalAltitudeFactor?: number;
   /** Pénalité : en part des points (0 à 1, appliquée d'abord), puis en points (13.5). Négative = bonus. */
   penalty?: { fraction?: number; points?: number };
 }
@@ -259,6 +261,7 @@ export function scoreGap(input: GapTaskInput): GapTaskScore {
       time = speedFraction(p.speedSectionTime, bestTime) * available.time;
       if (timePointsReduction) time = Math.max(0, time - timePointsReduction);
       time = round(time, 1);
+      if (p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1) time = round(time * p.goalAltitudeFactor, 1);
     }
     const leading = p.leadingFactor !== null ? round(p.leadingFactor * available.leading, 1) : 0;
     const score = round(distance + time + leading, 1);
@@ -284,4 +287,16 @@ export function scoreGap(input: GapTaskInput): GapTaskScore {
     timePointsReduction,
     pilots,
   };
+}
+
+/**
+ * Elevated goal (13.1) : facteur des points de temps d'un pilote qui passe le goal à l'altitude `crossing`,
+ * pour un goal publié à `goalAltitude` et élevé de `elevation` mètres. 0,8 au niveau du goal ou dessous,
+ * 1 à partir de l'élévation, entre les deux 0,8 + 0,6·AR − 0,6·AR² + 0,2·AR³ avec AR la part de l'élévation atteinte.
+ */
+export function goalAltitudeFactor(crossing: number, goalAltitude: number, elevation: number): number {
+  if (!(elevation > 0) || crossing >= goalAltitude + elevation) return 1;
+  if (crossing <= goalAltitude) return 0.8;
+  const ar = (crossing - goalAltitude) / elevation;
+  return 0.8 + 0.6 * ar - 0.6 * ar * ar + 0.2 * ar ** 3;
 }

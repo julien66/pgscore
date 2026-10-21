@@ -932,6 +932,11 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         goal.zone = { kind: "goal-line", waypoint: goal.zone.waypoint, length: GOAL_LINE_LENGTH };
       else if (goal && f.goalKind === "cylinder" && goal.zone.kind === "goal-line")
         goal.zone = { kind: "cylinder", waypoint: goal.zone.waypoint, radius: Math.max(GOAL_LINE_LENGTH, goal.zone.length / 2) };
+      // Elevated goal (13.1) : hauteur au-dessus de l'altitude publiée du goal ; vide ou 0 = goal ordinaire.
+      const eg = String(f.elevatedGoal ?? "").trim().replace(",", ".");
+      if (eg === "" || Number(eg) === 0) delete task.elevatedGoal;
+      else if (Number.isFinite(Number(eg)) && Number(eg) > 0 && Number(eg) <= 1000) task.elevatedGoal = Number(eg);
+      else throw new Error(t("Elevated goal : hauteur entre 0 et 1000 m attendue."));
       if (stop) task.stopAnnouncement = localHmsToUtc(stop, date, tz);
       else delete task.stopAnnouncement;
       const gr = String(f.bonusGlideRatio ?? "").trim().replace(",", ".");

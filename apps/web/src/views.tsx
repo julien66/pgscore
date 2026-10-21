@@ -1371,6 +1371,10 @@ export const TaskPage: FC<{
             </select>
           </div>
           <div>
+            <label>{t("Elevated goal : hauteur au-dessus du goal (m)")}</label>
+            <input type="number" step="1" min="0" max="1000" name="elevatedGoal" placeholder={t("vide : goal ordinaire (S7F : 300)")} value={task.elevatedGoal ? String(task.elevatedGoal) : ""} />
+          </div>
+          <div>
             <label>{t("Manche arrêtée : heure d'annonce (locale)")}</label>
             <input type="text" name="stop" placeholder="HH:MM" value={loc(task.stopAnnouncement)} />
           </div>
@@ -2265,6 +2269,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
   // Classement extrait : seulement ses pilotes, rang recalculé ; les points restent ceux de la manche.
   const shown = only ? r.pilots.filter((p) => only.has(p.id)) : r.pilots;
   const stopped = r.pilots.some((p) => p.stop);
+  const elevated = r.pilots.some((p) => p.goalAltitudeFactor !== undefined);
   const counts = (s: string) => r.pilots.filter((p) => p.status === s).length;
   // Calcul fait avant l'arrivée des points GAP : il faut le relancer.
   const withPoints = Boolean(r.gap);
@@ -2308,6 +2313,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
               <th class="n">{t("Temps")}</th>
               <th class="n">{t("Distance")}</th>
               {stopped ? <th class="n">{t("Alt. à l'arrêt")}</th> : null}
+              {elevated ? <th class="n">{t("Alt. au goal")}</th> : null}
               <th class="n">LC</th>
               {withPoints ? (
                 <>
@@ -2345,6 +2351,12 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                 <td class="n">{duration(p.speedSectionTime)}</td>
                 <td class="n">{km(p.distance)} km</td>
                 {stopped ? <td class="n">{p.stop?.flying ? `${Math.round(p.stop.altitudeAboveGoal)} m` : ""}</td> : null}
+                {elevated ? (
+                  <td class="n" title={p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1 ? t("Points de temps × {f} (elevated goal passé trop bas)", { f: p.goalAltitudeFactor.toFixed(3) }) : undefined}>
+                    {p.goalAltitude != null ? `${Math.round(p.goalAltitude)} m` : ""}
+                    {p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1 ? ` ×${p.goalAltitudeFactor.toFixed(3)}` : ""}
+                  </td>
+                ) : null}
                 <td class="n">
                   {p.leadingWarnings?.length ? (
                     <span class="lead-warn" title={t("Leading peut-être faussé : {why}", { why: p.leadingWarnings.map(leadingWarning).join(", ") })}>
@@ -2392,6 +2404,7 @@ export function resultsCsv(r: TaskScoring, tz: string): string {
   const head = [
     "rang", "pilote", "nom", "statut", "depart", "ess", "temps_s", "distance_km", "alt_arret_m", "lc", "leading",
     "pts_distance", "pts_temps", "pts_leading", "penalite_pts", "total", "espace_aerien", "profondeur_m", "penalite", "decisions", "alerte_leading",
+    "alt_goal_m", "facteur_alt_goal",
   ];
   const q = (v: unknown) => {
     const s = v === null || v === undefined ? "" : String(v);
@@ -2419,6 +2432,8 @@ export function resultsCsv(r: TaskScoring, tz: string): string {
     penalty(p),
     (p.decisions ?? []).map((d) => `${decisionLabel(d.kind, d.value)} : ${d.reason}`).join(" | "),
     (p.leadingWarnings ?? []).map(leadingWarning).join(" | "),
+    p.goalAltitude != null ? Math.round(p.goalAltitude) : "",
+    p.goalAltitudeFactor !== undefined ? p.goalAltitudeFactor.toFixed(4) : "",
   ]);
   return [head, ...rows].map((r) => r.map(q).join(",")).join("\n") + "\n";
 }

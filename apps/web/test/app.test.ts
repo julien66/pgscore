@@ -105,6 +105,11 @@ describe("interface web", () => {
     await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, goalKind: flip }) });
     expect(goal().kind).toBe(flip);
     if (flip === "goal-line") expect(goal().length).toBe(200);
+    const stored = () => JSON.parse((db.prepare("SELECT task FROM tasks").get() as { task: string }).task);
+    await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, elevatedGoal: "300" }) });
+    expect(stored().elevatedGoal).toBe(300);
+    await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, elevatedGoal: "" }) });
+    expect(stored().elevatedGoal).toBeUndefined();
   });
 
   it("enregistre et supprime les décisions de l'organisateur", async () => {
