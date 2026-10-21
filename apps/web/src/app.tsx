@@ -26,7 +26,7 @@ import { addDecision, deleteDecision, listDecisions, touchScoring } from "./deci
 import { controlTask, DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
 import { clientScript, isLang, lang, LANG_COOKIE, pickLang, t, withLang } from "./i18n.js";
-import { competitionStandings, competitionSummaries, competitionWinners, extractStandings, lastScoringChange, standingsCsv } from "./standings.js";
+import { competitionStandings, competitionSummaries, competitionWinners, extractStandings, lastScoringChange, standingsCsv, type StandingsView } from "./standings.js";
 import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRankings, rankingMembers, setOverride, updateRanking } from "./rankings.js";
 import { listPilots, pilotsCsv, registerTrackPilots, trackPilots, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
@@ -494,7 +494,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     extra: { error?: string; notice?: string; v?: CompetitionFormValues; edit?: boolean; board?: BoardQuery } = {},
   ) => {
     const bq = extra.board ?? {};
-    const x = standingsOf(comp, bq.rid);
+    const x = standingsOf(comp, bq.rid, bq.view);
     const tasks = db.prepare("SELECT * FROM tasks WHERE competition_id = ? ORDER BY number").all(comp.id) as unknown as TaskRow[];
     let count: number | null = null;
     if (comp.airspace_text) {
@@ -539,9 +539,15 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   };
 
   /** Vue du classement demandée dans l'adresse de la page de la compétition. */
-  type BoardQuery = { rid?: string; create?: boolean; all?: boolean; error?: string; notice?: string };
+  type BoardQuery = { rid?: string; view?: StandingsView; create?: boolean; all?: boolean; error?: string; notice?: string };
+  /** Manche choisie dans les onglets du classement (?m=id), seule ou en cumul (&cum=1). */
+  const viewQuery = (c: Context<Env>): StandingsView => {
+    const m = Number(c.req.query("m"));
+    return Number.isInteger(m) && m > 0 ? { task: m, cumulative: c.req.query("cum") === "1" } : {};
+  };
   const boardQuery = (c: Context<Env>): BoardQuery => ({
     rid: c.req.query("r"),
+    view: viewQuery(c),
     create: c.req.query("new") === "1",
     all: c.req.query("all") === "1",
     notice: c.req.query("note"),
@@ -684,8 +690,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   });
 
   /** Classement affiché : le général, ou un classement extrait (?r=id). */
-  const standingsOf = (comp: CompetitionRow, rid: string | undefined) => {
-    const all = competitionStandings(db, comp);
+  const standingsOf = (comp: CompetitionRow, rid: string | undefined, view: StandingsView = {}) => {
+    const all = competitionStandings(db, comp, view);
     const pilots = listPilots(db, comp.id);
     const rankings = listRankings(db, comp.id);
     const members = new Map(rankings.map((r) => [r.row.id, rankingMembers(r, pilots)]));
@@ -709,9 +715,12 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   app.get("/competitions/:id/standings.csv", (c) => {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
-    const x = standingsOf(comp, c.req.query("r"));
+    const x = standingsOf(comp, c.req.query("r"), viewQuery(c));
     if (c.req.query("r") && !x.current) return notFound(c);
-    const slug = x.current ? x.current.row.name.normalize("NFD").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase() : "general";
+    const v = x.s.view;
+    const slug =
+      (x.current ? x.current.row.name.normalize("NFD").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase() : "general") +
+      (v ? `-${v.cumulative ? "apres-" : ""}m${v.task.t.number}` : "");
     return c.body(standingsCsv(x.s), 200, {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="classement-${slug}.csv"`,

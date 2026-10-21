@@ -179,6 +179,38 @@ describe("interface web", () => {
     expect(await (await req(compUrl)).text()).toContain("Aucune manche officielle calculée");
   });
 
+  it("affiche le classement à la manche, seule ou en cumul, depuis les calculs enregistrés", async () => {
+    const { req, db } = setup();
+    const { compUrl, taskUrl } = await createCompetitionAndTask(req);
+    const ft = new FormData();
+    ft.append("number", "4");
+    ft.append("date", "2026-07-29");
+    ft.append("text", QR);
+    const task2Url = (await req(`${compUrl}/tasks`, { method: "POST", body: ft })).headers.get("location")!.split("?")[0]!;
+    const gap = { validity: { task: 1 }, available: { distance: 400, time: 350, leading: 250, arrival: 0 } };
+    const run = (url: string, pilots: Array<{ id: string; name: string; total: number }>) =>
+      db.prepare("INSERT INTO runs (task_id, status, results, started_at, finished_at) VALUES (?, 'done', ?, ?, ?)").run(
+        Number(url.split("/").pop()),
+        JSON.stringify({ pilots, gap }),
+        Date.now() + 1000,
+        Date.now() + 2000,
+      );
+    run(taskUrl, [{ id: "12", name: "Ana", total: 1000 }, { id: "7", name: "Bruno", total: 500 }]);
+    run(task2Url, [{ id: "7", name: "Bruno", total: 1000 }, { id: "12", name: "Ana", total: 200 }]);
+    for (const u of [taskUrl, task2Url]) await req(`${u}/official`, { method: "POST", body: new URLSearchParams({ official: "1" }) });
+    const id1 = taskUrl.split("/").pop();
+    const id2 = task2Url.split("/").pop();
+    const first = async (q: string) => (await (await req(`${compUrl}/standings.csv${q}`)).text()).trim().split("\n").slice(1).map((l) => l.split(",").slice(0, 2).join(","));
+    // Manche seule : M4 gagnée par Bruno ; cumul après M3 : M3 seule ; toutes les manches : Bruno devant.
+    expect(await first(`?m=${id2}`)).toEqual(["1,7", "2,12"]);
+    expect(await first(`?m=${id1}&cum=1`)).toEqual(["1,12", "2,7"]);
+    expect(await first("")).toEqual(["1,7", "2,12"]);
+    const page = await (await req(`${compUrl}?m=${id2}`)).text();
+    expect(page).toContain("Toutes les manches");
+    expect(page).toContain("Cumul après M4");
+    expect(page).toContain(`/tasks/${id2}#results`);
+  });
+
   it("importe, modifie et retire les pilotes inscrits", async () => {
     const { req, db } = setup();
     const { compUrl } = await createCompetitionAndTask(req);

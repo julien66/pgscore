@@ -69,11 +69,12 @@ table.pilots .in-s{width:72px}table.pilots .in-m{width:120px}table.pilots .in-l{
 [data-swap].loading{opacity:.55;transition:opacity .15s}
 .tabs a.tab-end,.tabs form.tab-end{margin-left:auto}
 .tabs form.tab-end{align-self:center}
+.mtabs{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin:-4px 0 10px}.mtabs a{padding:2px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:13px}.mtabs a.on{background:var(--chip);color:var(--text);font-weight:600}.mtabs .sep{width:8px}.mtabs a.mlink{border:0;font-size:12px}
 .tabs .task-tabs{display:flex;gap:2px;margin-left:auto;align-self:flex-end}.tabs .task-tabs a{padding:6px 10px}
 table.rk.sport-hidden .sp{display:none}.sp-toggle .sp-open{display:none}html.sport-open .sp-toggle .sp-open{display:inline}html.sport-open .sp-toggle .sp-closed{display:none}.rk-bar{display:flex;justify-content:flex-end;align-items:center;gap:8px 16px;flex-wrap:wrap;margin:4px 0}.rk-bar .acts{margin-right:auto}
 @page{size:A4 portrait;margin:8mm}
 .print-head{display:none}
-body.printing{background:#fff;color:#000;font-size:10px}body.printing header,body.printing .no-print,body.printing .print-me nav.tabs,body.printing .print-me h2,body.printing .print-me .note,body.printing .print-me .print-rk,body.printing .print-me .rk-bar{display:none!important}
+body.printing{background:#fff;color:#000;font-size:10px}body.printing header,body.printing .no-print,body.printing .print-me nav.tabs,body.printing .print-me nav.mtabs,body.printing .print-me h2,body.printing .print-me .note,body.printing .print-me .print-rk,body.printing .print-me .rk-bar{display:none!important}
 body.printing main{max-width:none;width:194mm;padding:0;margin:0}body.printing .print-me{border:0;padding:0;margin:0;background:none}
 body.printing .print-head{display:block;margin:0 0 6px}body.printing .print-head strong{font-size:14px}body.printing .print-head span{color:#555;margin-left:8px}
 body.printing .print-me>p{font-size:8px;margin:2px 0}body.printing .scroll{overflow:visible}body.printing table.rk{width:auto;font-size:8px;color:#000}body.printing table.rk th,body.printing table.rk td{padding:1.5px 3px;border-color:#ccc}
@@ -971,7 +972,8 @@ const TotalHead: FC = () => <th class="n">{t("Total")}</th>;
 
 export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: number; rid?: number; registry?: PilotRow[] }> = ({ c, s, limit, rid, registry = [] }) => {
   const r = s.ranking;
-  const q = rid ? `?r=${rid}` : "";
+  const v = viewOf(s);
+  const q = boardQs({ r: rid, ...v });
   if (!s.ranked.length)
     return (
       <>
@@ -1042,7 +1044,7 @@ export const StandingsTable: FC<{ c: CompetitionRow; s: Standings; limit?: numbe
       <p class="small mt">
         {limit && r.pilots.length > limit ? (
           <>
-            <a class="swap" href={boardUrl(c, { r: rid, all: true })}>
+            <a class="swap" href={boardUrl(c, { r: rid, all: true, ...v })}>
               {t("Voir les {n} pilotes", { n: r.pilots.length })}
             </a>{" "}
             ·{" "}
@@ -1076,19 +1078,20 @@ const DeleteRanking: FC<{ c: CompetitionRow; id: number; name: string; cls?: str
   </form>
 );
 
-const RankingTabs: FC<{ c: CompetitionRow; rankings: Array<{ id: number; name: string; count?: number }>; current: number | null; create?: boolean; canEdit?: boolean }> = ({
-  c,
-  rankings,
-  current,
-  create,
-  canEdit,
-}) => (
+const RankingTabs: FC<{
+  c: CompetitionRow;
+  rankings: Array<{ id: number; name: string; count?: number }>;
+  current: number | null;
+  create?: boolean;
+  canEdit?: boolean;
+  keep?: BoardView;
+}> = ({ c, rankings, current, create, canEdit, keep = {} }) => (
   <nav class="tabs">
-    <a href={boardUrl(c)} class={`swap${current === null && !create ? " on" : ""}`}>
+    <a href={boardUrl(c, keep)} class={`swap${current === null && !create ? " on" : ""}`}>
       {t("Général")}
     </a>
     {rankings.map((r) => (
-      <a href={boardUrl(c, { r: r.id })} class={`swap${current === r.id ? " on" : ""}`}>
+      <a href={boardUrl(c, { r: r.id, ...keep })} class={`swap${current === r.id ? " on" : ""}`}>
         {t(r.name)}
       </a>
     ))}
@@ -1210,21 +1213,75 @@ export interface Board {
   notice?: string | null;
 }
 
-/** Adresse d'une vue du classement, sur la page de la compétition. */
-export const boardUrl = (c: CompetitionRow, q: { r?: number | null; all?: boolean; create?: boolean } = {}) => {
+/** Manche choisie dans le classement : id de la manche, seule ou en cumul jusqu'à elle. */
+type BoardView = { m?: number; cum?: boolean };
+const viewOf = (s: Standings): BoardView => (s.view ? { m: s.view.task.t.id, cum: s.view.cumulative } : {});
+
+/** Paramètres d'une vue du classement (« ?r=…&m=… »), vide pour le général. */
+const boardQs = (q: { r?: number | null; all?: boolean; create?: boolean } & BoardView = {}) => {
   const p = new URLSearchParams();
   if (q.r) p.set("r", String(q.r));
+  if (q.m) p.set("m", String(q.m));
+  if (q.m && q.cum) p.set("cum", "1");
   if (q.all) p.set("all", "1");
   if (q.create) p.set("new", "1");
   const qs = p.toString();
-  return `/competitions/${c.id}${qs ? `?${qs}` : ""}#standings`;
+  return qs ? `?${qs}` : "";
+};
+
+/** Adresse d'une vue du classement, sur la page de la compétition. */
+export const boardUrl = (c: CompetitionRow, q: { r?: number | null; all?: boolean; create?: boolean } & BoardView = {}) =>
+  `/competitions/${c.id}${boardQs(q)}#standings`;
+
+/**
+ * Onglets des manches, sous ceux des classements : toutes les manches (le général), ou une manche,
+ * seule ou en cumul jusqu'à elle. Le classement choisi (féminin, sponsors…) reste appliqué.
+ */
+const TaskTabs: FC<{ c: CompetitionRow; s: Standings; rid?: number }> = ({ c, s, rid }) => {
+  if (s.official.length < 2) return null;
+  const v = s.view;
+  const cum = v?.cumulative ?? false;
+  return (
+    <nav class="mtabs" aria-label={t("Manches")}>
+      <a href={boardUrl(c, { r: rid })} class={`swap${v ? "" : " on"}`}>
+        {t("Toutes les manches")}
+      </a>
+      {s.official.map((x) => (
+        <a href={boardUrl(c, { r: rid, m: x.t.id, cum })} class={`swap${v?.task.t.id === x.t.id ? " on" : ""}`}>
+          {t("M{n}", { n: x.t.number })}
+        </a>
+      ))}
+      {v ? (
+        <>
+          <span class="sep" />
+          <a href={boardUrl(c, { r: rid, m: v.task.t.id })} class={`swap${cum ? "" : " on"}`}>
+            {t("Manche seule")}
+          </a>
+          <a href={boardUrl(c, { r: rid, m: v.task.t.id, cum: true })} class={`swap${cum ? " on" : ""}`}>
+            {t("Cumul après M{n}", { n: v.task.t.number })}
+          </a>
+          <a class="mlink" href={`/tasks/${v.task.t.id}${rid ? `?r=${rid}` : ""}#results`}>
+            {t("Détail de la manche")} →
+          </a>
+        </>
+      ) : null}
+    </nav>
+  );
 };
 
 const StandingsBoard: FC<{ c: CompetitionRow; b: Board }> = ({ c, b }) => {
   const { s, pilots, rankings, current, create } = b;
   return (
     <>
-      <RankingTabs c={c} rankings={rankings.map((x) => ({ id: x.r.row.id, name: x.r.row.name, count: x.count }))} current={current?.row.id ?? null} create={create} canEdit={b.canEdit} />
+      <RankingTabs
+        c={c}
+        rankings={rankings.map((x) => ({ id: x.r.row.id, name: x.r.row.name, count: x.count }))}
+        current={current?.row.id ?? null}
+        create={create}
+        canEdit={b.canEdit}
+        keep={create ? {} : viewOf(s)}
+      />
+      {create ? null : <TaskTabs c={c} s={s} rid={current?.row.id} />}
       <ErrorBox message={b.error} />
       {b.notice ? <div class="note">{b.notice}</div> : null}
       {create ? (

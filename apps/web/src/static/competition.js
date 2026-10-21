@@ -41,8 +41,11 @@
     }
     const title = document.title;
     const page = title.replace(/ · pgscore$/, "");
-    const tab = box.querySelector("nav.tabs a.on");
-    const which = tab ? tab.textContent.trim() : "";
+    // Classement choisi, puis manche et vue (« M2 · Cumul après M2 ») s'il y en a une.
+    const which = [...box.querySelectorAll("nav.tabs a.on, nav.mtabs a.on:not(:first-child)")]
+      .map((a) => a.textContent.trim())
+      .filter(Boolean)
+      .join(" · ");
     const head = document.createElement("div");
     head.className = "print-head";
     const strong = document.createElement("strong");

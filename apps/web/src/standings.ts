@@ -37,10 +37,24 @@ export interface Standings {
   /** Manches officielles et calculées, dans l'ordre (clé = id de la manche). */
   ranked: StandingsTask[];
   ranking: CompetitionRanking;
+  /** Toutes les manches officielles calculées, même quand la vue s'arrête à l'une d'elles (onglets des manches). */
+  official: StandingsTask[];
+  /** Vue à la manche : la manche choisie, seule ou en cumul jusqu'à elle. */
+  view?: { task: StandingsTask; cumulative: boolean };
 }
 
-/** Classement général : dernier calcul de chaque manche officielle, avec le FTV de la compétition. */
-export function competitionStandings(db: Db, comp: CompetitionRow): Standings {
+/** Vue demandée : une manche (id), seule ou en cumul des manches officielles jusqu'à elle. */
+export interface StandingsView {
+  task?: number;
+  cumulative?: boolean;
+}
+
+/**
+ * Classement général : dernier calcul de chaque manche officielle, avec le FTV de la compétition.
+ * Avec une manche, le classement de cette manche seule (sans FTV), ou le général arrêté après elle.
+ * Tout vient des calculs déjà enregistrés : rien n'est recalculé ni stocké en plus.
+ */
+export function competitionStandings(db: Db, comp: CompetitionRow, view: StandingsView = {}): Standings {
   const rows = db.prepare("SELECT * FROM tasks WHERE competition_id = ? ORDER BY number, id").all(comp.id) as unknown as TaskRow[];
   const tasks: StandingsTask[] = [];
   const inputs = [];
@@ -74,7 +88,22 @@ export function competitionStandings(db: Db, comp: CompetitionRow): Standings {
       results: r.pilots.map((p) => ({ pilot: p.id, name: names.get(p.id) ?? p.name, total: p.total })),
     });
   }
-  return { tasks, ranked, ranking: competitionRanking(inputs, parseSettings(comp.params).ftvFactor) };
+  const ftv = parseSettings(comp.params).ftvFactor;
+  const at = view.task === undefined ? -1 : ranked.findIndex((x) => x.t.id === view.task);
+  if (at < 0) return { tasks, ranked, official: ranked, ranking: competitionRanking(inputs, ftv) };
+  const task = ranked[at]!;
+  if (view.cumulative) {
+    const last = tasks.indexOf(task);
+    return {
+      tasks: tasks.slice(0, last + 1),
+      ranked: ranked.slice(0, at + 1),
+      official: ranked,
+      ranking: competitionRanking(inputs.slice(0, at + 1), ftv),
+      view: { task, cumulative: true },
+    };
+  }
+  // Manche seule : ses points, sans FTV (facteur 0, donc tout compte).
+  return { tasks: [task], ranked: [task], official: ranked, ranking: competitionRanking([inputs[at]!], 0), view: { task, cumulative: false } };
 }
 
 export function standingsCsv(s: Standings): string {
