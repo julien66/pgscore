@@ -673,7 +673,10 @@ export async function civlToArchive(
         airspace: null,
       },
       pilots: [...pilots.values()],
-      rankings: [],
+      // Classement féminin, comme à la création d'une compétition, s'il y a des pilotes femmes.
+      rankings: [...pilots.values()].some((p) => p.gender === "F")
+        ? [{ name: "Féminin", rule: { conditions: [{ field: "gender", op: "in", value: "F" }] }, overrides: [] }]
+        : [],
       tasks,
     },
     files,
