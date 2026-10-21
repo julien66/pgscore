@@ -69,6 +69,21 @@ export function removeTrack(db: Db, taskId: number, trackId: number, userId: num
   return true;
 }
 
+/** Retire d'un coup toutes les traces en vigueur de la manche : chacune passe dans l'historique. Rend le nombre retiré. */
+export function removeAllTracks(db: Db, taskId: number, userId: number): number {
+  const olds = db.prepare("SELECT * FROM tracks WHERE task_id = ?").all(taskId) as unknown as TrackRow[];
+  db.exec("BEGIN");
+  try {
+    for (const old of olds) archive(db, old, userId, "removed");
+    db.prepare("DELETE FROM tracks WHERE task_id = ?").run(taskId);
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
+  return olds.length;
+}
+
 export function trackHistory(db: Db, taskId: number): TrackHistoryRow[] {
   return db
     .prepare(

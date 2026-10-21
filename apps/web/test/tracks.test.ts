@@ -163,6 +163,24 @@ describe("fichiers IGC hors de la base", () => {
     expect((await req(`${url}/pilots/999`)).status).toBe(404);
   });
 
+  it("retire toutes les traces de la manche d'un coup, en les gardant dans l'historique", async () => {
+    const { db, req, url } = await minimalTask();
+    await req(`${url}/tracks`, { method: "POST", body: upload("42.igc", IGC) });
+    await req(`${url}/tracks`, { method: "POST", body: upload("43.igc", IGC2) });
+    expect(db.prepare("SELECT COUNT(*) n FROM tracks").get()).toEqual({ n: 2 });
+    const page = await (await req(`${url}/edit`)).text();
+    expect(page).toContain(`action="${url}/tracks/delete-all"`);
+    expect(page).toContain("Retirer les 2 traces de cette manche ?");
+    const r = await req(`${url}/tracks/delete-all`, { method: "POST" });
+    expect(r.status).toBe(302);
+    expect(db.prepare("SELECT COUNT(*) n FROM tracks").get()).toEqual({ n: 0 });
+    expect(db.prepare("SELECT pilot_key, ended_how FROM track_history ORDER BY pilot_key").all()).toEqual([
+      { pilot_key: "42", ended_how: "removed" },
+      { pilot_key: "43", ended_how: "removed" },
+    ]);
+    expect(await (await req(`${url}/edit`)).text()).not.toContain("/tracks/delete-all");
+  });
+
   it("refuse une archive à plusieurs traces pour un remplacement", async () => {
     const { db, req, url } = await minimalTask();
     await req(`${url}/tracks`, { method: "POST", body: upload("42.igc", IGC) });

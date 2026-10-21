@@ -508,6 +508,8 @@ const dict: Record<string, string> = {
   "Importer": "Import",
   "Exporter en CSV": "Export as CSV",
   "Fichier FSDB (logiciel FS de la CIVL) ou CSV avec une ligne d'en-tête : numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg, sponsor (seuls numero et nom sont obligatoires ; une colonne « voile » ou « sellette » seule est coupée en marque et modèle). Un pilote déjà inscrit sous le même numéro est mis à jour. Le numéro est celui des traces.": "FSDB file (CIVL FS software) or CSV with a header row: numero, nom, genre, nation, civl_id, voile_marque, voile_modele, voile_classe, sellette_marque, sellette_modele, ptv_max_kg, sponsor (only numero and nom are required; a single “voile” (glider) or “sellette” (harness) column is split into make and model). A pilot already registered under the same number is updated. The number is the one used in the tracks.",
+  "Retirer toutes les traces": "Remove all tracks",
+  "Retirer les {n} traces de cette manche ? Elles restent dans les anciennes versions, mais le prochain calcul se fera sans elles.": "Remove the {n} tracks of this task? They stay in the old versions, but the next scoring will run without them.",
   "Retirer": "Remove",
   "Retirer ce pilote à l'enregistrement": "Remove this pilot on save",
   "nouveau": "new",

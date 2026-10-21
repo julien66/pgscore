@@ -21,7 +21,7 @@ import type { CompetitionRow, Db, RunRow, TaskRow, TrackRow, User } from "./db.j
 import { collectIgc, decodeQrImage, decodeText, nameKey, pilotKeyForTrack } from "./files.js";
 import { isRunning, startRun, startRuns } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
-import { pilotVersions, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
+import { pilotVersions, removeAllTracks, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
 import { addDecision, deleteDecision, listDecisions, touchScoring } from "./decisions.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
@@ -1064,6 +1064,14 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       "content-type": "application/octet-stream",
       "content-disposition": `attachment; filename="${f.filename.replace(/[^\w.-]/g, "_")}"`,
     });
+  });
+
+  // Retirer toutes les traces de la manche (après confirmation sur la page) : elles restent dans l'historique.
+  app.post("/tasks/:id/tracks/delete-all", (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    removeAllTracks(db, x.t.id, me(c).id);
+    return c.redirect(`/tasks/${x.t.id}/edit#tracks`);
   });
 
   app.post("/tasks/:id/tracks/:trackId/delete", (c) => {

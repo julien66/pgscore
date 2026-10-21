@@ -1496,6 +1496,14 @@ export const TaskPage: FC<{
                 </tbody>
               </table>
             </div>
+            <form
+              method="post"
+              action={`/tasks/${tk.id}/tracks/delete-all`}
+              class="mt"
+              onsubmit={`return confirm(${JSON.stringify(t("Retirer les {n} traces de cette manche ? Elles restent dans les anciennes versions, mais le prochain calcul se fera sans elles.", { n: tracks.length }))})`}
+            >
+              <button class="link">{t("Retirer toutes les traces")}</button>
+            </form>
           </details>
         ) : null}
         {history.length ? (
