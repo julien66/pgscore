@@ -26,7 +26,7 @@ import { addDecision, deleteDecision, listDecisions, touchScoring } from "./deci
 import { controlTask, DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
 import { clientScript, isLang, lang, LANG_COOKIE, pickLang, t, withLang } from "./i18n.js";
-import { competitionStandings, competitionSummaries, competitionWinner, extractStandings, lastScoringChange, standingsCsv } from "./standings.js";
+import { competitionStandings, competitionSummaries, competitionWinners, extractStandings, lastScoringChange, standingsCsv } from "./standings.js";
 import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRankings, rankingMembers, setOverride, updateRanking } from "./rankings.js";
 import { listPilots, pilotsCsv, registerTrackPilots, trackPilots, pilotsFromFile, savePilotTable, upsertPilots } from "./pilots.js";
 import { taskGeometry, viewerData } from "./viewer-data.js";
@@ -256,7 +256,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const user = c.get("user");
     // Chiffres de chaque compétition, et vainqueur du général une fois terminée.
     const sums = competitionSummaries(db);
-    const detail = <T extends CompetitionRow>(r: T) => ({ ...r, summary: sums.get(r.id), winner: competitionWinner(db, r) });
+    const detail = <T extends CompetitionRow>(r: T) => ({ ...r, summary: sums.get(r.id), winners: competitionWinners(db, r) });
     const recent = rows
       .filter((r) => r.scored_at && r.owner_id !== user?.id)
       .sort((a, b) => b.scored_at! - a.scored_at!)

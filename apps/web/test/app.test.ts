@@ -239,6 +239,10 @@ describe("interface web", () => {
     expect(rk.map((r) => r.name)).toEqual(["Féminin"]);
     const fem = await (await req(`${compUrl}/standings.csv?r=${rk[0]!.id}`)).text();
     expect(fem.split("\n").slice(1, 3).map((l) => l.split(",").slice(0, 3).join(","))).toEqual(["1,12,Ana", "2,9,Chloé"]);
+    expect(await (await req("/")).text()).toContain("vainqueur : Ana · vainqueure féminine : Ana");
+    db.prepare("UPDATE competition_pilots SET gender = 'M' WHERE pilot_key = '12'").run();
+    expect(await (await req("/")).text()).toContain("vainqueur : Ana · vainqueure féminine : Chloé");
+    db.prepare("UPDATE competition_pilots SET gender = 'F' WHERE pilot_key = '12'").run();
     // Serial : EN-C ou EN-D, poids ≤ 110 ; puis Dan ajouté à la main et Ana retirée.
     const rc = await req(`${compUrl}/rankings`, {
       method: "POST",

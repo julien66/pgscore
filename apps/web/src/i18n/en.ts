@@ -167,6 +167,7 @@ const dict: Record<string, string> = {
   "{n} participants": "{n} pilots",
   "{n} km volés": "{n} km flown",
   "vainqueur : {name}": "winner: {name}",
+  "vainqueure féminine : {name}": "women's winner: {name}",
   "Vous ne pouvez pas modifier cette compétition.": "You cannot edit this competition.",
   "par {name}": "by {name}",
   "Autres compétitions": "Other competitions",

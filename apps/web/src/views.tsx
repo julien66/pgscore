@@ -6,7 +6,7 @@ import type { CompetitionRow, DecisionRow, PilotRow, RunRow, TaskRow, TrackHisto
 import { DECISION_KINDS } from "./decisions.js";
 import { GAP_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
-import type { CompetitionSummary, Standings } from "./standings.js";
+import type { CompetitionSummary, CompetitionWinners, Standings } from "./standings.js";
 import { lang, LANGS, locale, N_, t } from "./i18n.js";
 import { PILOT_COLUMNS } from "./pilots.js";
 import { describeRule, RULE_FIELDS, RULE_OPS, type Ranking } from "./rankings.js";
@@ -250,7 +250,7 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
   </Layout>
 );
 
-type HomeComp = CompetitionRow & { owner?: string; scoredAt?: number; summary?: CompetitionSummary; winner?: string | null };
+type HomeComp = CompetitionRow & { owner?: string; scoredAt?: number; summary?: CompetitionSummary; winners?: CompetitionWinners | null };
 const compStats = (c: HomeComp): string[] => {
   const s = c.summary;
   const out: string[] = [];
@@ -259,7 +259,8 @@ const compStats = (c: HomeComp): string[] => {
     out.push(s.pilots === 1 ? t("1 participant") : t("{n} participants", { n: s.pilots }));
     if (s.flown > 0) out.push(t("{n} km volés", { n: Math.round(s.flown / 1000).toLocaleString(locale()) }));
   }
-  if (c.winner) out.push(t("vainqueur : {name}", { name: c.winner }));
+  if (c.winners?.overall) out.push(t("vainqueur : {name}", { name: c.winners.overall }));
+  if (c.winners?.women) out.push(t("vainqueure féminine : {name}", { name: c.winners.women }));
   return out;
 };
 const CompList: FC<{ list: HomeComp[] }> = ({ list }) => (

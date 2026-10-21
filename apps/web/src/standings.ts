@@ -2,6 +2,7 @@ import { competitionRanking, type CompetitionRanking, type Task, type TaskScorin
 import type { CompetitionRow, Db, TaskRow } from "./db.js";
 import { parseSettings } from "./settings.js";
 import { listPilots } from "./pilots.js";
+import { listRankings, rankingMembers } from "./rankings.js";
 
 /** Dernier changement qui rend un calcul périmé : traces envoyées ou retirées, réglages, décisions. */
 export function lastScoringChange(db: Db, t: TaskRow): { tracks: number; changed: number } {
@@ -139,10 +140,30 @@ export function competitionSummaries(db: Db): Map<number, CompetitionSummary> {
   return new Map(rows.map((r) => [r.id, { tasks: r.tasks, pilots: r.registered || r.tracked, flown: r.flown }]));
 }
 
-/** Vainqueur du classement général (ex aequo réunis), une fois la compétition terminée. */
-export function competitionWinner(db: Db, comp: CompetitionRow, today = new Date().toISOString().slice(0, 10)): string | null {
+export interface CompetitionWinners {
+  overall: string | null;
+  women: string | null;
+}
+
+/** Classement féminin : celui dont la règle est « genre F » (ajouts et retraits à la main compris), sinon les pilotes F. */
+function womenKeys(db: Db, comp: CompetitionRow): Set<string> {
+  const pilots = listPilots(db, comp.id);
+  const r = listRankings(db, comp.id).find((x) => {
+    const c = x.rule.conditions;
+    return c.length === 1 && c[0]!.field === "gender" && c[0]!.op === "in" && c[0]!.value.trim().toUpperCase() === "F";
+  });
+  return r ? rankingMembers(r, pilots) : new Set(pilots.filter((p) => p.gender?.toUpperCase() === "F").map((p) => p.pilot_key));
+}
+
+/** Vainqueurs du général et du classement féminin (ex aequo réunis), une fois la compétition terminée. */
+export function competitionWinners(db: Db, comp: CompetitionRow, today = new Date().toISOString().slice(0, 10)): CompetitionWinners | null {
   const end = comp.end_date || comp.start_date;
   if (!end || end >= today) return null;
-  const pilots = competitionStandings(db, comp).ranking.pilots.filter((p) => p.rank === 1 && p.total > 0);
-  return pilots.length ? pilots.map((p) => p.name).join(", ") : null;
+  const all = competitionStandings(db, comp);
+  const first = (s: Standings) => {
+    const p = s.ranking.pilots.filter((x) => x.rank === 1 && x.total > 0);
+    return p.length ? p.map((x) => x.name).join(", ") : null;
+  };
+  const women = womenKeys(db, comp);
+  return { overall: first(all), women: women.size ? first(extractStandings(all, women)) : null };
 }
