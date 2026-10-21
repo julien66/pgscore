@@ -2634,6 +2634,9 @@ export const AboutPage: FC<{ user: User | null }> = ({ user }) => (
           {t("pgscore doit beaucoup à ceux qui l'ont précédé. CompCheck™ d'Ulric Jessop et SVL de Daniel Dimov sont des références : l'évolution et l'histoire du parapente de compétition ont été portées par leurs outils, à une époque où créer un logiciel demandait bien plus d'efforts qu'aujourd'hui. Merci à eux.")}
         </p>
         <p>
+          {t("Merci aussi à Joerg Ewald : en plus de maintenir FS, il a travaillé sans relâche à décrire les standards de scoring. C'est ce travail qui rend possibles aujourd'hui les comparaisons entre logiciels et les initiatives open source comme pgscore.")}
+        </p>
+        <p>
           {t("Un bon logiciel de scoring ouvert à toute la communauté, c'est aussi la possibilité de faire évoluer la compétition elle-même : tester de nouvelles règles et de nouveaux formats compétitifs bien plus facilement, les appliquer à des manches réelles et comparer les classements obtenus.")}
         </p>
       </div>
