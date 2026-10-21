@@ -72,6 +72,8 @@ export interface StoppedFlight {
 export const BONUS_GLIDE_RATIO = 2.5;
 /** Score-back par défaut en parapente (13.4.1), en secondes. */
 export const DEFAULT_SCORE_BACK_TIME = 300;
+/** Une trace qui finit plus tôt que ça avant l'heure d'arrêt ne compte pas comme en vol à l'arrêt (s). */
+export const STOP_TRACK_SLACK = 60;
 
 export interface ControlOptions {
   /**
@@ -179,7 +181,15 @@ export function controlFlight(task: Task, fixes: IgcFix[], options: ControlOptio
   }
   const c = controlUntil(task, valid, end);
   const distances = taskDistances(task);
-  const flying = c.inFlight.length > 0 && c.inFlight[0]!.time <= end && (c.landingTime === null || c.landingTime > end);
+  // Une trace qui s'arrête en vol bien avant l'heure d'arrêt ne prouve pas que le pilote volait encore :
+  // pas de bonus d'altitude (comme SVL, Sopot 2026 T2 pilote 725, trace finie 45 min avant l'arrêt).
+  const lastFix = c.inFlight.at(-1);
+  const flying =
+    c.inFlight.length > 0 &&
+    c.inFlight[0]!.time <= end &&
+    (c.landingTime === null || c.landingTime > end) &&
+    lastFix !== undefined &&
+    lastFix.time >= end - STOP_TRACK_SLACK * 1000;
   let altitudeAboveGoal = 0;
   let bonusDistance = 0;
   if (flying && !c.madeGoal) {
@@ -372,12 +382,15 @@ function remainingFrom(task: Task, validated: ZoneValidation[], sssIdx: number):
   const tps = task.turnpoints;
   const goalIdx = tps.length - 1;
   const steps = validated.map((v) => ({ time: v.time, next: v.index + 1 }));
+  // Mêmes cylindres agrandis que pour la distance de la manche (taskDistances), sinon distance de la
+  // manche moins distance restante sous-estime la distance parcourue.
+  const tol = 1 + (task.cylinderTolerance ?? 0);
   const goalZone = tps[goalIdx]!.zone;
-  const goalRadius = goalZone.kind === "cylinder" ? goalZone.radius : 0;
+  const goalRadius = goalZone.kind === "cylinder" ? goalZone.radius * tol : 0;
   const zonesFrom = (next: number): RouteZone[] =>
     tps.slice(next).map((t, k) => ({
       centre: { lat: t.zone.waypoint.lat, lon: t.zone.waypoint.lon },
-      radius: next + k === goalIdx || t.zone.kind !== "cylinder" ? 0 : t.zone.radius,
+      radius: next + k === goalIdx || t.zone.kind !== "cylinder" ? 0 : t.zone.radius * tol,
     }));
   // Une route par jeu de zones restantes, projetée une fois autour du centre de la manche.
   const centre = findTaskAreaCentre(tps.map((t) => t.zone.waypoint));
