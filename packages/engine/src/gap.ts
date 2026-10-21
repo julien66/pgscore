@@ -23,6 +23,11 @@ export interface GapRules {
    * (SVL « Goal ratio from time points ») : un pilote arrivé trop tard pour en avoir ne compte pas.
    */
   goalRatioFromTimePoints: boolean;
+  /**
+   * Leading compté sur la section de vitesse la plus courte depuis le bord du SSS, sans tolérance de cylindre
+   * (SVL « Speed Section distance (shortest) ») ; sinon sur celle de la route optimisée complète (FS).
+   */
+  leadingShortestSpeedSection: boolean;
 }
 
 export const GAP_RULES: Record<GapProfile, GapRules> = {
@@ -32,6 +37,7 @@ export const GAP_RULES: Record<GapProfile, GapRules> = {
     availableDecimals: 1,
     bestTimeFromGoal: true,
     goalRatioFromTimePoints: false,
+    leadingShortestSpeedSection: false,
   },
   // Formule GAP_PWCA_2026 de SVL : coefficients arrondis, LTR de 26,3158 %, points disponibles au dixième,
   // meilleur temps pris sur tous les pilotes à l'ESS (« Best time from goal = false »).
@@ -41,6 +47,7 @@ export const GAP_RULES: Record<GapProfile, GapRules> = {
     availableDecimals: 1,
     bestTimeFromGoal: false,
     goalRatioFromTimePoints: true,
+    leadingShortestSpeedSection: true,
   },
 };
 

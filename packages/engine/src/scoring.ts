@@ -216,7 +216,7 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
         rule === "s7a" ? { fraction: airspacePenaltyFractionS7A(depth) } : { points: airspacePenalty(depth, rule === "pwca-hard" ? 50 : 100) };
     }
   }
-  const leading = leadingTrack(task, c);
+  const leading = leadingTrack(task, c, options.gapProfile);
   if (leading?.quality?.warnings.length) r.leadingWarnings = leading.quality.warnings;
   // Les fixes du vol ne servent plus au classement : on les lâche pour ne pas garder toutes les traces
   // en mémoire pendant le calcul d'une manche (des centaines de Mo pour une centaine de pilotes).
@@ -227,7 +227,7 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
 export function finishScoring(task: Task, controlled: ControlledPilot[], options: ScoringOptions): TaskScoring {
   const distances = taskDistances(task);
   const pilots = applyDecisions(controlled, options.decisions ?? [], distances.task, options.params.minimumDistance);
-  const ssKm = leadingSpeedSectionKm(task);
+  const ssKm = leadingSpeedSectionKm(task, options.gapProfile);
   const absent = (r: PilotResult) => r.status === "ABS" || r.status === "DNF";
   const withLeading = pilots.filter((p) => p.leading && p.control && !absent(p.result));
   let lcMin: number | null = null;

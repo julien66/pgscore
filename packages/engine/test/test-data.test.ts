@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  * (scripts/fetch-test-tracks.sh).
  */
 describe.runIf(process.env.CI)("traces de référence en intégration continue", () => {
-  for (const name of ["GEMONA_T3_IGC_DIR", "FELTRE_T3_IGC_DIR", "PWCA_T1_IGC_DIR", "SOPOT_T1_IGC_DIR", "SOPOT_T2_IGC_DIR", "SOPOT_T3_IGC_DIR", "SOPOT_T4_IGC_DIR"]) {
+  for (const name of ["GEMONA_T3_IGC_DIR", "FELTRE_T3_IGC_DIR", "PWCA_T1_IGC_DIR", "SOPOT_T1_IGC_DIR", "SOPOT_T2_IGC_DIR", "SOPOT_T3_IGC_DIR", "SOPOT_T4_IGC_DIR", "TDC_2026_ZIP"]) {
     it(`${name} pointe vers les traces`, () => {
       const dir = process.env[name];
       expect(dir, `${name} non défini`).toBeTruthy();

@@ -2,6 +2,8 @@
 # Télécharge les traces IGC des manches PWCA de référence (publiques sur scoring.pwca.org) dans
 # .test-data/, vérifie leur empreinte et les décompresse. Les tests de calcul PWCA les lisent via
 # GEMONA_T3_IGC_DIR, FELTRE_T3_IGC_DIR, PWCA_T1_IGC_DIR et SOPOT_T1_IGC_DIR … SOPOT_T4_IGC_DIR.
+# Télécharge aussi les ZIP gardés tels quels (compétitions FS de la branche test-data du dépôt), lus via
+# TDC_2026_ZIP.
 #
 #   scripts/fetch-test-tracks.sh            # télécharge ce qui manque
 #   eval "$(scripts/fetch-test-tracks.sh --env)"   # et exporte les variables dans le shell
@@ -22,7 +24,22 @@ SETS=(
   "sopot-2026-t4|$BASE/sopot-2026/T4/T4_2026-09-11.zip|ae713b271379733070189eda7af83341bc33b19224c4453f0388d0876fee9f2e"
 )
 
+# ZIP gardés tels quels : fichier | adresse (épinglée sur un commit de la branche test-data) | empreinte
+TEST_DATA="https://raw.githubusercontent.com/julien66/pgscore/7402a4061b6561cf3a8c7382c7daab25f664b492"
+ZIPS=(
+  "french-open-tdc-2026.zip|$TEST_DATA/fs/french-open-tdc-2026.zip|dea79c130418d59d3644bcf84b1f132922dacacbee1cc55176585faaa261fb41"
+)
+
 mkdir -p "$DATA"
+for set in "${ZIPS[@]}"; do
+  IFS="|" read -r name url sha <<<"$set"
+  zip="$DATA/$name"
+  if [ -f "$zip" ] && echo "$sha  $zip" | sha256sum -c --status; then continue; fi
+  echo "Téléchargement de $url" >&2
+  curl -fsSL --retry 4 --retry-delay 2 -o "$zip" "$url"
+  echo "$sha  $zip" | sha256sum -c --status || { echo "Empreinte inattendue pour $url" >&2; exit 1; }
+done
+
 for set in "${SETS[@]}"; do
   IFS="|" read -r name url sha <<<"$set"
   dir="$DATA/$name"
@@ -43,4 +60,5 @@ if [ "${1:-}" = "--env" ]; then
   echo "export FELTRE_T3_IGC_DIR='$DATA/feltre-2025-t3'"
   echo "export PWCA_T1_IGC_DIR='$DATA/baixo-guandu-2026-t1'"
   for n in 1 2 3 4; do echo "export SOPOT_T${n}_IGC_DIR='$DATA/sopot-2026-t$n'"; done
+  echo "export TDC_2026_ZIP='$DATA/french-open-tdc-2026.zip'"
 fi

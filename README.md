@@ -17,7 +17,7 @@ pnpm test
 cd apps/web && DEV_LOGIN=1 pnpm dev   # http://localhost:3000
 ```
 
-Les tests de calcul PWCA (Gemona, Feltre, Baixo Guandu, Sopot) ont besoin des traces des manches, publiques sur scoring.pwca.org. Sans elles, ils sont sautés. Pour les lancer :
+Les tests de calcul PWCA (Gemona, Feltre, Baixo Guandu, Sopot) et le test complet du French Open - Trophées des Cimes 2026 (FS, ZIP sur la branche `test-data`) ont besoin des traces des manches, publiques sur scoring.pwca.org. Sans elles, ils sont sautés. Pour les lancer :
 
 ```sh
 eval "$(scripts/fetch-test-tracks.sh --env)"   # télécharge dans .test-data/ et exporte les variables

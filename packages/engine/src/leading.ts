@@ -1,5 +1,6 @@
 import type { FlightControl } from "./control.js";
 import { taskDistances } from "./distances.js";
+import { GAP_RULES, type GapProfile } from "./gap.js";
 import { distance } from "./geo.js";
 import { findTaskAreaCentre } from "./projection.js";
 import { RouteFrom, type RouteZone } from "./route.js";
@@ -101,25 +102,28 @@ function weightIntegral(from: number, to: number): number {
 }
 
 /**
- * Distance de section de vitesse du leading, en km : comme SVL, la plus courte depuis le bord du SSS, sans
- * tolérance de cylindre (la distance restante des pilotes se calcule elle aussi sur les rayons nominaux).
+ * Distance de section de vitesse du leading, en km. FS (S7F) prend celle de la route optimisée complète ;
+ * SVL (PWCA) la plus courte depuis le bord du SSS, sans tolérance de cylindre (la distance restante des
+ * pilotes se calcule elle aussi sur les rayons nominaux). French Open 2026 T4 : 45,65 km contre 44,34.
  */
-export function leadingSpeedSectionKm(task: Task): number {
-  return taskDistances(task, { relativeTolerance: 0 }).speedSectionShortest / 1000;
+export function leadingSpeedSectionKm(task: Task, profile: GapProfile = "S7F2026"): number {
+  return GAP_RULES[profile].leadingShortestSpeedSection
+    ? taskDistances(task, { relativeTolerance: 0 }).speedSectionShortest / 1000
+    : taskDistances(task).speedSection / 1000;
 }
 
 /**
  * Courbe minToESS d'un pilote à partir de son contrôle de vol. La distance jusqu'à l'ESS depuis un
  * fix est la route optimisée par les zones pas encore atteintes jusqu'au centre de l'ESS, moins son rayon.
  */
-export function leadingTrack(task: Task, control: FlightControl): LeadingTrack | null {
+export function leadingTrack(task: Task, control: FlightControl, profile: GapProfile = "S7F2026"): LeadingTrack | null {
   const tps = task.turnpoints;
   const sssIdx = tps.findIndex((t) => t.role === "sss");
   const essIdxRaw = tps.findIndex((t) => t.role === "ess");
   const essIdx = essIdxRaw >= 0 ? essIdxRaw : tps.length - 1;
   if (control.sssTime === null || control.firstStartGate === null) return null;
 
-  const ssKm = leadingSpeedSectionKm(task);
+  const ssKm = leadingSpeedSectionKm(task, profile);
   const deadline = task.deadline ? timeOfDay(task.deadline, control.firstStartGate) : Infinity;
   const taskTime = (ms: number) => (Math.min(ms, deadline) - control.firstStartGate!) / 1000;
   const centre = findTaskAreaCentre(tps.map((t) => t.zone.waypoint));
