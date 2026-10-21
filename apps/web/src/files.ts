@@ -113,7 +113,8 @@ export function pilotKeyForTrack(
   const keys = new Set(registry.map((p) => p.pilot_key));
   const byName = new Map(registry.map((p) => [nameKey(p.name), p.pilot_key]));
   const fromName = pilot ? byName.get(nameKey(pilot)) : undefined;
-  const bare = /^\d+$/.test(base);
+  // Numéro seul (« 260 ») ou trace de secours PWCA (« alt_1.710 » : 2e trace du pilote 710).
+  const bare = /^\d+$/.test(base) || /^alt_\d+\.\d+$/i.test(base);
   let key: string;
   if (keys.has(fileKey) && (!fromName || fromName === fileKey)) key = fileKey;
   else if (cid && keys.has(cid)) key = cid;

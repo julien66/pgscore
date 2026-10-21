@@ -30,6 +30,8 @@ describe("pilote d'une trace envoyée", () => {
     ];
     expect(pilotKeyForTrack("12.igc", igc("HFPLTPILOTINCHARGE:"), reg)).toBe("12");
     expect(pilotKeyForTrack("alt_1.7.igc", igc("HFPLTPILOTINCHARGE:Ana Essai"), reg)).toBe("7");
+    // Trace de secours PWCA sans inscrits : le numéro du fichier, pas le nom de l'en-tête.
+    expect(pilotKeyForTrack("alt_1.710.igc", igc("HFPLTPILOTINCHARGE:Érico Oliveira"), [])).toBe("710");
     expect(pilotKeyForTrack("2026-05-29-XCT-ABC-01.igc", igc("HFCIDCOMPETITIONID:7"), reg)).toBe("7");
     expect(pilotKeyForTrack("2026-05-29-XSD-UBFC6C-01.igc", igc("HFPLTPILOTINCHARGE:François HUBERT\r\nHFCIDCOMPETITIONID:67717"), reg)).toBe("12");
   });
