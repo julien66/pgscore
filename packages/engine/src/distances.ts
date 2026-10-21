@@ -20,7 +20,8 @@ function radiusOf(tp: TaskTurnpoint): number {
 
 export interface TaskDistanceOptions {
   /**
-   * Agrandissement relatif des cylindres pour le calcul de la route (0 par défaut, S7F 2026 9.1).
+   * Agrandissement relatif des cylindres pour le calcul de la route : par défaut la tolérance des cylindres
+   * de la manche (0 en S7F 2026, 9.1).
    * 0,001 reproduit à ~10 m près les distances publiées par la PWCA en 2026.
    */
   relativeTolerance?: number;
@@ -31,7 +32,7 @@ const isPointRole = (tp: TaskTurnpoint) => tp.role === "takeoff";
 
 /** Distances officielles de la manche (S7F 2026, 7.1), sur l'ellipsoïde WGS84. */
 export function taskDistances(task: Task, options: TaskDistanceOptions = {}): TaskDistances {
-  const k = 1 + (options.relativeTolerance ?? 0);
+  const k = 1 + (options.relativeTolerance ?? task.cylinderTolerance ?? 0);
   const toZone = (tp: TaskTurnpoint, asPoint: boolean): RouteZone => {
     const { lat, lon } = tp.zone.waypoint;
     return { centre: { lat, lon }, radius: asPoint ? 0 : radiusOf(tp) * k };
