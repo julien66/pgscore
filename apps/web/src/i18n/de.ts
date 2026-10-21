@@ -32,6 +32,7 @@ const dict: Record<string, string> = {
   "{task} : elevated goal de {m} m retrouvé d'après les points publiés.": "{task}: Elevated Goal von {m} m aus den veröffentlichten Punkten ermittelt.",
   "Alt. au goal": "Höhe im Ziel",
   "Points de temps × {f} (elevated goal passé trop bas)": "Zeitpunkte × {f} (Elevated Goal zu tief überflogen)",
+  "Réduction pts temps (elevated goal)": "Abzug Zeitpunkte (Elevated Goal)",
   "Finesse du bonus d'altitude : nombre positif attendu.": "Gleitzahl des Höhenbonus: positive Zahl erwartet.",
   "Un bon logiciel de scoring ouvert à toute la communauté, c'est aussi la possibilité de faire évoluer la compétition elle-même : tester de nouvelles règles et de nouveaux formats compétitifs bien plus facilement, les appliquer à des manches réelles et comparer les classements obtenus.": "Eine gute, für die ganze Community offene Wertungssoftware ermöglicht es auch, den Wettkampf selbst weiterzuentwickeln: neue Regeln und neue Wettkampfformate viel leichter ausprobieren, sie auf echte Tasks anwenden und die Ranglisten vergleichen.",
   "Sur les épaules des pionniers": "Auf den Schultern der Pioniere",

@@ -2314,6 +2314,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
               <th class="n">{t("Distance")}</th>
               {stopped ? <th class="n">{t("Alt. à l'arrêt")}</th> : null}
               {elevated ? <th class="n">{t("Alt. au goal")}</th> : null}
+              {elevated ? <th class="n">{t("Réduction pts temps (elevated goal)")}</th> : null}
               <th class="n">LC</th>
               {withPoints ? (
                 <>
@@ -2354,8 +2355,10 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                 {elevated ? (
                   <td class="n" title={p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1 ? t("Points de temps × {f} (elevated goal passé trop bas)", { f: p.goalAltitudeFactor.toFixed(3) }) : undefined}>
                     {p.goalAltitude != null ? `${Math.round(p.goalAltitude)} m` : ""}
-                    {p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1 ? ` ×${p.goalAltitudeFactor.toFixed(3)}` : ""}
                   </td>
+                ) : null}
+                {elevated ? (
+                  <td class="n">{p.goalAltitudeLoss ? `−${pts(p.goalAltitudeLoss)}` : ""}</td>
                 ) : null}
                 <td class="n">
                   {p.leadingWarnings?.length ? (
@@ -2404,7 +2407,7 @@ export function resultsCsv(r: TaskScoring, tz: string): string {
   const head = [
     "rang", "pilote", "nom", "statut", "depart", "ess", "temps_s", "distance_km", "alt_arret_m", "lc", "leading",
     "pts_distance", "pts_temps", "pts_leading", "penalite_pts", "total", "espace_aerien", "profondeur_m", "penalite", "decisions", "alerte_leading",
-    "alt_goal_m", "facteur_alt_goal",
+    "alt_goal_m", "facteur_alt_goal", "reduction_pts_temps",
   ];
   const q = (v: unknown) => {
     const s = v === null || v === undefined ? "" : String(v);
@@ -2434,6 +2437,7 @@ export function resultsCsv(r: TaskScoring, tz: string): string {
     (p.leadingWarnings ?? []).map(leadingWarning).join(" | "),
     p.goalAltitude != null ? Math.round(p.goalAltitude) : "",
     p.goalAltitudeFactor !== undefined ? p.goalAltitudeFactor.toFixed(4) : "",
+    p.goalAltitudeLoss ? p.goalAltitudeLoss.toFixed(1) : "",
   ]);
   return [head, ...rows].map((r) => r.map(q).join(",")).join("\n") + "\n";
 }

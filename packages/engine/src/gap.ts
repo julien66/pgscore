@@ -104,6 +104,8 @@ export interface GapPilotScore {
   penalty: number;
   /** Score final, au dixième, jamais négatif. */
   total: number;
+  /** Elevated goal (13.1) : points de temps perdus pour un passage trop bas. */
+  goalAltitudeLoss?: number;
 }
 
 export interface GapTaskScore {
@@ -257,11 +259,16 @@ export function scoreGap(input: GapTaskInput): GapTaskScore {
     const distance = bestDistance > 0 ? round((p.distance / bestDistance) * available.distance, 1) : 0;
     // ESS sans goal : pas de points de temps en parapente (13.2).
     let time = 0;
+    let goalAltitudeLoss: number | undefined;
     if (p.madeGoal && p.speedSectionTime !== null && bestTime !== null) {
       time = speedFraction(p.speedSectionTime, bestTime) * available.time;
       if (timePointsReduction) time = Math.max(0, time - timePointsReduction);
       time = round(time, 1);
-      if (p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1) time = round(time * p.goalAltitudeFactor, 1);
+      if (p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1) {
+        const reduced = round(time * p.goalAltitudeFactor, 1);
+        goalAltitudeLoss = round(time - reduced, 1);
+        time = reduced;
+      }
     }
     const leading = p.leadingFactor !== null ? round(p.leadingFactor * available.leading, 1) : 0;
     const score = round(distance + time + leading, 1);
@@ -269,7 +276,14 @@ export function scoreGap(input: GapTaskInput): GapTaskScore {
     if (p.penalty?.fraction) total = total * (1 - p.penalty.fraction);
     if (p.penalty?.points) total = total - p.penalty.points;
     total = Math.max(0, round(total, 1));
-    return { id: p.id, points: { distance, time, leading, arrival: 0 }, score, penalty: round(score - total, 1), total };
+    return {
+      id: p.id,
+      points: { distance, time, leading, arrival: 0 },
+      score,
+      penalty: round(score - total, 1),
+      total,
+      ...(goalAltitudeLoss !== undefined ? { goalAltitudeLoss } : {}),
+    };
   });
 
   return {

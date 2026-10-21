@@ -100,6 +100,8 @@ export interface PilotResult {
   /** Elevated goal (13.1) : altitude de passage du goal et facteur appliqué aux points de temps. */
   goalAltitude?: number | null;
   goalAltitudeFactor?: number;
+  /** Points de temps perdus pour un passage trop bas de l'elevated goal. */
+  goalAltitudeLoss?: number;
   /** Alertes sur la trace qui peuvent fausser le leading (trace espacée, trou, arrêt en vol). */
   leadingWarnings?: LeadingWarning[];
   airspace: AirspaceResult[];
@@ -281,6 +283,8 @@ export function finishScoring(task: Task, controlled: ControlledPilot[], options
     r.score = g.score;
     r.penaltyPoints = g.penalty;
     r.total = g.total;
+    if (g.goalAltitudeLoss !== undefined) r.goalAltitudeLoss = g.goalAltitudeLoss;
+    else delete r.goalAltitudeLoss;
   });
 
   const rank = (s: PilotStatus) => ({ GOAL: 0, ESS: 1, DF: 2, MIND: 3, ERREUR: 4, DNF: 5, ABS: 6 })[s];
