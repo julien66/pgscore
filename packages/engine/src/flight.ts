@@ -18,6 +18,33 @@ const STILL_ALTITUDE = 5;
 
 const alt = (f: IgcFix) => f.gnssAltitude ?? f.pressureAltitude;
 
+/** Au sol, on marche : moins de 2,5 m/s de vitesse sol et moins de 0,5 m/s de vitesse verticale, sur 20 s. */
+const WALK_SECONDS = 20;
+const WALK_SPEED = 2.5;
+const WALK_VERTICAL = 0.5;
+
+/**
+ * Atterrissage réel avant une immobilité trouvée en `still` : on remonte tant que le pilote se déplace
+ * à pied (lentement et à altitude quasi constante). Un pilote posé juste avant une balise qui y marche
+ * ne la valide pas.
+ */
+function walkBack(fixes: IgcFix[], still: number, takeoff: number): number {
+  let k = still;
+  for (;;) {
+    const b = fixes[k]!;
+    let j = k;
+    while (j > takeoff && b.time - fixes[j - 1]!.time <= WALK_SECONDS * 1000) j--;
+    const a = fixes[j]!;
+    const dt = (b.time - a.time) / 1000;
+    if (j <= takeoff || dt < WALK_SECONDS / 2) return k;
+    const ha = alt(a);
+    const hb = alt(b);
+    const vz = ha !== null && hb !== null ? Math.abs(hb - ha) / dt : 0;
+    if (distance(a, b) / dt >= WALK_SPEED || vz >= WALK_VERTICAL) return k;
+    k = j;
+  }
+}
+
 /**
  * Repère le vol dans une trace : décollage au premier déplacement rapide et soutenu, atterrissage
  * à la première immobilité d'au moins 60 s ensuite. Tout ce qui suit (navette, voiture)
@@ -66,7 +93,7 @@ export function detectFlights(fixes: IgcFix[]): FlightPeriod[] {
     for (let i = takeoff; i < n; i++) {
       const s = still(i);
       if (s === true) {
-        end = { takeoffIndex: takeoff, landingIndex: i, landed: true };
+        end = { takeoffIndex: takeoff, landingIndex: walkBack(fixes, i, takeoff), landed: true };
         break;
       }
       if (s === null) break;
