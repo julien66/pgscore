@@ -1708,7 +1708,7 @@ export const TaskPage: FC<{
             {details ? (
               <TaskDetails r={results} settings={settings} />
             ) : (
-              <TaskResults r={results} tz={settings.timeZone} taskId={tk.id} speedSection={distances.speedSection} registry={registry} only={ranking?.members} rid={ranking?.id} />
+              <TaskResults r={results} tz={settings.timeZone} goalAlt={goalAltitudeOf(task)} taskId={tk.id} speedSection={distances.speedSection} registry={registry} only={ranking?.members} rid={ranking?.id} />
             )}
           </>
         ) : running ? null : (
@@ -1761,7 +1761,7 @@ export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; set
       {stale && !running && results ? (
         <div class="note">{t("Des traces, réglages ou décisions ont changé depuis ce calcul : relancez-le pour mettre le classement à jour.")}</div>
       ) : null}
-      {results ? <Results r={results} tz={tz} settings={settings} taskId={tk.id} /> : null}
+      {results ? <Results r={results} tz={tz} settings={settings} taskId={tk.id} goalAlt={goalAltitudeOf(JSON.parse(tk.task) as Task)} /> : null}
     </>
   );
 };
@@ -2178,15 +2178,22 @@ const TaskDetails: FC<{ r: TaskScoring; settings: CompetitionSettings }> = ({ r,
 };
 
 /** Classement de la manche, présenté comme les résultats publiés : rang, pilote, voile, temps, points. */
+/** Altitude publiée du goal (AMSL), pour afficher les passages de l'elevated goal en hauteur au-dessus du goal. */
+export const goalAltitudeOf = (task: Task): number => task.turnpoints.at(-1)?.zone.waypoint.altitude ?? 0;
+
+/** Hauteur de passage au-dessus du goal publié, « 225 m AGL ». */
+const goalHeight = (p: PilotResult, goalAlt: number) => (p.goalAltitude != null ? `${Math.round(p.goalAltitude - goalAlt)} m AGL` : "");
+
 const TaskResults: FC<{
   r: TaskScoring;
   tz: string;
+  goalAlt: number;
   taskId: number;
   speedSection: number;
   registry: PilotRow[];
   only?: Set<string>;
   rid?: number;
-}> = ({ r, tz, taskId, speedSection, registry, only, rid }) => {
+}> = ({ r, tz, goalAlt, taskId, speedSection, registry, only, rid }) => {
   const shown = only ? r.pilots.filter((p) => only.has(p.id)) : r.pilots;
   const withPen = shown.some((p) => p.penaltyPoints);
   const elevated = shown.some((p) => p.goalAltitudeFactor !== undefined);
@@ -2239,7 +2246,7 @@ const TaskResults: FC<{
                   <td class="n sp">{pts(p.points?.distance)}</td>
                   <td class="n sp">{pts(p.points?.leading)}</td>
                   <td class="n sp">{pts(p.points?.time)}</td>
-                  {elevated ? <td class="n sp">{p.goalAltitude != null && p.status === "GOAL" ? `${Math.round(p.goalAltitude)} m` : ""}</td> : null}
+                  {elevated ? <td class="n sp">{p.status === "GOAL" ? goalHeight(p, goalAlt) : ""}</td> : null}
                   {elevated ? <td class="n sp pen">{p.goalAltitudeLoss ? `−${pts(p.goalAltitudeLoss)}` : ""}</td> : null}
                   {withPen ? <td class="n sp pen">{p.penaltyPoints ? `${p.penaltyPoints > 0 ? "−" : "+"}${pts(Math.abs(p.penaltyPoints))}` : ""}</td> : null}
                   <td class="n">
@@ -2263,11 +2270,12 @@ const TaskResults: FC<{
   );
 };
 
-const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; taskId: number; only?: Set<string>; rid?: number }> = ({
+const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; taskId: number; goalAlt: number; only?: Set<string>; rid?: number }> = ({
   r,
   tz,
   settings,
   taskId,
+  goalAlt,
   only,
   rid,
 }) => {
@@ -2372,7 +2380,7 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
                     <td class="n">{pts(p.points?.leading)}</td>
                   {elevated ? (
                     <td class="n" title={p.goalAltitudeFactor !== undefined && p.goalAltitudeFactor < 1 ? t("Points de temps × {f} (elevated goal passé trop bas)", { f: p.goalAltitudeFactor.toFixed(3) }) : undefined}>
-                      {p.goalAltitude != null ? `${Math.round(p.goalAltitude)} m` : ""}
+                      {goalHeight(p, goalAlt)}
                     </td>
                   ) : null}
                   {elevated ? (
@@ -2408,11 +2416,11 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
   );
 };
 
-export function resultsCsv(r: TaskScoring, tz: string): string {
+export function resultsCsv(r: TaskScoring, tz: string, goalAlt = 0): string {
   const head = [
     "rang", "pilote", "nom", "statut", "depart", "ess", "temps_s", "distance_km", "alt_arret_m", "lc", "leading",
     "pts_distance", "pts_temps", "pts_leading", "penalite_pts", "total", "espace_aerien", "profondeur_m", "penalite", "decisions", "alerte_leading",
-    "alt_goal_m", "facteur_alt_goal", "reduction_pts_temps",
+    "hauteur_goal_m_agl", "facteur_alt_goal", "reduction_pts_temps",
   ];
   const q = (v: unknown) => {
     const s = v === null || v === undefined ? "" : String(v);
@@ -2440,7 +2448,7 @@ export function resultsCsv(r: TaskScoring, tz: string): string {
     penalty(p),
     (p.decisions ?? []).map((d) => `${decisionLabel(d.kind, d.value)} : ${d.reason}`).join(" | "),
     (p.leadingWarnings ?? []).map(leadingWarning).join(" | "),
-    p.goalAltitude != null ? Math.round(p.goalAltitude) : "",
+    p.goalAltitude != null ? Math.round(p.goalAltitude - goalAlt) : "",
     p.goalAltitudeFactor !== undefined ? p.goalAltitudeFactor.toFixed(4) : "",
     p.goalAltitudeLoss ? p.goalAltitudeLoss.toFixed(1) : "",
   ]);

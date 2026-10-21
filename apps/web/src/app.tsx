@@ -46,6 +46,7 @@ import {
   NewTaskPage,
   NotFound,
   resultsCsv,
+  goalAltitudeOf,
   RunCard,
   boardUrl,
   TaskPage,
@@ -1154,7 +1155,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const scoring = JSON.parse(run.results) as TaskScoring;
     const rk = taskRankings(x.comp, c.req.query("r"));
     if (rk.current) scoring.pilots = scoring.pilots.filter((p) => rk.current!.members.has(p.id));
-    const csv = resultsCsv(scoring, parseSettings(x.comp.params).timeZone);
+    const csv = resultsCsv(scoring, parseSettings(x.comp.params).timeZone, goalAltitudeOf(JSON.parse(x.t.task) as StoredTask));
     return c.body(csv, 200, {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="manche-${x.t.number}.csv"`,
