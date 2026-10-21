@@ -1,0 +1,46 @@
+# Vérification automatique à chaque push et chaque pull request : types et tests, y compris le
+# calcul des points sur les manches PWCA de référence. Render ne déploie que si elle passe.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Traces de référence (cache)
+        uses: actions/cache@v4
+        with:
+          path: .test-data
+          key: test-tracks-${{ hashFiles('scripts/fetch-test-tracks.sh') }}
+
+      - name: Téléchargement des traces de référence
+        run: scripts/fetch-test-tracks.sh --env | sed 's/^export //; s/'"'"'//g' >> "$GITHUB_ENV"
+
+      - name: Construction du moteur
+        run: pnpm --filter @pgscore/engine build
+
+      - name: Vérification des types
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test

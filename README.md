@@ -17,6 +17,15 @@ pnpm test
 cd apps/web && DEV_LOGIN=1 pnpm dev   # http://localhost:3000
 ```
 
+Les tests de calcul PWCA (Gemona, Feltre, Baixo Guandu) ont besoin des traces des manches, publiques sur scoring.pwca.org. Sans elles, ils sont sautés. Pour les lancer :
+
+```sh
+eval "$(scripts/fetch-test-tracks.sh --env)"   # télécharge dans .test-data/ et exporte les variables
+pnpm test
+```
+
+À chaque push et chaque pull request, GitHub Actions (`.github/workflows/ci.yml`) vérifie les types et lance tous les tests, traces comprises. Render ne déploie `main` que si cette vérification passe.
+
 ## État
 
 Étape 1, contrôle de vol, en cours :

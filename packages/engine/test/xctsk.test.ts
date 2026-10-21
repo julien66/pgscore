@@ -38,7 +38,7 @@ describe("lecture .xctsk", () => {
       turnpoints: pwcaT1.turnpoints.map((t, i) => ({ ...t, type: i === 0 ? "TAKEOFF" : undefined })),
     };
     const task = parseXctsk(JSON.stringify(noSss));
-    expect(task.turnpoints[1].role).toBe("sss");
+    expect(task.turnpoints[1]!.role).toBe("sss");
   });
 
   it("encode et décode les entiers polyline", () => {
