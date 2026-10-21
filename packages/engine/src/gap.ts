@@ -18,6 +18,11 @@ export interface GapRules {
   availableDecimals: number;
   /** Meilleur temps pris parmi les pilotes au goal seulement (S7F 12.2.1) ; sinon parmi ceux à l'ESS. */
   bestTimeFromGoal: boolean;
+  /**
+   * Taux de goal de la répartition compté sur les seuls pilotes au goal qui ont des points de temps
+   * (SVL « Goal ratio from time points ») : un pilote arrivé trop tard pour en avoir ne compte pas.
+   */
+  goalRatioFromTimePoints: boolean;
 }
 
 export const GAP_RULES: Record<GapProfile, GapRules> = {
@@ -26,6 +31,7 @@ export const GAP_RULES: Record<GapProfile, GapRules> = {
     leadingTimeRatio: 0.26,
     availableDecimals: 1,
     bestTimeFromGoal: true,
+    goalRatioFromTimePoints: false,
   },
   // Formule GAP_PWCA_2026 de SVL : coefficients arrondis, LTR de 26,3158 %, points disponibles au dixième,
   // meilleur temps pris sur tous les pilotes à l'ESS (« Best time from goal = false »).
@@ -34,6 +40,7 @@ export const GAP_RULES: Record<GapProfile, GapRules> = {
     leadingTimeRatio: 0.263158,
     availableDecimals: 1,
     bestTimeFromGoal: false,
+    goalRatioFromTimePoints: true,
   },
 };
 
@@ -193,10 +200,13 @@ export function scoreGap(input: GapTaskInput): GapTaskScore {
   const pilotsPresent = Math.max(input.pilotsPresent ?? pilotsFlying, pilotsFlying);
   const ess = flying.filter((p) => p.madeEss && p.speedSectionTime !== null);
   const goal = flying.filter((p) => p.madeGoal);
-  const goalRatio = pilotsFlying ? goal.length / pilotsFlying : 0;
   const bestDistance = Math.max(0, ...flying.map((p) => p.distance));
   const timed = rules.bestTimeFromGoal ? ess.filter((p) => p.madeGoal) : ess;
   const bestTime = timed.length ? Math.min(...timed.map((p) => p.speedSectionTime!)) : null;
+  const goalForRatio = rules.goalRatioFromTimePoints
+    ? goal.filter((p) => p.speedSectionTime !== null && bestTime !== null && speedFraction(p.speedSectionTime, bestTime) > 0)
+    : goal;
+  const goalRatio = pilotsFlying ? goalForRatio.length / pilotsFlying : 0;
 
   // Validité (10, 13.4.3).
   const flownForValidity = flying.map((p) => p.flownDistance);
