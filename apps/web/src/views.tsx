@@ -1371,6 +1371,14 @@ export const TaskPage: FC<{
             </select>
           </div>
           <div>
+            <label>{t("Portes de départ (heures locales)")}</label>
+            <input type="text" name="startGates" placeholder="15:00, 15:15" value={task.startGates.map((g) => loc(g).replace(/:00$/, "")).join(", ")} />
+          </div>
+          <div>
+            <label>{t("Deadline (heure locale)")}</label>
+            <input type="text" name="deadline" placeholder="HH:MM" value={loc(task.deadline).replace(/:00$/, "")} />
+          </div>
+          <div>
             <label>{t("Elevated goal : hauteur au-dessus du goal (m)")}</label>
             <input type="number" step="1" min="0" max="1000" name="elevatedGoal" placeholder={t("vide : goal ordinaire (S7F : 300)")} value={task.elevatedGoal ? String(task.elevatedGoal) : ""} />
           </div>

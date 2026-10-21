@@ -933,6 +933,17 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
         goal.zone = { kind: "goal-line", waypoint: goal.zone.waypoint, length: GOAL_LINE_LENGTH };
       else if (goal && f.goalKind === "cylinder" && goal.zone.kind === "goal-line")
         goal.zone = { kind: "cylinder", waypoint: goal.zone.waypoint, radius: Math.max(GOAL_LINE_LENGTH, goal.zone.length / 2) };
+      // Portes de départ et deadline, en heures locales : à corriger si le QR code de la manche est faux.
+      if (f.startGates !== undefined) {
+        const gates = String(f.startGates).split(/[\s,;]+/).filter(Boolean);
+        if (!gates.length) throw new Error(t("Indiquez au moins une porte de départ."));
+        task.startGates = gates.map((g) => localHmsToUtc(g, date, tz)).sort();
+      }
+      if (f.deadline !== undefined) {
+        const dl = String(f.deadline).trim();
+        if (dl) task.deadline = localHmsToUtc(dl, date, tz);
+        else delete task.deadline;
+      }
       // Elevated goal (13.1) : hauteur au-dessus de l'altitude publiée du goal ; vide ou 0 = goal ordinaire.
       const eg = String(f.elevatedGoal ?? "").trim().replace(",", ".");
       if (eg === "" || Number(eg) === 0) delete task.elevatedGoal;

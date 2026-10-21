@@ -110,6 +110,11 @@ describe("interface web", () => {
     expect(stored().elevatedGoal).toBe(300);
     await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, elevatedGoal: "" }) });
     expect(stored().elevatedGoal).toBeUndefined();
+    // Portes et deadline en heures locales (le fuseau par défaut de la compétition s'applique).
+    await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", type: other, startGates: "15:00, 15:15", deadline: "19:30" }) });
+    expect(stored().startGates.length).toBe(2);
+    expect(stored().deadline).toMatch(/^\d{2}:30:00$/);
+    expect((await req(taskUrl, { method: "POST", body: new URLSearchParams({ date: "2026-07-28", startGates: "15h" }) })).status).not.toBe(302);
   });
 
   it("enregistre et supprime les décisions de l'organisateur", async () => {
