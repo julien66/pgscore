@@ -21,7 +21,7 @@ import type { CompetitionRow, Db, RunRow, TaskRow, TrackRow, User } from "./db.j
 import { collectIgc, decodeQrImage, decodeText, nameKey, pilotKeyForTrack } from "./files.js";
 import { isRunning, startRun, startRuns } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
-import { pilotVersions, removeAllTracks, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
+import { assignTrack, linkTracks, pilotVersions, removeAllTracks, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
 import { addDecision, deleteDecision, listDecisions, touchScoring } from "./decisions.js";
 import { controlTask, DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm, taskScoringFromForm, type StoredTask } from "./settings.js";
 import { localHmsToUtc } from "./time.js";
@@ -612,8 +612,21 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   // --- Pilotes inscrits -------------------------------------------------------------------
   /** Singulier pour 1 (et 0 en français, comme « 0 pilote ajouté »). */
   const one = (n: number) => n === 1 || (n === 0 && lang() === "fr");
-  const backToPilots = (c: Context<Env>, comp: CompetitionRow, msg: string) =>
-    c.redirect(`/competitions/${comp.id}/edit?msg=${encodeURIComponent(msg)}#pilots`);
+  /**
+   * Après un changement de la liste des pilotes : les traces des manches qui n'étaient rattachées à
+   * aucun inscrit le sont si leur numéro ou leur nom correspond maintenant. Rend le message complété.
+   */
+  const backToPilots = (c: Context<Env>, comp: CompetitionRow, msg: string) => {
+    const registry = listPilots(db, comp.id);
+    let n = 0;
+    for (const { id } of db.prepare("SELECT id FROM tasks WHERE competition_id = ?").all(comp.id) as Array<{ id: number }>) {
+      const k = linkTracks(db, tracks, id, me(c).id, registry);
+      if (k) touchScoring(db, id);
+      n += k;
+    }
+    if (n) msg += " " + (one(n) ? t("{n} trace rattachée à un pilote inscrit.", { n }) : t("{n} traces rattachées à des pilotes inscrits.", { n }));
+    return c.redirect(`/competitions/${comp.id}/edit?msg=${encodeURIComponent(msg)}#pilots`);
+  };
 
   app.post("/competitions/:id/pilots/import", async (c) => {
     const comp = competition(c, c.req.param("id"));
@@ -904,6 +917,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const replaced = q("replaced");
     const same = q("same");
     const extra = q("extra");
+    const linked = q("linked");
     const parts = [
       c.req.query("created") ? t("Manche créée : vérifiez le parcours sur la carte avant d'envoyer les traces.") : "",
       added ? (one(added) ? t("{n} trace ajoutée.", { n: added }) : t("{n} traces ajoutées.", { n: added })) : "",
@@ -913,6 +927,14 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
           : t("{n} traces en plus pour des pilotes qui en avaient déjà une : elles sont gardées, le calcul retient la plus favorable à chaque pilote.", { n: extra })
         : "",
       replaced ? (one(replaced) ? t("{n} trace remplacée.", { n: replaced }) : t("{n} traces remplacées.", { n: replaced })) : "",
+      c.req.query("linked") !== undefined
+        ? linked
+          ? one(linked)
+            ? t("{n} trace rattachée à un pilote inscrit.", { n: linked })
+            : t("{n} traces rattachées à des pilotes inscrits.", { n: linked })
+          : t("Aucune trace de plus n'a pu être rattachée : choisissez le pilote sur la ligne de la trace.")
+        : "",
+      c.req.query("assigned") ? t("Trace rattachée au pilote.") : "",
       same
         ? one(same)
           ? t("{n} fichier identique à la trace en place, ignoré.", { n: same })
@@ -1079,6 +1101,28 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const how = replaceTrack(db, x.t.id, tr.id, me(c).id, { pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
     if (how === "same") return taskPage(c, x.t, x.comp, { edit: true, notice: t("Ce fichier est déjà la trace de {pilot} : rien n'a changé.", { pilot: tr.pilot_name ?? tr.pilot_key }) });
     return c.redirect(`/tasks/${x.t.id}/edit?replaced=1&open=tracks#tracks`);
+  });
+
+  // Rattacher une trace à un pilote inscrit (par son numéro dans la vue des pilotes de la compétition).
+  app.post("/tasks/:id/tracks/:trackId/pilot", async (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    const f = await c.req.parseBody();
+    const p = listPilots(db, x.comp.id).find((r) => r.pilot_key === String(f.pilot_key ?? ""));
+    if (!p) return taskPage(c, x.t, x.comp, { error: t("Choisissez un pilote inscrit.") });
+    const r = assignTrack(db, x.t.id, Number(c.req.param("trackId")), me(c).id, p);
+    if (r === "unknown") return notFound(c);
+    if (r !== "same") touchScoring(db, x.t.id);
+    return c.redirect(`/tasks/${x.t.id}/edit?assigned=1&open=tracks#tracks`);
+  });
+
+  // Rattacher d'un coup les traces pas encore liées à un inscrit (liste des pilotes complétée après l'envoi).
+  app.post("/tasks/:id/tracks/link", (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    const n = linkTracks(db, tracks, x.t.id, me(c).id, listPilots(db, x.comp.id));
+    if (n) touchScoring(db, x.t.id);
+    return c.redirect(`/tasks/${x.t.id}/edit?linked=${n}&open=tracks#tracks`);
   });
 
   // Fichier IGC d'origine (trace en vigueur ou ancienne version), pour l'organisateur.

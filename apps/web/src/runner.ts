@@ -1,6 +1,7 @@
 import { controlPilot, finishScoringBest, parseOpenAir, type ControlledPilot, type Task } from "@pgscore/engine";
 import type { CompetitionRow, Db, RunDetail, RunStep, TaskRow } from "./db.js";
 import { engineDecisions, listDecisions } from "./decisions.js";
+import { listPilots } from "./pilots.js";
 import { controlTask, parseSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
 import { t } from "./i18n.js";
@@ -82,6 +83,8 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
     };
     const ids = db.prepare("SELECT id FROM tracks WHERE task_id = ? ORDER BY pilot_key, id").all(taskId) as Array<{ id: number }>;
     const getTrack = db.prepare("SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE id = ?");
+    // Nom du pilote inscrit sous ce numéro (vue des pilotes de la compétition) plutôt que celui de la trace.
+    const regName = new Map(listPilots(db, comp.id).map((p) => [p.pilot_key, p.name]));
 
     // 2. Contrôle des traces, une par une, avec des compteurs pour la page.
     const detail: Required<Pick<RunDetail, "counts" | "recent">> & RunDetail = {
@@ -95,7 +98,8 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
     const groups = new Map<string, Array<{ cp: ControlledPilot; sha256: string }>>();
     for (const [i, { id }] of ids.entries()) {
       await tick();
-      const tr = getTrack.get(id) as { pilot_key: string; pilot_name: string | null; sha256: string };
+      const row = getTrack.get(id) as { pilot_key: string; pilot_name: string | null; sha256: string };
+      const tr = { ...row, pilot_name: regName.get(row.pilot_key) ?? row.pilot_name };
       detail.pilot = tr.pilot_name ?? tr.pilot_key;
       report("control", i, detail);
       const igc = tracks.text(tr.sha256);

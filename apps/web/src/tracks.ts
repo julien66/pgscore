@@ -1,4 +1,6 @@
-import type { Db, TrackHistoryRow, TrackRow } from "./db.js";
+import type { Db, PilotRow, TrackHistoryRow, TrackRow } from "./db.js";
+import { pilotKeyForTrack } from "./files.js";
+import type { TrackStore } from "./track-store.js";
 import type { VersionMeta } from "./viewer-data.js";
 
 /**
@@ -131,3 +133,63 @@ export function pilotVersions(db: Db, taskId: number, pilotKey: string, scoredSh
   }
   return out;
 }
+
+/**
+ * Rattache une trace à un pilote inscrit (son numéro dans la vue des pilotes de la compétition) :
+ * la trace prend le numéro et le nom de l'inscrit. Rend "same" si elle est déjà à ce pilote,
+ * "twin" si ce pilote a déjà ce même fichier (la trace en double est alors retirée).
+ */
+export function assignTrack(db: Db, taskId: number, trackId: number, userId: number, pilot: { pilot_key: string; name: string }): "moved" | "same" | "twin" | "unknown" {
+  const tr = db.prepare("SELECT * FROM tracks WHERE id = ? AND task_id = ?").get(trackId, taskId) as unknown as TrackRow | undefined;
+  if (!tr) return "unknown";
+  if (tr.pilot_key === pilot.pilot_key) {
+    if (tr.pilot_name !== pilot.name) db.prepare("UPDATE tracks SET pilot_name = ? WHERE id = ?").run(pilot.name, tr.id);
+    return "same";
+  }
+  const twin = db.prepare("SELECT id FROM tracks WHERE task_id = ? AND pilot_key = ? AND sha256 = ?").get(taskId, pilot.pilot_key, tr.sha256);
+  if (twin) {
+    removeTrack(db, taskId, tr.id, userId);
+    return "twin";
+  }
+  db.prepare("UPDATE tracks SET pilot_key = ?, pilot_name = ? WHERE id = ?").run(pilot.pilot_key, pilot.name, tr.id);
+  return "moved";
+}
+
+/**
+ * Rattache aux pilotes inscrits les traces de la manche qui ne le sont pas encore (envoyées avant
+ * l'inscription, ou avec une liste incomplète) : même règle qu'à l'envoi (numéro du fichier, HFCID,
+ * nom de l'en-tête). Remet aussi le nom de l'inscrit sur les traces déjà rattachées. Rend le nombre de traces rattachées.
+ */
+export function linkTracks(db: Db, store: TrackStore, taskId: number, userId: number, registry: PilotRow[]): number {
+  if (!registry.length) return 0;
+  const reg = new Map(registry.map((p) => [p.pilot_key, p]));
+  const rows = db.prepare("SELECT * FROM tracks WHERE task_id = ? ORDER BY id").all(taskId) as unknown as TrackRow[];
+  let n = 0;
+  db.exec("BEGIN");
+  try {
+    for (const tr of rows) {
+      const own = reg.get(tr.pilot_key);
+      if (own) {
+        if (tr.pilot_name !== own.name) db.prepare("UPDATE tracks SET pilot_name = ? WHERE id = ?").run(own.name, tr.id);
+        continue;
+      }
+      let text: string;
+      try {
+        text = store.text(tr.sha256);
+      } catch {
+        continue;
+      }
+      const key = pilotKeyForTrack(tr.filename, text, registry, new Map());
+      const p = reg.get(key);
+      if (!p) continue;
+      const r = assignTrack(db, taskId, tr.id, userId, p);
+      if (r === "moved" || r === "twin") n++;
+    }
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
+  return n;
+}
+

@@ -33,7 +33,7 @@ button,.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;bord
 button.danger{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:600}.card.danger{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}button.primary,.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 button.link{border:0;background:none;color:var(--muted);padding:0;font-size:13px}a.act{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:13px}a.act:hover,button.link.print-rk:hover{color:var(--accent);text-decoration:none}a.act .bi{color:#21a366}.acts{display:inline-flex;gap:16px;align-items:center;flex-wrap:wrap;margin-right:8px;vertical-align:middle}body.printing .print-me .acts,body.printing a.act{display:none!important}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.mt{margin-top:12px}
-.muted{color:var(--muted)}.badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;background:var(--accent);color:var(--accent-ink)}details.replace{display:inline-block;margin-right:8px}details.replace summary{cursor:pointer;color:var(--accent);font-size:14px}details.replace form{display:flex;flex-direction:column;gap:6px;margin-top:6px;min-width:260px}.small{font-size:13px}
+.muted{color:var(--muted)}.badge{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;background:var(--accent);color:var(--accent-ink)}details.replace{display:inline-block;margin-right:8px}details.replace summary{cursor:pointer;color:var(--accent);font-size:14px}details.replace form{display:flex;flex-direction:column;gap:6px;margin-top:6px;min-width:260px}.small{font-size:13px}.badge.warn{background:var(--warn);color:#fff}
 .err{background:color-mix(in srgb,var(--bad) 12%,var(--card));border:1px solid var(--bad);color:var(--text);padding:10px 12px;border-radius:8px;margin-bottom:16px}
 .note{background:var(--chip);padding:10px 12px;border-radius:8px;margin-bottom:16px}
 table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
@@ -881,7 +881,9 @@ const identity = (registry: PilotRow[], keys: string[]) => {
       </>
     );
   };
-  return { Head, Cells };
+  /** Nom de l'inscrit sous ce numéro, sinon celui de la trace. */
+  const nameOf = (k: string, fallback: string) => of(k)?.name ?? fallback;
+  return { Head, Cells, nameOf };
 };
 
 /** Lien d'export CSV, présenté comme le bouton d'impression, avec une icône de tableur. */
@@ -1296,6 +1298,10 @@ export const TaskPage: FC<{
     run?.status === "done" && run.results ? ((JSON.parse(run.results) as { chosenTracks?: Record<string, string> }).chosenTracks ?? {}) : {};
   const when = (ms: number) => `${new Date(ms).toLocaleDateString(locale(), { timeZone: tz, day: "2-digit", month: "2-digit" })} ${localTime(ms, tz)}`;
   const fileUrl = (sha: string) => `/tasks/${tk.id}/files/${sha}`;
+  // Lien entre les traces et les pilotes de la compétition : le numéro (pilot_key) de la trace est celui de l'inscrit.
+  const reg = new Map(registry.map((p) => [p.pilot_key, p]));
+  const unlinked = tracks.filter((x) => !reg.has(x.pilot_key));
+  const pilotsUrl = `/competitions/${c.id}/edit#pilots`;
   return (
     <Layout title={`${edit ? `${t("Éditer")} · ` : ""}${t("Manche {n}", { n: tk.number })} · ${c.name}`} user={user}>
       <div class="crumbs">
@@ -1463,8 +1469,32 @@ export const TaskPage: FC<{
             )}
           </span>
         </form>
+        {tracks.length && !registry.length ? (
+          <p class="note mt">
+            {t("Aucun pilote inscrit dans la compétition : les classements n'affichent que le nom des traces.")}{" "}
+            <a href={pilotsUrl}>{t("Ajouter les pilotes (FSDB ou CSV)")}</a>
+            {" "}
+            {t("pour afficher nation, voile, sponsor… Les traces s'y rattachent par le numéro.")}
+          </p>
+        ) : null}
+        {registry.length && unlinked.length ? (
+          <div class="note mt">
+            {unlinked.length === 1
+              ? t("{n} trace n'est rattachée à aucun pilote inscrit : sa nation, son sponsor… n'apparaissent pas dans les classements.", { n: unlinked.length })
+              : t("{n} traces ne sont rattachées à aucun pilote inscrit : leur nation, leur sponsor… n'apparaissent pas dans les classements.", { n: unlinked.length })}{" "}
+            {t("Complétez les")} <a href={pilotsUrl}>{t("pilotes de la compétition")}</a>
+            {t(", ou choisissez le pilote sur la ligne de la trace.")}
+            <form method="post" action={`/tasks/${tk.id}/tracks/link`} class="mt">
+              <button>
+                <Bi n="refresh" />
+                {t("Rattacher aux inscrits")}
+              </button>{" "}
+              <span class="small muted">{t("Par le numéro du fichier, le numéro de compétition ou le nom inscrit dans la trace.")}</span>
+            </form>
+          </div>
+        ) : null}
         {tracks.length ? (
-          <details class="mt" open={openTracks}>
+          <details class="mt" open={openTracks || unlinked.length > 0}>
             <summary>{t("Voir les traces")}</summary>
             <div class="scroll">
               <table>
@@ -1482,7 +1512,14 @@ export const TaskPage: FC<{
                     <tr>
                       <td>{tr.pilot_key}</td>
                       <td>
-                        <a href={`/tasks/${tk.id}/pilots/${encodeURIComponent(tr.pilot_key)}`}>{tr.pilot_name ?? tr.pilot_key}</a>
+                        <a href={`/tasks/${tk.id}/pilots/${encodeURIComponent(tr.pilot_key)}`}>{reg.get(tr.pilot_key)?.name ?? tr.pilot_name ?? tr.pilot_key}</a>
+                        {reg.has(tr.pilot_key) ? (
+                          <div class="small muted">{[reg.get(tr.pilot_key)!.nation, reg.get(tr.pilot_key)!.sponsor].filter(Boolean).join(" · ")}</div>
+                        ) : registry.length ? (
+                          <span class="badge warn" title={t("Aucun pilote inscrit sous ce numéro dans la compétition.")}>
+                            {t("non inscrit")}
+                          </span>
+                        ) : null}
                       </td>
                       <td>
                         <a class="muted" href={fileUrl(tr.sha256)}>
@@ -1513,6 +1550,22 @@ export const TaskPage: FC<{
                             </button>
                           </form>
                         </details>
+                        {registry.length ? (
+                          <details class="replace" open={!reg.has(tr.pilot_key) && unlinked.length === 1}>
+                            <summary>{reg.has(tr.pilot_key) ? t("Changer de pilote") : t("Rattacher")}</summary>
+                            <form method="post" action={`/tasks/${tk.id}/tracks/${tr.id}/pilot`} class="upload">
+                              <select name="pilot_key" required>
+                                <option value="">{t("Pilote inscrit…")}</option>
+                                {registry.map((p) => (
+                                  <option value={p.pilot_key} selected={p.pilot_key === tr.pilot_key}>
+                                    {p.pilot_key} · {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <button>{t("Rattacher la trace")}</button>
+                            </form>
+                          </details>
+                        ) : null}
                         <form method="post" action={`/tasks/${tk.id}/tracks/${tr.id}/delete`}>
                           <button class="link">{t("Retirer")}</button>
                         </form>
@@ -2280,7 +2333,7 @@ const TaskResults: FC<{
                   <td class="n">{i + 1}</td>
                   <td class="n muted">{p.id}</td>
                   <td>
-                    {p.fixes ? <a href={`/tasks/${taskId}/pilots/${encodeURIComponent(p.id)}`}>{p.name}</a> : p.name}
+                    {p.fixes ? <a href={`/tasks/${taskId}/pilots/${encodeURIComponent(p.id)}`}>{id.nameOf(p.id, p.name)}</a> : id.nameOf(p.id, p.name)}
                     <StatusTags p={p} />
                   </td>
                   <id.Cells k={p.id} />

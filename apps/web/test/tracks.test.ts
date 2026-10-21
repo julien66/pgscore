@@ -97,6 +97,50 @@ describe("fichiers IGC hors de la base", () => {
     expect((await req(`${url}/pilots/42`)).status).toBe(200);
   });
 
+  it("rattache les traces aux pilotes inscrits de la compétition, par leur numéro", async () => {
+    const { db, req, url } = await minimalTask();
+    // Trace anonyme envoyée avant l'inscription : elle est rangée sous le nom de l'en-tête.
+    await req(`${url}/tracks`, { method: "POST", body: upload("vol.igc", IGC2) });
+    await req(`${url}/tracks`, { method: "POST", body: upload("42.igc", IGC) });
+    expect((db.prepare("SELECT pilot_key FROM tracks ORDER BY id").all() as Array<{ pilot_key: string }>).map((x) => x.pilot_key)).toEqual(["rene-test", "42"]);
+    const comp = (db.prepare("SELECT id FROM competitions").get() as { id: number }).id;
+    // Liste des pilotes importée ensuite : la trace anonyme rejoint l'inscrit 710 (même nom), la 42 prend le nom inscrit.
+    const fd = new FormData();
+    fd.append("file", new Blob(["numero,nom,nation,sponsor\n710,René Test,BRA,Acme\n42,Jean Dupont,FRA,\n"]), "pilotes.csv");
+    const r = await req(`/competitions/${comp}/pilots/import`, { method: "POST", body: fd });
+    expect(decodeURIComponent(r.headers.get("location")!)).toContain("1 trace rattachée");
+    const rows = db.prepare("SELECT pilot_key, pilot_name FROM tracks ORDER BY id").all();
+    expect(rows).toEqual([
+      { pilot_key: "710", pilot_name: "René Test" },
+      { pilot_key: "42", pilot_name: "Jean Dupont" },
+    ]);
+    // Rattachement à la main depuis la liste des traces.
+    const id = (db.prepare("SELECT id FROM tracks WHERE pilot_key = '42'").get() as { id: number }).id;
+    const a = await req(`${url}/tracks/${id}/pilot`, { method: "POST", body: new URLSearchParams({ pilot_key: "710" }) });
+    expect(a.headers.get("location")).toContain("assigned=1");
+    expect((db.prepare("SELECT COUNT(*) n FROM tracks WHERE pilot_key = '710'").get() as { n: number }).n).toBe(2);
+    expect((await req(`${url}/tracks/${id}/pilot`, { method: "POST", body: new URLSearchParams({ pilot_key: "999" }) })).status).toBe(400);
+    // Page des traces : nation et sponsor de l'inscrit, choix du pilote.
+    const page = await (await req(`${url}/edit`)).text();
+    expect(page).toContain("BRA · Acme");
+    expect(page).toContain("Changer de pilote");
+  });
+
+  it("signale les traces sans pilote inscrit et les rattache d'un clic", async () => {
+    const { db, req, url } = await minimalTask();
+    const comp = (db.prepare("SELECT id FROM competitions").get() as { id: number }).id;
+    db.prepare("INSERT INTO competition_pilots (competition_id, pilot_key, name) VALUES (?, '5', 'Autre Pilote')").run(comp);
+    await req(`${url}/tracks`, { method: "POST", body: upload("vol.igc", IGC2) });
+    const page = await (await req(`${url}/edit`)).text();
+    expect(page).toContain("non inscrit");
+    expect(page).toContain("Rattacher aux inscrits");
+    // Rien à rattacher tant que l'inscrit manque ; ensuite, le bouton le fait.
+    expect((await req(`${url}/tracks/link`, { method: "POST" })).headers.get("location")).toContain("linked=0");
+    db.prepare("INSERT INTO competition_pilots (competition_id, pilot_key, name) VALUES (?, '710', 'TEST René')").run(comp);
+    expect((await req(`${url}/tracks/link`, { method: "POST" })).headers.get("location")).toContain("linked=1");
+    expect(db.prepare("SELECT pilot_key, pilot_name FROM tracks").get()).toEqual({ pilot_key: "710", pilot_name: "TEST René" });
+  });
+
   it("recalcule toutes les manches de la compétition et montre l'avancement", async () => {
     const { db, req, url } = await minimalTask();
     await req(`${url}/tracks`, { method: "POST", body: upload("42.igc", IGC) });
