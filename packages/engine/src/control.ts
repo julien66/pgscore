@@ -278,8 +278,10 @@ function controlUntil(task: Task, valid: IgcFix[], end: number): FlightControl {
     time: pts[j]!.time,
     altitude: alt(pts[j]!),
   });
+  // Passage retenu strictement après la porte (9.2.4) : un fix pile à l'heure de la porte constate une
+  // sortie qui a eu lieu avant elle.
   const firstAfter = (list: number[], afterIdx: number) =>
-    list.find((j) => j > afterIdx && pts[j]!.time >= firstGate && pts[j]!.time <= deadline);
+    list.find((j) => j > afterIdx && pts[j]!.time > firstGate && pts[j]!.time <= deadline);
 
   // SSS (9.2.4) : premier passage après la porte s'il n'y a qu'une porte ; sinon (plusieurs portes,
   // time trial) dernier passage avant la validation de la balise suivante.
@@ -290,7 +292,7 @@ function controlUntil(task: Task, valid: IgcFix[], end: number): FlightControl {
     if (task.type === "time-trial" || gates.length > 1) {
       const nextJ = sssIdx + 1 <= goalIdx ? firstAfter(crossingsOf(sssIdx + 1), sssJ) : undefined;
       const limit = nextJ ?? pts.length;
-      const last = [...sssList].reverse().find((j) => j < limit && pts[j]!.time >= firstGate);
+      const last = [...sssList].reverse().find((j) => j < limit && pts[j]!.time > firstGate);
       if (last !== undefined) sssJ = last;
     }
     validated.push(zv(sssIdx, sssJ));
@@ -307,7 +309,7 @@ function controlUntil(task: Task, valid: IgcFix[], end: number): FlightControl {
   const at = (i: number) => validated.find((v) => v.index === i)?.time ?? null;
   result.sssTime = at(sssIdx);
   if (result.sssTime !== null) {
-    const gate = [...gates].reverse().find((g) => g <= result.sssTime!) ?? null;
+    const gate = [...gates].reverse().find((g) => g < result.sssTime!) ?? null;
     result.startTime = task.type === "race" && gate !== null ? gate : result.sssTime;
   }
   result.essTime = at(ess);
