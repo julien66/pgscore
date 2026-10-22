@@ -64,6 +64,13 @@ export interface Task {
    * Certaines compétitions gardent l'ancienne valeur, 0,001 (0,1 %).
    */
   cylinderTolerance?: number;
+  /**
+   * Orientation du goal en ligne. "route" (par défaut, S7F 2026 6.2.3.1 et PWCA 13.5) : perpendiculaire à la
+   * route optimisée qui y arrive. "previousCentre" (S7F 2024) : perpendiculaire à la direction du centre de la
+   * dernière balise de centre différent, prise en degrés de latitude et de longitude sans correction, comme les
+   * résultats publiés de la German Open 2026 (manche 1).
+   */
+  goalLineOrientation?: "route" | "previousCentre";
   /** Indication d'origine (enter/exit) gardée pour l'affichage : le S7F 2026 ne l'utilise plus. */
   startDirection?: "enter" | "exit";
   /** Modèle terrestre déclaré par le fichier source ; le contrôle utilise toujours WGS84. */

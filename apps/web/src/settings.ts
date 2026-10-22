@@ -4,6 +4,7 @@ import {
   type AirspacePenaltyRule,
   type CompetitionParameters,
   type GapProfile,
+  type LeadingEnd,
   type Task,
 } from "@pgscore/engine";
 import { N_, t } from "./i18n.js";
@@ -17,6 +18,8 @@ export interface CompetitionSettings extends CompetitionParameters {
   roundAirspaceLimits: boolean;
   /** Fuseau horaire du site, pour afficher et saisir les heures locales. */
   timeZone: string;
+  /** Fin des vols pour maxTime du leading : dernier posé (comme FS) ou dernière arrivée à l'ESS (comme Flymaster). */
+  leadingEnd: LeadingEnd;
 }
 
 export const DEFAULT_SETTINGS: CompetitionSettings = {
@@ -25,6 +28,7 @@ export const DEFAULT_SETTINGS: CompetitionSettings = {
   airspacePenaltyRule: "s7a",
   roundAirspaceLimits: false,
   timeZone: "Europe/Paris",
+  leadingEnd: "lastLanding",
 };
 
 export const GAP_PROFILES: Record<GapProfile, string> = {
@@ -36,6 +40,17 @@ export const PENALTY_RULES: Record<AirspacePenaltyRule, string> = {
   s7a: N_("S7A 2026 : 0 à 100 % des points entre 0 et 100 m"),
   "pwca-soft": N_("PWCA « soft » : 1000 points à 100 m"),
   "pwca-hard": N_("PWCA « hard » : 1000 points à 50 m"),
+};
+
+export const LEADING_ENDS: Record<LeadingEnd, string> = {
+  lastLanding: N_("Dernier posé ou dernière arrivée à l'ESS (S7F, comme FS)"),
+  lastEss: N_("Dernière arrivée à l'ESS (comme Flymaster)"),
+};
+
+/** Orientation d'un goal en ligne, réglée par manche (rubrique « Règles anciennes »). */
+export const GOAL_LINE_ORIENTATIONS: Record<NonNullable<Task["goalLineOrientation"]>, string> = {
+  route: N_("Perpendiculaire à la route optimisée (S7F 2026, PWCA)"),
+  previousCentre: N_("Perpendiculaire au centre de la balise précédente (S7F 2024)"),
 };
 
 export function parseSettings(json: string): CompetitionSettings {
@@ -69,6 +84,8 @@ export function settingsFromForm(form: Record<string, unknown>): CompetitionSett
   if (!(airspacePenaltyRule in PENALTY_RULES)) throw new FormError(t("Barème d'espace aérien inconnu."));
   const timeZone = String(form.timeZone ?? "").trim() || DEFAULT_SETTINGS.timeZone;
   if (!isTimeZone(timeZone)) throw new FormError(t("Fuseau horaire inconnu : {timeZone}", { timeZone }));
+  const leadingEnd = String(form.leadingEnd ?? DEFAULT_SETTINGS.leadingEnd) as LeadingEnd;
+  if (!(leadingEnd in LEADING_ENDS)) throw new FormError(t("Fin de manche pour le leading inconnue."));
   let params;
   try {
     params = competitionParameters({
@@ -80,7 +97,14 @@ export function settingsFromForm(form: Record<string, unknown>): CompetitionSett
   } catch (e) {
     throw new FormError((e as Error).message);
   }
-  return { ...params, gapProfile, airspacePenaltyRule, roundAirspaceLimits: form.roundAirspaceLimits === "on", timeZone };
+  return {
+    ...params,
+    gapProfile,
+    airspacePenaltyRule,
+    roundAirspaceLimits: form.roundAirspaceLimits === "on",
+    timeZone,
+    leadingEnd,
+  };
 }
 
 /** Réglages de points propres à une manche, rangés avec elle. */

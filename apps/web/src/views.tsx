@@ -4,7 +4,7 @@ import { GAP_RULES, NOMINAL_GOAL, NOMINAL_LAUNCH, speedFraction, type DecisionKi
 import type { ApiTokenRow } from "./auth.js";
 import type { CompetitionRow, DecisionRow, PilotRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "./db.js";
 import { DECISION_KINDS } from "./decisions.js";
-import { GAP_PROFILES, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
+import { GAP_PROFILES, GOAL_LINE_ORIENTATIONS, LEADING_ENDS, PENALTY_RULES, type CompetitionSettings, type StoredTask } from "./settings.js";
 import { duration, km, localTime, utcHmsToLocal } from "./time.js";
 import type { CompetitionSummary, CompetitionWinners, Standings } from "./standings.js";
 import { lang, LANGS, locale, N_, t } from "./i18n.js";
@@ -383,6 +383,16 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
           <select name="airspacePenaltyRule">
             {Object.entries(PENALTY_RULES).map(([k, l]) => (
               <option value={k} selected={s.airspacePenaltyRule === k}>
+                {t(l)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label>{t("Fin de manche pour le leading")}</label>
+          <select name="leadingEnd">
+            {Object.entries(LEADING_ENDS).map(([k, l]) => (
+              <option value={k} selected={s.leadingEnd === k}>
                 {t(l)}
               </option>
             ))}
@@ -1544,6 +1554,17 @@ export const TaskPage: FC<{
           <div>
             <label>{t("Fin de manche pour le leading (locale)")}</label>
             <input type="text" name="taskEndTime" placeholder={t("dernier posé")} value={loc(task.taskEndTime)} />
+          </div>
+          <h3 style="grid-column:1/-1;margin:.5em 0 0">{t("Règles anciennes")}</h3>
+          <div>
+            <label>{t("Orientation du goal en ligne")}</label>
+            <select name="goalLineOrientation">
+              {Object.entries(GOAL_LINE_ORIENTATIONS).map(([k, l]) => (
+                <option value={k} selected={(task.goalLineOrientation ?? "route") === k}>
+                  {t(l)}
+                </option>
+              ))}
+            </select>
           </div>
           <div style="align-self:end">
             <button>

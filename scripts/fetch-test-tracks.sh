@@ -2,8 +2,8 @@
 # Télécharge les traces IGC des manches PWCA de référence (publiques sur scoring.pwca.org) dans
 # .test-data/, vérifie leur empreinte et les décompresse. Les tests de calcul PWCA les lisent via
 # GEMONA_T3_IGC_DIR, FELTRE_T3_IGC_DIR, PWCA_T1_IGC_DIR et SOPOT_T1_IGC_DIR … SOPOT_T4_IGC_DIR.
-# Télécharge aussi les ZIP gardés tels quels (compétitions FS de la branche test-data du dépôt), lus via
-# TDC_2026_ZIP.
+# Télécharge aussi les ZIP gardés tels quels (compétitions de la branche test-data du dépôt), lus via
+# TDC_2026_ZIP et GERMAN_OPEN_2026_ZIP.
 #
 #   scripts/fetch-test-tracks.sh            # télécharge ce qui manque
 #   eval "$(scripts/fetch-test-tracks.sh --env)"   # et exporte les variables dans le shell
@@ -25,9 +25,10 @@ SETS=(
 )
 
 # ZIP gardés tels quels : fichier | adresse (épinglée sur un commit de la branche test-data) | empreinte
-TEST_DATA="https://raw.githubusercontent.com/julien66/pgscore/7402a4061b6561cf3a8c7382c7daab25f664b492"
+TEST_DATA="https://raw.githubusercontent.com/julien66/pgscore/73638b06bd3ceda0b62dc8a49f7e5c502695dcf0"
 ZIPS=(
   "french-open-tdc-2026.zip|$TEST_DATA/fs/french-open-tdc-2026.zip|dea79c130418d59d3644bcf84b1f132922dacacbee1cc55176585faaa261fb41"
+  "german-open-2026.zip|$TEST_DATA/civlcomps/german-open-2026.zip|c2beeb922e434f79cd086ce11fd5615a22af564e06272cea14d81c3a3387abc5"
 )
 
 mkdir -p "$DATA"
@@ -61,4 +62,5 @@ if [ "${1:-}" = "--env" ]; then
   echo "export PWCA_T1_IGC_DIR='$DATA/baixo-guandu-2026-t1'"
   for n in 1 2 3 4; do echo "export SOPOT_T${n}_IGC_DIR='$DATA/sopot-2026-t$n'"; done
   echo "export TDC_2026_ZIP='$DATA/french-open-tdc-2026.zip'"
+  echo "export GERMAN_OPEN_2026_ZIP='$DATA/german-open-2026.zip'"
 fi
