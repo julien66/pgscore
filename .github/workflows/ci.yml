@@ -28,7 +28,7 @@ jobs:
         run: |
           files=$(git diff --name-only "$BASE" HEAD 2>/dev/null) || files="(base inconnue)"
           echo "$files"
-          if [ "$files" = "(base inconnue)" ] || echo "$files" | grep -qE '^(packages/engine/|scripts/fetch-test-tracks\.sh|apps/web/src/(fsdb|civlcomps|archive|runner|score-worker|repo|settings|standings)\.ts|apps/web/test/(tdc|german-open)-|pnpm-lock\.yaml|\.github/workflows/)'; then
+          if [ "$files" = "(base inconnue)" ] || echo "$files" | grep -qE '^(packages/engine/|scripts/fetch-test-tracks\.sh|apps/web/src/(fsdb|civlcomps|archive|runner|score-worker|repo|settings|standings)\.ts|apps/web/test/(tdc|german-open|us-open)-|pnpm-lock\.yaml|\.github/workflows/)'; then
             echo "REFERENCE_TESTS=run" >> "$GITHUB_ENV"
           else
             echo "REFERENCE_TESTS=skip" >> "$GITHUB_ENV"
