@@ -1,7 +1,7 @@
 import type { FC } from "hono/jsx";
 import type { User } from "./db.js";
 import { N_, t } from "./i18n.js";
-import { Layout } from "./views.js";
+import { Layout } from "./pages/layout.js";
 
 /**
  * Page publique « Différences CIVL / PWCA » : chaque différence de calcul entre la formule CIVL (FS) et la
