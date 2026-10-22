@@ -361,6 +361,12 @@ export function taskFromPage(p: CivlTaskPage, type: "race" | "time-trial", offse
     const gr = Number(p.formula.bonus_gr);
     if (p.formula.bonus_gr && Number.isFinite(gr) && gr >= 0) task.bonusGlideRatio = gr;
   }
+  // FS GAP2025 : partie de vol manquante des pilotes posés comptée autrement, jusqu'au dernier posé
+  // (US Open Chelan 2026).
+  if (/^GAP2025$/i.test(p.formula.id ?? "")) {
+    task.leadingFormula = "GAP2025";
+    task.leadingEnd = "lastLanding";
+  }
   const present = Number(p.stats.no_of_pilots_present);
   if (Number.isInteger(present) && present > 0) task.pilotsPresent = present;
   return task;

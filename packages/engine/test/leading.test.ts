@@ -59,3 +59,30 @@ describe("régularité de la trace pour le leading", () => {
     expect(q.warnings).toEqual([{ kind: "gap", seconds: 5401 }, { kind: "ends-in-flight" }]);
   });
 });
+
+describe("leading GAP2025 (FS) : partie de vol manquante d'un pilote posé", () => {
+  const track = (best: number): LeadingTrack => ({
+    samples: [
+      { t: 0, minToEss: 100 },
+      { t: 3600, minToEss: best },
+    ],
+    quality: { fixes: 2, medianInterval: 1, maxGap: 0, maxGapAt: null, endsInFlight: false, warnings: [] },
+    madeEss: false,
+    essTime: null,
+    outlandingTime: 3600,
+  });
+  const area = (best: number) => leadingCoefficient(track(best), 100, 0) * 1800;
+
+  it("distance restante × poids à l'avancement atteint, au-delà du pic du poids", () => {
+    const lc = leadingCoefficient(track(20), 100, 7200, "GAP2025");
+    expect(lc * 1800 - area(20)).toBeCloseTo(7200 * 0.2 * leadingWeight(0.8), 6);
+    // GAP2026 : intégrale, plus petite.
+    expect(leadingCoefficient(track(20), 100, 7200)).toBeLessThan(lc);
+  });
+
+  it("avant le pic, le plus grand poids jusqu'à l'ESS", () => {
+    const peak = Math.max(...Array.from({ length: 1001 }, (_, i) => leadingWeight(i / 1000)));
+    const lc = leadingCoefficient(track(90), 100, 7200, "GAP2025");
+    expect(lc * 1800 - area(90)).toBeCloseTo(7200 * 0.9 * peak, 1);
+  });
+});

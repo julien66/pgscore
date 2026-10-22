@@ -48,6 +48,9 @@ describe("import civlcomps.org", () => {
     };
     const task = taskFromPage(page, "race", -420, 1);
     expect(task.turnpoints[0]).toMatchObject({ role: "takeoff", zone: { radius: 0 } });
+    expect(task.leadingFormula).toBeUndefined();
+    // Formule FS GAP2025 : leading des pilotes posés à sa façon, jusqu'au dernier posé.
+    expect(taskFromPage({ ...page, formula: { id: "GAP2025" } }, "race", -420, 1)).toMatchObject({ leadingFormula: "GAP2025", leadingEnd: "lastLanding" });
     expect(() => taskFromPage({ ...page, turnpoints: [page.turnpoints[1]!, { ...page.turnpoints[2]!, radius: 0 }, page.turnpoints[3]!] }, "race", -420, 1)).toThrow();
   });
 

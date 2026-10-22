@@ -215,6 +215,7 @@ export function leadingCoefficient(
   track: LeadingTrack,
   ssDistanceKm: number,
   maxTime: number,
+  formula: LeadingFormula = "GAP2026",
 ): number {
   const done = (d: number) => 1 - d / ssDistanceKm;
   const s = track.samples;
@@ -227,8 +228,27 @@ export function leadingCoefficient(
     }
   }
   const bestD = s.at(-1)!.minToEss;
-  const missing = maxTime * weightIntegral(done(bestD), 1);
+  const missing = formula === "GAP2025" ? maxTime * (bestD / ssDistanceKm) * maxWeightFrom(done(bestD)) : maxTime * weightIntegral(done(bestD), 1);
   return (area + missing) / 1800;
+}
+
+/**
+ * Formule du leading pour la partie de vol manquante (pilote posé avant l'ESS) :
+ * - "GAP2026" : intégrale du poids de l'avancement atteint jusqu'à l'ESS (FS GAP2026, SVL) ;
+ * - "GAP2025" : rectangle, distance restante × plus grand poids entre l'avancement atteint et l'ESS
+ *   (FS GAP2025). Formule retrouvée sur les résultats publiés de l'US Open Chelan 2026 : 106 pilotes
+ *   posés sur 107 à 0,2 point près (FS ne publie pas son code).
+ */
+export type LeadingFormula = "GAP2026" | "GAP2025";
+
+/** Plus grand poids (weight) entre l'avancement v et l'ESS : le poids monte puis descend. */
+const WEIGHT_PEAK = (() => {
+  let best = 0;
+  for (let i = 0; i <= N; i++) if (leadingWeight(i / N) > leadingWeight(best / N)) best = i;
+  return best / N;
+})();
+function maxWeightFrom(v: number): number {
+  return leadingWeight(Math.max(Math.min(1, Math.max(0, v)), WEIGHT_PEAK));
 }
 
 /** LeadingFactor (12.3) : 1 pour le meilleur LC, décroît avec l'écart au meilleur (divisé par LCmin, comme FS et SVL). */

@@ -100,6 +100,7 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
         ...(task.pilotsPresent !== undefined ? { pilotsPresent: task.pilotsPresent } : {}),
         ...(task.taskEndTime ? { taskEndTime: task.taskEndTime } : {}),
         ...(task.leadingEnd ? { leadingEnd: task.leadingEnd } : {}),
+        ...(task.leadingFormula ? { leadingFormula: task.leadingFormula } : {}),
         decisions: engineDecisions(listDecisions(db, taskId)),
       },
     };

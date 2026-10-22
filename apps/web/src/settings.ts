@@ -5,6 +5,7 @@ import {
   type CompetitionParameters,
   type GapProfile,
   type LeadingEnd,
+  type LeadingFormula,
   type Task,
 } from "@pgscore/engine";
 import { N_, t } from "./i18n.js";
@@ -43,6 +44,12 @@ export const PENALTY_RULES: Record<AirspacePenaltyRule, string> = {
 export const LEADING_ENDS: Record<LeadingEnd, string> = {
   lastEss: N_("Dernière arrivée à l'ESS"),
   lastLanding: N_("Dernier pilote en vol (posé plus tardif)"),
+};
+
+/** Formule du leading pour la partie de vol manquante des pilotes posés, réglée par manche. */
+export const LEADING_FORMULAS: Record<LeadingFormula, string> = {
+  GAP2026: N_("GAP2026 : intégrale du poids (S7F 2026, FS récent, SVL)"),
+  GAP2025: N_("GAP2025 : distance restante × poids (FS GAP2025)"),
 };
 
 /** Orientation d'un goal en ligne, réglée par manche (rubrique « Règles anciennes »). */
@@ -112,6 +119,8 @@ export interface TaskScoringSettings {
   taskEndTime?: string;
   /** Fin des vols pour le leading : dernière arrivée à l'ESS (par défaut) ou dernier pilote en vol. */
   leadingEnd?: LeadingEnd;
+  /** Formule du leading pour les pilotes posés : GAP2026 (par défaut) ou GAP2025 (FS). */
+  leadingFormula?: LeadingFormula;
 }
 
 export type StoredTask = Task & TaskScoringSettings;
@@ -134,6 +143,9 @@ export function taskScoringFromForm(form: Record<string, unknown>): TaskScoringS
   const end = String(form.leadingEnd ?? "lastEss");
   if (!(end in LEADING_ENDS)) throw new FormError(t("Fin des vols pour le leading inconnue."));
   if (end !== "lastEss") out.leadingEnd = end as LeadingEnd;
+  const formula = String(form.leadingFormula ?? "GAP2026");
+  if (!(formula in LEADING_FORMULAS)) throw new FormError(t("Formule du leading inconnue."));
+  if (formula !== "GAP2026") out.leadingFormula = formula as LeadingFormula;
   return out;
 }
 

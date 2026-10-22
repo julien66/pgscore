@@ -175,7 +175,7 @@ describe("répartition et points (11, 12)", () => {
       stopped: { stopTime: gate + 3 * 3600_000, singleGateRace: true, firstStartGate: gate },
       pilots: [
         pilot("goal", { madeEss: true, madeGoal: true, distance: 70_000, flownDistance: 70_000, speedSectionTime: 7200, startTime: gate }),
-        pilot("ess", { madeEss: true, distance: 69_000, flownDistance: 69_000, speedSectionTime: 8000, startTime: gate }),
+        pilot("ess", { madeEss: true, distance: 69_000, flownDistance: 69_000, speedSectionTime: 8000, startTime: gate, flyingAtStop: true }),
         pilot("df", { distance: 50_000, flownDistance: 50_000, startTime: gate }),
       ],
     };
@@ -186,5 +186,10 @@ describe("répartition et points (11, 12)", () => {
     expect(r.timePointsReduction).toBe(reduction);
     expect(r.pilots[0]!.points.time).toBeCloseTo(r.available.time - reduction, 1);
     expect(r.available.distance).toBeCloseTo(plain.available.distance * (r.validity.task / plain.validity.task) + reduction, 0);
+
+    // Posé entre l'ESS et le goal avant l'arrêt : il n'y est plus à l'heure d'arrêt, la référence est
+    // un passage de l'ESS à l'heure d'arrêt (3 h après la porte).
+    const landed = scoreGap({ ...input, pilots: input.pilots.map((p) => (p.id === "ess" ? { ...p, flyingAtStop: false } : p)) });
+    expect(landed.timePointsReduction).toBe(Math.round(speedFraction(3 * 3600, 7200) * landed.available.time * 10) / 10);
   });
 });

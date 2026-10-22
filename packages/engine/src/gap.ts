@@ -256,7 +256,9 @@ export function scoreGap(input: GapTaskInput): GapTaskScore {
   let timePointsReduction = 0;
   if (input.stopped && goal.length && bestTime !== null) {
     const stop = input.stopped.stopTime;
-    const essNotGoal = flying.filter((p) => p.madeEss && !p.madeGoal && p.startTime !== null);
+    // Pilotes entre l'ESS et le goal à l'heure d'arrêt : encore en vol. Un pilote posé après l'ESS, avant le
+    // goal, n'y est plus (US Open Chelan 2026 T1 : posé derrière la ligne une heure et demie avant l'arrêt).
+    const essNotGoal = flying.filter((p) => p.madeEss && !p.madeGoal && p.startTime !== null && p.flyingAtStop);
     let refTime: number | null = null;
     if (essNotGoal.length) {
       refTime = Math.min(...essNotGoal.map((p) => p.speedSectionTime ?? Infinity));

@@ -3,7 +3,7 @@ import type { FC } from "hono/jsx";
 import { type TaskScoring } from "@pgscore/engine";
 import type { CompetitionRow, DecisionRow, PilotRow, RunRow, TaskRow, TrackHistoryRow, TrackRow, User } from "../db.js";
 import { DECISION_KINDS } from "../decisions.js";
-import { GOAL_LINE_ORIENTATIONS, LEADING_ENDS, type CompetitionSettings, type StoredTask } from "../settings.js";
+import { GOAL_LINE_ORIENTATIONS, LEADING_ENDS, LEADING_FORMULAS, type CompetitionSettings, type StoredTask } from "../settings.js";
 import { km, localTime, utcHmsToLocal } from "../time.js";
 import { locale, N_, t } from "../i18n.js";
 import { Ic, Bi, Layout, ErrorBox, dateRange } from "./layout.js";
@@ -234,6 +234,16 @@ export const TaskPage: FC<{
             <select name="leadingEnd">
               {Object.entries(LEADING_ENDS).map(([k, l]) => (
                 <option value={k} selected={(task.leadingEnd ?? "lastEss") === k}>
+                  {t(l)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>{t("Formule du leading des pilotes posés")}</label>
+            <select name="leadingFormula">
+              {Object.entries(LEADING_FORMULAS).map(([k, l]) => (
+                <option value={k} selected={(task.leadingFormula ?? "GAP2026") === k}>
                   {t(l)}
                 </option>
               ))}
