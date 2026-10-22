@@ -13,9 +13,12 @@ Application web de contrôle et de scoring des compétitions de parapente cross-
 
 ```sh
 pnpm install
+pnpm --filter @pgscore/web exec playwright install chromium   # navigateur des tests de pages
 pnpm test
 cd apps/web && DEV_LOGIN=1 pnpm dev   # http://localhost:3000
 ```
+
+`apps/web/test/browser.test.ts` ouvre les pages dans Chromium (Playwright) : calcul suivi en direct, visionneuse, aucune erreur JavaScript ni violation de la politique de sécurité. `pnpm typecheck` vérifie aussi les scripts du navigateur (`apps/web/src/static/*.js`, `tsconfig.static.json`).
 
 Les tests de calcul PWCA (Gemona, Feltre, Baixo Guandu, Sopot) et les tests complets du French Open - Trophées des Cimes 2026 (FS) et de la German Open 2026 (copie de civlcomps), ZIP sur la branche `test-data`, ont besoin des traces des manches, publiques sur scoring.pwca.org. Sans elles, ils sont sautés. En CI, ils ne tournent que si le changement touche au calcul (moteur, import et calcul côté appli, données de test). Pour les lancer :
 

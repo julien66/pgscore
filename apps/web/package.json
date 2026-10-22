@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "pnpm --filter @pgscore/engine build && tsx watch src/main.tsx",
     "start": "pnpm --filter @pgscore/engine build && tsx src/main.tsx",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.static.json",
     "test": "pnpm --filter @pgscore/engine build && vitest run"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/pngjs": "^6.0.5",
+    "playwright": "1.56.1",
     "tsx": "^4.20.6",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"

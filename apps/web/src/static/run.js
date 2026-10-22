@@ -13,8 +13,8 @@
       : !z ? T("{n} fichiers, {size}", { n, size: s })
       : z === 1 ? T("{n} fichiers dont {z} archive, {size}", { n, z, size: s })
       : T("{n} fichiers dont {z} archives, {size}", { n, z, size: s });
-  for (const f of document.querySelectorAll("form.upload")) {
-    const input = f.querySelector("input[type=file]");
+  for (const f of /** @type {NodeListOf<HTMLFormElement>} */ (document.querySelectorAll("form.upload"))) {
+    const input = /** @type {HTMLInputElement | null} */ (f.querySelector("input[type=file]"));
     // Formulaires sans fichier (rattacher une trace à un pilote) : envoi normal.
     if (!input) continue;
     const status = document.createElement("div");
@@ -55,7 +55,7 @@
     });
   }
   // Import depuis civlcomps.org : envoi normal du formulaire, avec un message d'attente.
-  for (const f of document.querySelectorAll("form.civl-import")) {
+  for (const f of /** @type {NodeListOf<HTMLFormElement>} */ (document.querySelectorAll("form.civl-import"))) {
     f.addEventListener("submit", () => {
       f.querySelector("button").disabled = true;
       const status = document.createElement("div");
@@ -67,7 +67,7 @@
   // Bloc replié ciblé par l'adresse (#decisions…) : on l'ouvre.
   const openHash = () => {
     const target = location.hash && document.getElementById(location.hash.slice(1));
-    if (target && target.tagName === "DETAILS") target.open = true;
+    if (target instanceof HTMLDetailsElement) target.open = true;
   };
   openHash();
   window.addEventListener("hashchange", openHash);
@@ -92,7 +92,7 @@
     bind();
   };
   function bind() {
-    const form = document.getElementById("run-form");
+    const form = /** @type {HTMLFormElement | null} */ (document.getElementById("run-form"));
     if (form) form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const b = form.querySelector("button");

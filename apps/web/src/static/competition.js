@@ -3,7 +3,7 @@
   // Bloc replié ciblé par l'adresse (#pilots…) : on l'ouvre.
   const openHash = () => {
     const el = location.hash && document.getElementById(location.hash.slice(1));
-    if (el && el.tagName === "DETAILS") el.open = true;
+    if (el instanceof HTMLDetailsElement) el.open = true;
   };
   openHash();
   window.addEventListener("hashchange", openHash);
@@ -20,7 +20,7 @@
   };
   applySport();
   document.addEventListener("click", (ev) => {
-    const b = ev.target.closest && ev.target.closest(".sp-toggle");
+    const b = /** @type {HTMLElement | null} */ (/** @type {Element} */ (ev.target).closest(".sp-toggle"));
     if (!b) return;
     sportOpen = !sportOpen;
     try {
@@ -75,7 +75,7 @@
     window.print();
   }
   document.addEventListener("click", (ev) => {
-    const b = ev.target.closest && ev.target.closest(".print-rk");
+    const b = /** @type {Element} */ (ev.target).closest(".print-rk");
     if (b) printBoard(b.closest("[data-swap]") || b.closest(".card"));
   });
 
@@ -94,7 +94,7 @@
     }
   }
   document.addEventListener("click", async (ev) => {
-    const a = ev.target.closest && ev.target.closest("[data-swap] a.swap");
+    const a = /** @type {HTMLAnchorElement | null} */ (/** @type {Element} */ (ev.target).closest("[data-swap] a.swap"));
     if (!a || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button !== 0) return;
     ev.preventDefault();
     try {
@@ -107,7 +107,7 @@
   window.addEventListener("popstate", () => {
     for (const el of document.querySelectorAll("[data-swap]")) loadBoard(location.href, el.id).catch(() => location.reload());
   });
-  for (const box of document.querySelectorAll("form.official input[name=official]")) {
+  for (const box of /** @type {NodeListOf<HTMLInputElement>} */ (document.querySelectorAll("form.official input[name=official]"))) {
     box.addEventListener("change", async () => {
       const form = box.form;
       const body = new FormData(form);
