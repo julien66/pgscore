@@ -86,7 +86,7 @@
     </div>
     <canvas id="v-baro" height="170"></canvas>`;
 
-  const slider = document.getElementById("v-slider");
+  const slider = /** @type {HTMLInputElement} */ (document.getElementById("v-slider"));
   let idx = TK.flightStart;
 
   // ---- Liste des événements ------------------------------------------------------------------
@@ -130,7 +130,7 @@
   document.getElementById("v-ctl-title").textContent = multi ? T("Contrôle · {version}", { version: vLabel(V) }) : T("Contrôle");
   }
   evList.addEventListener("click", (ev) => {
-    const li = ev.target.closest("li[data-k]");
+    const li = /** @type {HTMLElement | null} */ (/** @type {Element} */ (ev.target).closest("li[data-k]"));
     if (!li) return;
     const e = events[Number(li.dataset.k)];
     if (Number.isFinite(e.t)) setIndex(indexAt(e.t), true);
@@ -240,7 +240,7 @@
   }
 
   // ---- Barogramme ---------------------------------------------------------------------------
-  const baro = document.getElementById("v-baro");
+  const baro = /** @type {HTMLCanvasElement & { _x?: (t: number) => number }} */ (document.getElementById("v-baro"));
   const ctx = baro.getContext("2d");
   // Échelle commune à toutes les versions, pour que les barogrammes se superposent.
   const span = (tr) => [Math.max(0, tr.flightStart - 60), Math.min(tr.t.length - 1, tr.flightEnd + 60)];
@@ -448,7 +448,7 @@
       g.position = C.Cartesian3.fromDegrees(tr.lon[j], tr.lat[j], tr.alt[j] ?? 0);
     });
   }
-  root.querySelectorAll(".v-tabs button").forEach((b) =>
+  /** @type {NodeListOf<HTMLButtonElement>} */ (root.querySelectorAll(".v-tabs button")).forEach((b) =>
     b.addEventListener("click", async () => {
       root.querySelectorAll(".v-tabs button").forEach((x) => x.classList.toggle("on", x === b));
       const three = b.dataset.mode === "3d";
@@ -483,7 +483,7 @@
     let last = performance.now();
     timer = setInterval(() => {
       const nowMs = performance.now();
-      const target = TK.t[idx] + (nowMs - last) * Number(document.getElementById("v-speed").value);
+      const target = TK.t[idx] + (nowMs - last) * Number(/** @type {HTMLSelectElement} */ (document.getElementById("v-speed")).value);
       last = nowMs;
       const j = indexAt(target);
       if (j >= TK.flightEnd) { setIndex(TK.flightEnd); playBtn.click(); return; }
@@ -491,7 +491,8 @@
     }, 100);
   };
   addEventListener("keydown", (e) => {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+    const tag = /** @type {Element} */ (e.target).tagName;
+    if (tag === "INPUT" || tag === "SELECT") return;
     if (e.key === "ArrowLeft") setIndex(idx - (e.shiftKey ? 30 : 1));
     if (e.key === "ArrowRight") setIndex(idx + (e.shiftKey ? 30 : 1));
     if (e.key === " ") { e.preventDefault(); playBtn.click(); }
@@ -533,7 +534,7 @@
   }
   const vt = document.getElementById("v-versions");
   if (vt) vt.addEventListener("change", (e) => {
-    const el = e.target;
+    const el = /** @type {HTMLInputElement} */ (e.target);
     if (el.dataset.cur != null) return selectVersion(Number(el.dataset.cur));
     if (el.dataset.show != null) {
       const k = Number(el.dataset.show);

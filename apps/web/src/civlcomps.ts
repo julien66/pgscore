@@ -6,6 +6,7 @@ import { t } from "./i18n.js";
 import { cleanPilot, splitBrand, type PilotFields } from "./pilots.js";
 import { DEFAULT_SETTINGS, FormError, type CompetitionSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
+import { decodeEntities, decodeFsName } from "./text.js";
 
 /**
  * Import d'une compétition publiée sur civlcomps.org, à partir de l'adresse de sa page de résultats
@@ -50,18 +51,8 @@ export function civlResultsUrl(input: string): string {
 
 // --- Lecture du HTML ----------------------------------------------------------------------------
 
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#039": "'" };
 export function htmlText(s: string): string {
-  return s
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e: string) => {
-      if (e[0] === "#") {
-        const code = e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : Number(e.slice(1));
-        return Number.isFinite(code) ? String.fromCodePoint(code) : m;
-      }
-      return ENTITIES[e.toLowerCase()] ?? m;
-    })
+  return decodeEntities(s.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]*>/g, " "))
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -432,8 +423,7 @@ export function settingsFromFormula(f: Record<string, string>, offset: number | 
 }
 
 const norm = (s: string) =>
-  s
-    .replace(/#U([0-9a-f]{4})/gi, (_, x: string) => String.fromCharCode(parseInt(x, 16)))
+  decodeFsName(s)
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
@@ -619,7 +609,7 @@ export async function civlToArchive(
         const file = `tracks/m${n}/${sha256}.igc`;
         if (files[file]) continue;
         files[file] = store ? { stored: sha256, size: data.length } : data;
-        const filename = (path.split(/[\\/]/).pop() ?? path).replace(/#U([0-9a-f]{4})/gi, (_, x: string) => String.fromCharCode(parseInt(x, 16)));
+        const filename = decodeFsName(path.split(/[\\/]/).pop() ?? path);
         tracks.push({ pilot_key: key, pilot_name: names.get(key) ?? null, filename, sha256, size: data.length, uploaded_at: Date.now(), note: null, file });
         if (fitGoal && timePoints.has(key)) {
           try {

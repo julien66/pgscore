@@ -11,6 +11,7 @@ import { competitionStandings } from "./standings.js";
 import { offsetMinutes } from "./time.js";
 import type { TrackStore } from "./track-store.js";
 import { cdata, child, children, el, parseXml, type XmlEl } from "./xml.js";
+import { decodeFsName } from "./text.js";
 
 /**
  * Échange avec FS, le logiciel de la CIVL, par son fichier .fsdb (XML, version 3.5).
@@ -212,10 +213,7 @@ const normKey = (s: string) =>
 /** Nom de fichier sans dossier, en minuscules, pour retrouver une trace dans le ZIP. */
 // Certains outils de ZIP écrivent les lettres accentuées « #U00e9 » : on les redécode, et on compare en NFC.
 const base = (p: string) =>
-  p
-    .split(/[\\/]/)
-    .pop()!
-    .replace(/#U([0-9a-f]{4})/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)))
+  decodeFsName(p.split(/[\\/]/).pop()!)
     .normalize("NFC")
     .toLowerCase();
 

@@ -217,7 +217,7 @@ export const CompetitionPage: FC<{
               method="post"
               action={`/competitions/${c.id}/delete`}
               class="row"
-              onsubmit={`return confirm(${JSON.stringify(t("Supprimer définitivement « {name} » et toutes ses données ? Cette action ne peut pas être annulée.", { name: c.name }))})`}
+              data-confirm={t("Supprimer définitivement « {name} » et toutes ses données ? Cette action ne peut pas être annulée.", { name: c.name })}
             >
               <input type="text" name="confirm" required autocomplete="off" placeholder={c.name} />
               <button class="danger">

@@ -7,6 +7,7 @@ import { duration, km, localTime } from "../time.js";
 import { locale, N_, t } from "../i18n.js";
 import { Ic, Bi } from "./layout.js";
 import { identity, CsvLink, PrintButton, SportToggle, TotalHead, fr, pts, goalAltitudeOf } from "./parts.js";
+import { toCsv } from "../text.js";
 
 /** Bloc « Calcul » de l'onglet Éditer : bouton, avancement ou bilan. Rechargé seul par /static/run.js. */
 export const RunCard: FC<{ t: TaskRow; run: RunRow | null; running: boolean; settings: CompetitionSettings; tracks: number; stale: boolean }> = ({
@@ -702,10 +703,6 @@ export function resultsCsv(r: TaskScoring, tz: string, goalAlt = 0): string {
     "pts_distance", "pts_temps", "pts_leading", "penalite_pts", "total", "espace_aerien", "profondeur_m", "penalite", "decisions", "alerte_leading",
     "hauteur_goal_m_agl", "facteur_alt_goal", "reduction_pts_temps",
   ];
-  const q = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const rows = r.pilots.map((p, i) => [
     i + 1,
     p.id,
@@ -732,5 +729,5 @@ export function resultsCsv(r: TaskScoring, tz: string, goalAlt = 0): string {
     p.goalAltitudeFactor !== undefined ? p.goalAltitudeFactor.toFixed(4) : "",
     p.goalAltitudeLoss ? p.goalAltitudeLoss.toFixed(1) : "",
   ]);
-  return [head, ...rows].map((r) => r.map(q).join(",")).join("\n") + "\n";
+  return toCsv([head, ...rows]);
 }

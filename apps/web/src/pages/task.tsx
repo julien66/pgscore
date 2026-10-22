@@ -423,7 +423,7 @@ export const TaskPage: FC<{
               method="post"
               action={`/tasks/${tk.id}/tracks/delete-all`}
               class="mt"
-              onsubmit={`return confirm(${JSON.stringify(t("Retirer les {n} traces de cette manche ? Elles restent dans les anciennes versions, mais le prochain calcul se fera sans elles.", { n: tracks.length }))})`}
+              data-confirm={t("Retirer les {n} traces de cette manche ? Elles restent dans les anciennes versions, mais le prochain calcul se fera sans elles.", { n: tracks.length })}
             >
               <button class="link">{t("Retirer toutes les traces")}</button>
             </form>
@@ -511,7 +511,7 @@ export const TaskPage: FC<{
                     </td>
                     <td>
                       <form method="post" action={`/tasks/${tk.id}/decisions/${d.id}/delete`}>
-                        <button class="link" onclick={`return confirm(${JSON.stringify(t("Supprimer cette décision ?"))})`}>
+                        <button class="link" data-confirm={t("Supprimer cette décision ?")}>
                           {t("Supprimer")}
                         </button>
                       </form>

@@ -1,7 +1,8 @@
 # pgscore web
 
-Première interface : connexion, compétitions (paramètres et espace aérien), manches (QR code ou
-.xctsk), envoi des traces IGC et calcul lancé à la main.
+Interface web : connexion, compétitions (paramètres, espace aérien, pilotes, classements), manches
+(QR code ou .xctsk), envoi des traces IGC, calcul, résultats et vue des traces. Import et export de
+compétitions (archive pgscore, FSDB, civlcomps.org).
 
 ## Lancer
 
@@ -75,11 +76,16 @@ de SVL (sans le facteur de distance restante du texte S7F), vérifiée à 0,1 po
 2026 (PWCA) et la manche 1 du French Open 2026 (FS).
 
 Réglages de la manche utiles aux points : Leading Time Ratio (26 % par défaut en S7F), nombre de
-pilotes présents pour la validité de décollage (par défaut, ceux qui ont volé), et heure de fin de
-manche pour le leading si l'organisation en fixe une plus tardive que le dernier posé.
+pilotes présents pour la validité de décollage (par défaut, ceux qui ont volé), fin des vols pour le
+leading (dernière arrivée à l'ESS par défaut, ou dernier pilote en vol), et heure de fin de manche si
+l'organisation en fixe une plus tardive. Dans « Règles anciennes », l'orientation d'un goal en ligne :
+perpendiculaire à la route optimisée (S7F 2026, PWCA, par défaut) ou au centre de la balise précédente
+(S7F 2024).
 
-Le calcul tourne dans le serveur, un pilote après l'autre ; la page de la manche affiche
-l'avancement. Compter un quart de seconde à une seconde par trace.
+Le calcul tourne dans un worker_thread (`src/score-worker.ts`), un pilote après l'autre, pour que les
+pages restent servies ; la page de la manche affiche l'avancement trace par trace. Compter un quart de
+seconde à une seconde par trace. Seuls le dernier calcul de chaque manche et son dernier calcul terminé
+sont gardés en base.
 
 ## Vue d'une trace
 
@@ -90,4 +96,25 @@ liste du contrôle : balises validées, zone manquée avec la distance au bord d
 près (calculée sur l'ellipsoïde WGS84, comme le contrôle), infractions d'espace aérien. La colonne
 « Remarque » des résultats signale une zone manquée de moins de 500 m.
 
-Chaque compétition n'est visible que par son créateur pour l'instant.
+## Limites et sécurité
+
+- Taille des envois, vérifiée sur les octets reçus : 200 Mo pour un envoi de traces, 1 Go pour l'import
+  d'une compétition, 20 Mo pour tout autre formulaire. Un envoi est lu en mémoire : sur une petite
+  instance, préférer plusieurs envois de traces à un seul très gros ZIP.
+- Les formulaires refusent un POST venant d'une autre origine.
+- En-tête Content-Security-Policy : scripts et styles servis par l'appli seulement (aucun script en
+  ligne), fonds de carte autorisés en images, pas d'affichage dans le cadre d'un autre site. La page
+  d'une trace autorise en plus ce dont Cesium a besoin pour la vue 3D (WebAssembly, code généré,
+  workers en `blob:`).
+- Tout utilisateur connecté voit toutes les compétitions ; seuls leur créateur et les administrateurs
+  (`ADMIN_EMAILS`) les modifient.
+
+## Organisation du code
+
+- `src/app.tsx` : middlewares (langue, origine, taille des envois, en-têtes, accès) et assemblage des
+  routes, rangées par domaine dans `src/routes/` (`auth`, `home`, `api`, `competitions`, `tasks`).
+- `src/pages/` : pages en JSX (Hono), une par domaine, et `layout.tsx` (CSS, en-tête, icônes).
+- `src/repo.ts` : requêtes SQL reprises à plusieurs endroits ; `src/db.ts` : schéma et migrations.
+- `src/runner.ts` et `src/score-worker.ts` : calcul d'une manche ; `src/standings.ts` : classements.
+- `src/text.ts` : CSV, entités XML/HTML ; `src/static/` : scripts du navigateur.
+- Le calcul lui-même est dans `packages/engine`.
