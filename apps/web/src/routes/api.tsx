@@ -7,6 +7,7 @@ import { exportCompetition, importCompetition, writeArchive } from "../archive.j
 import { competitionFsdb, competitionFsdbZip, fsdbToArchive, looksLikeFsdb } from "../fsdb.js";
 import { civlToArchive } from "../civlcomps.js";
 import type { App, Ctx, Env } from "./context.js";
+import { queryAll } from "../repo.js";
 
 /** API : liste, export et import de compétitions, import civlcomps, suppression. */
 export function apiRoutes(app: App, ctx: Ctx) {
@@ -18,7 +19,7 @@ export function apiRoutes(app: App, ctx: Ctx) {
     "SELECT MAX(r.finished_at) AS at FROM runs r JOIN tasks tk ON tk.id = r.task_id WHERE tk.competition_id = ? AND r.status = 'done'",
   );
   app.get("/api/competitions", (c) => {
-    const rows = db.prepare("SELECT * FROM competitions ORDER BY COALESCE(start_date, '') DESC, id DESC").all() as unknown as CompetitionRow[];
+    const rows = queryAll<CompetitionRow>(db, "SELECT * FROM competitions ORDER BY COALESCE(start_date, '') DESC, id DESC");
     const user = c.get("user");
     return c.json(
       rows.map((r) => ({

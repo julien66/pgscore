@@ -1,15 +1,17 @@
-import { controlPilot, finishScoringBest, parseOpenAir, type ControlledPilot, type Task } from "@pgscore/engine";
+import { Worker } from "node:worker_threads";
 import type { CompetitionRow, Db, RunDetail, RunStep, TaskRow } from "./db.js";
 import { engineDecisions, listDecisions } from "./decisions.js";
 import { listPilots } from "./pilots.js";
 import { controlTask, parseSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
 import { t } from "./i18n.js";
+import { getCompetition, getTask, queryAll } from "./repo.js";
+import type { ScoreJob, ScoreMessage } from "./score-worker.js";
 
 /**
- * Calcul d'une manche, lancé à la main. Il tourne dans le processus du serveur, un pilote à la fois,
- * en rendant la main entre deux pilotes pour que les pages restent servies. L'avancement est
- * enregistré en base, la page de la manche le relit.
+ * Calcul d'une manche, lancé à la main. Le contrôle des traces et le classement tournent dans un
+ * worker_thread (score-worker.ts), pour que les pages restent servies pendant le calcul. L'avancement
+ * est enregistré en base par le fil principal, la page de la manche le relit.
  */
 
 const running = new Set<number>();
@@ -57,83 +59,91 @@ export function startRuns(db: Db, tracks: TrackStore, taskIds: number[], userId:
   return queued.map((q) => q.taskId);
 }
 
-const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+/**
+ * Lance le calcul dans un worker (score-worker.ts). Le worker enregistre d'abord tsx, qui compile le
+ * TypeScript à la volée comme pour le serveur (l'option --import de tsx ne vaut pas pour l'entrée d'un worker).
+ */
+const BOOT = `import(${JSON.stringify(import.meta.resolve("tsx/esm/api"))}).then((tsx) => {
+  tsx.register();
+  return import(${JSON.stringify(new URL("./score-worker.ts", import.meta.url).href)});
+});`;
+const spawnScoring = (job: ScoreJob) => new Worker(BOOT, { eval: true, workerData: job });
 
 async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number): Promise<void> {
   const progress = db.prepare("UPDATE runs SET status = 'running', step = ?, done = ?, detail = ? WHERE id = ?");
   const report = (step: RunStep, done: number, detail: RunDetail) => progress.run(step, done, JSON.stringify(detail), runId);
   try {
-    // 1. Manche, paramètres et espaces aériens.
+    // 1. Manche, paramètres et pilotes, lus ici : le worker ne touche pas à la base.
     report("prepare", 0, {});
-    await tick();
-    const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as unknown as TaskRow;
-    const comp = db.prepare("SELECT * FROM competitions WHERE id = ?").get(row.competition_id) as unknown as CompetitionRow;
+    const row = getTask(db, taskId)!;
+    const comp = getCompetition(db, row.competition_id)!;
     const s = parseSettings(comp.params);
     const task = controlTask(JSON.parse(row.task) as StoredTask, s);
-    const options = {
-      params: s,
-      airspaces: comp.airspace_text ? parseOpenAir(comp.airspace_text) : [],
-      airspacePenaltyRule: s.airspacePenaltyRule,
-      roundAirspaceLimits: s.roundAirspaceLimits,
-      gapProfile: s.gapProfile,
-      ...(task.leadingTimeRatio !== undefined ? { leadingTimeRatio: task.leadingTimeRatio } : {}),
-      ...(task.pilotsPresent !== undefined ? { pilotsPresent: task.pilotsPresent } : {}),
-      ...(task.taskEndTime ? { taskEndTime: task.taskEndTime } : {}),
-      ...(task.leadingEnd ? { leadingEnd: task.leadingEnd } : {}),
-      decisions: engineDecisions(listDecisions(db, taskId)),
-    };
-    const ids = db.prepare("SELECT id FROM tracks WHERE task_id = ? ORDER BY pilot_key, id").all(taskId) as Array<{ id: number }>;
-    const getTrack = db.prepare("SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE id = ?");
     // Nom du pilote inscrit sous ce numéro (vue des pilotes de la compétition) plutôt que celui de la trace.
     const regName = new Map(listPilots(db, comp.id).map((p) => [p.pilot_key, p.name]));
+    const list = queryAll<{ pilot_key: string; pilot_name: string | null; sha256: string }>(
+      db,
+      "SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE task_id = ? ORDER BY pilot_key, id",
+      taskId,
+    ).map((tr) => ({ ...tr, pilot_name: regName.get(tr.pilot_key) ?? tr.pilot_name }));
+    const job: ScoreJob = {
+      storeDir: tracks.dir,
+      task,
+      airspaceText: comp.airspace_text,
+      tracks: list,
+      options: {
+        params: s,
+        airspacePenaltyRule: s.airspacePenaltyRule,
+        roundAirspaceLimits: s.roundAirspaceLimits,
+        gapProfile: s.gapProfile,
+        ...(task.leadingTimeRatio !== undefined ? { leadingTimeRatio: task.leadingTimeRatio } : {}),
+        ...(task.pilotsPresent !== undefined ? { pilotsPresent: task.pilotsPresent } : {}),
+        ...(task.taskEndTime ? { taskEndTime: task.taskEndTime } : {}),
+        ...(task.leadingEnd ? { leadingEnd: task.leadingEnd } : {}),
+        decisions: engineDecisions(listDecisions(db, taskId)),
+      },
+    };
 
-    // 2. Contrôle des traces, une par une, avec des compteurs pour la page.
+    // 2 et 3. Contrôle des traces puis leading, dans le worker ; ses messages tiennent la page à jour.
     const detail: Required<Pick<RunDetail, "counts" | "recent">> & RunDetail = {
-      airspaces: options.airspaces.length,
       counts: { GOAL: 0, ESS: 0, DF: 0, MIND: 0, ERREUR: 0 },
       airspaceInfringements: 0,
       recent: [],
     };
-    report("control", 0, detail);
-    // Traces contrôlées regroupées par pilote : un pilote peut en avoir plusieurs.
-    const groups = new Map<string, Array<{ cp: ControlledPilot; sha256: string }>>();
-    for (const [i, { id }] of ids.entries()) {
-      await tick();
-      const row = getTrack.get(id) as { pilot_key: string; pilot_name: string | null; sha256: string };
-      const tr = { ...row, pilot_name: regName.get(row.pilot_key) ?? row.pilot_name };
-      detail.pilot = tr.pilot_name ?? tr.pilot_key;
-      report("control", i, detail);
-      const igc = tracks.text(tr.sha256);
-      const input = tr.pilot_name ? { id: tr.pilot_key, name: tr.pilot_name, igc } : { id: tr.pilot_key, igc };
-      const cp = controlPilot(task, input, options);
-      const g = groups.get(tr.pilot_key) ?? [];
-      g.push({ cp, sha256: tr.sha256 });
-      groups.set(tr.pilot_key, g);
-      const r = cp.result;
-      // Avant le leading, ERREUR vaut aussi pour une trace sans vol : le statut final est celui du classement.
-      detail.counts[r.error ? "ERREUR" : r.status] = (detail.counts[r.error ? "ERREUR" : r.status] ?? 0) + 1;
-      if (r.airspace.length) detail.airspaceInfringements = (detail.airspaceInfringements ?? 0) + 1;
-      const note = r.error ?? (r.airspace.length ? t("espace aérien {name}", { name: r.airspace[0]!.name }) : undefined);
-      detail.recent = [{ name: r.name, status: r.error ? "ERREUR" : r.status, distance: r.distance, ...(note ? { note } : {}) }, ...detail.recent].slice(0, 6);
-      report("control", i + 1, detail);
-    }
-
-    // 3. Leading (dépend de tous les pilotes) et classement.
-    delete detail.pilot;
-    report("leading", ids.length, detail);
-    await tick();
-    const list = [...groups.values()];
-    const { scoring, chosen } = finishScoringBest(task, list.map((g) => g.map((x) => x.cp)), options);
-    // Trace retenue, pour les pilotes qui en ont plusieurs (affichage, visionneuse, export FS).
-    const chosenTracks: Record<string, string> = {};
-    list.forEach((g, i) => {
-      if (g.length > 1) chosenTracks[g[0]!.cp.result.id] = g[chosen[i]!]!.sha256;
+    const result = await new Promise<unknown>((resolve, reject) => {
+      const worker = spawnScoring(job);
+      let finished = false;
+      worker.on("message", (m: ScoreMessage) => {
+        if (m.type === "airspaces") {
+          detail.airspaces = m.count;
+          report("control", 0, detail);
+        } else if (m.type === "start") {
+          detail.pilot = m.pilot;
+          report("control", m.index, detail);
+        } else if (m.type === "pilot") {
+          // Avant le leading, ERREUR vaut aussi pour une trace sans vol : le statut final est celui du classement.
+          const status = m.error ? "ERREUR" : m.status;
+          detail.counts[status] = (detail.counts[status] ?? 0) + 1;
+          if (m.airspace) detail.airspaceInfringements = (detail.airspaceInfringements ?? 0) + 1;
+          const note = m.error ?? (m.airspace ? t("espace aérien {name}", { name: m.airspace }) : undefined);
+          detail.recent = [{ name: m.name, status, distance: m.distance, ...(note ? { note } : {}) }, ...detail.recent].slice(0, 6);
+          report("control", m.index + 1, detail);
+        } else if (m.type === "leading") {
+          delete detail.pilot;
+          report("leading", list.length, detail);
+        } else {
+          finished = true;
+          resolve(m.result);
+        }
+      });
+      worker.on("error", reject);
+      worker.on("exit", (code) => {
+        if (!finished) reject(new Error(t("Le calcul s'est arrêté (code {code}).", { code: String(code) })));
+      });
     });
-    const result = Object.keys(chosenTracks).length ? { ...scoring, chosenTracks } : scoring;
 
     // 4. Enregistrement.
-    report("save", ids.length, detail);
-    await tick();
+    report("save", list.length, detail);
     db.prepare("UPDATE runs SET status = 'done', results = ?, finished_at = ? WHERE id = ?").run(JSON.stringify(result), Date.now(), runId);
   } catch (e) {
     db.prepare("UPDATE runs SET status = 'error', error = ?, finished_at = ? WHERE id = ?").run((e as Error).message, Date.now(), runId);

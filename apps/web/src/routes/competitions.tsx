@@ -14,6 +14,7 @@ import { CompetitionPage, NewCompetitionPage, type CompetitionFormValues } from 
 import { boardUrl } from "../pages/standings.js";
 import type { App, Ctx, Env } from "./context.js";
 import { one } from "./util.js";
+import { tasksOf } from "../repo.js";
 
 /** Compétitions : création, réglages, pilotes inscrits, classements et classements extraits. */
 export function competitionsRoutes(app: App, ctx: Ctx) {
@@ -97,7 +98,7 @@ export function competitionsRoutes(app: App, ctx: Ctx) {
   ) => {
     const bq = extra.board ?? {};
     const x = standingsOf(comp, bq.rid, bq.view);
-    const tasks = db.prepare("SELECT * FROM tasks WHERE competition_id = ? ORDER BY number").all(comp.id) as unknown as TaskRow[];
+    const tasks = tasksOf(db, comp.id);
     let count: number | null = null;
     if (comp.airspace_text) {
       try {

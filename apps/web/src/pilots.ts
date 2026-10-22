@@ -3,6 +3,7 @@ import type { Db, PilotRow } from "./db.js";
 import { FormError } from "./settings.js";
 import { nameKey } from "./files.js";
 import { N_, t } from "./i18n.js";
+import { queryAll } from "./repo.js";
 
 /** Champs d'un pilote inscrit, sans l'identifiant en base. */
 export type PilotFields = Omit<PilotRow, "id" | "competition_id">;
@@ -240,9 +241,7 @@ export function pilotsFromFile(name: string, text: string): PilotFields[] {
 // --- Base -----------------------------------------------------------------------------------
 
 export function listPilots(db: Db, compId: number): PilotRow[] {
-  return db
-    .prepare("SELECT * FROM competition_pilots WHERE competition_id = ? ORDER BY CAST(pilot_key AS INTEGER), pilot_key")
-    .all(compId) as unknown as PilotRow[];
+  return queryAll<PilotRow>(db, "SELECT * FROM competition_pilots WHERE competition_id = ? ORDER BY CAST(pilot_key AS INTEGER), pilot_key", compId);
 }
 
 const FIELDS = PILOT_COLUMNS.map((c) => c.key);

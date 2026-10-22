@@ -13,6 +13,7 @@ import { apiRoutes } from "./routes/api.js";
 import { competitionsRoutes } from "./routes/competitions.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import type { AppConfig, Ctx, Env } from "./routes/context.js";
+import { getCompetition, getTask } from "./repo.js";
 
 export type { AppConfig };
 
@@ -94,7 +95,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
 
   // Tout utilisateur connecté voit toutes les compétitions ; seuls leur créateur et les administrateurs les modifient.
   const competition = (_c: Context<Env>, id: string): CompetitionRow | null => {
-    const row = db.prepare("SELECT * FROM competitions WHERE id = ?").get(Number(id)) as unknown as CompetitionRow | undefined;
+    const row = getCompetition(db, Number(id));
     return row ?? null;
   };
   const admins = new Set((cfg.adminEmails ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean));
@@ -117,7 +118,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     await next();
   };
   const compOfTask = (c: Context<Env>) => {
-    const row = db.prepare("SELECT competition_id FROM tasks WHERE id = ?").get(Number(c.req.param("id"))) as unknown as { competition_id: number } | undefined;
+    const row = getTask(db, Number(c.req.param("id")));
     return row ? competition(c, String(row.competition_id)) : null;
   };
   const compGuard = guard((c) => (/^\d+$/.test(c.req.param("id") ?? "") ? competition(c, c.req.param("id")!) : null));
@@ -126,7 +127,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   app.use("/tasks/:id", guard(compOfTask));
   app.use("/tasks/:id/*", guard(compOfTask));
   const taskOf = (c: Context<Env>, id: string): { t: TaskRow; comp: CompetitionRow } | null => {
-    const t = db.prepare("SELECT * FROM tasks WHERE id = ?").get(Number(id)) as unknown as TaskRow | undefined;
+    const t = getTask(db, Number(id));
     const comp = t ? competition(c, String(t.competition_id)) : null;
     return t && comp ? { t, comp } : null;
   };

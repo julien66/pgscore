@@ -2,6 +2,7 @@ import type { Db, PilotRow, TrackHistoryRow, TrackRow } from "./db.js";
 import { isPlaceholderPilot, learnFilenameConvention, pilotKeyForTrack } from "./files.js";
 import type { TrackStore } from "./track-store.js";
 import type { VersionMeta } from "./viewer-data.js";
+import { getTrack, queryAll } from "./repo.js";
 
 /**
  * Traces d'une manche. Un pilote peut avoir plusieurs traces en vigueur (le calcul retient la plus
@@ -45,7 +46,7 @@ export function saveTrack(db: Db, taskId: number, userId: number, t: NewTrack): 
 
 /** Remplace une trace précise (bouton « Remplacer ») : l'ancienne passe dans l'historique. */
 export function replaceTrack(db: Db, taskId: number, trackId: number, userId: number, t: Omit<NewTrack, "pilotKey">): "replaced" | "same" {
-  const old = db.prepare("SELECT * FROM tracks WHERE id = ? AND task_id = ?").get(trackId, taskId) as unknown as TrackRow | undefined;
+  const old = getTrack(db, taskId, trackId);
   if (!old) throw new Error("trace inconnue");
   const twin = db.prepare("SELECT id FROM tracks WHERE task_id = ? AND pilot_key = ? AND sha256 = ?").get(taskId, old.pilot_key, t.sha256) as { id: number } | undefined;
   if (twin) return "same";
@@ -64,7 +65,7 @@ export function replaceTrack(db: Db, taskId: number, trackId: number, userId: nu
 }
 
 export function removeTrack(db: Db, taskId: number, trackId: number, userId: number): boolean {
-  const old = db.prepare("SELECT * FROM tracks WHERE id = ? AND task_id = ?").get(trackId, taskId) as unknown as TrackRow | undefined;
+  const old = getTrack(db, taskId, trackId);
   if (!old) return false;
   archive(db, old, userId, "removed");
   db.prepare("DELETE FROM tracks WHERE id = ?").run(old.id);
@@ -73,7 +74,7 @@ export function removeTrack(db: Db, taskId: number, trackId: number, userId: num
 
 /** Retire d'un coup toutes les traces en vigueur de la manche : chacune passe dans l'historique. Rend le nombre retiré. */
 export function removeAllTracks(db: Db, taskId: number, userId: number): number {
-  const olds = db.prepare("SELECT * FROM tracks WHERE task_id = ?").all(taskId) as unknown as TrackRow[];
+  const olds = queryAll<TrackRow>(db, "SELECT * FROM tracks WHERE task_id = ?", taskId);
   db.exec("BEGIN");
   try {
     for (const old of olds) archive(db, old, userId, "removed");
@@ -87,13 +88,9 @@ export function removeAllTracks(db: Db, taskId: number, userId: number): number 
 }
 
 export function trackHistory(db: Db, taskId: number): TrackHistoryRow[] {
-  return db
-    .prepare(
-      `SELECT h.*, u1.name AS uploaded_by_name, u2.name AS ended_by_name FROM track_history h
+  return queryAll<TrackHistoryRow>(db, `SELECT h.*, u1.name AS uploaded_by_name, u2.name AS ended_by_name FROM track_history h
        LEFT JOIN users u1 ON u1.id = h.uploaded_by LEFT JOIN users u2 ON u2.id = h.ended_by
-       WHERE h.task_id = ? ORDER BY h.ended_at DESC, h.id DESC`,
-    )
-    .all(taskId) as unknown as TrackHistoryRow[];
+       WHERE h.task_id = ? ORDER BY h.ended_at DESC, h.id DESC`, taskId);
 }
 
 /** Vrai si ce fichier appartient à la manche (trace en vigueur ou historique). */
@@ -110,9 +107,7 @@ export function taskHasFile(db: Db, taskId: number, sha256: string): { filename:
 
 /** Toutes les versions de la trace d'un pilote : celle en vigueur d'abord, puis les anciennes, de la plus récente à la plus ancienne. */
 export function pilotVersions(db: Db, taskId: number, pilotKey: string, scoredSha?: string): Array<{ meta: VersionMeta; pilotName: string | null }> {
-  const curs = db
-    .prepare("SELECT t.*, u.name AS by_name FROM tracks t LEFT JOIN users u ON u.id = t.uploaded_by WHERE t.task_id = ? AND t.pilot_key = ? ORDER BY t.uploaded_at DESC, t.id DESC")
-    .all(taskId, pilotKey) as unknown as Array<TrackRow & { by_name: string | null }>;
+  const curs = queryAll<TrackRow & { by_name: string | null }>(db, "SELECT t.*, u.name AS by_name FROM tracks t LEFT JOIN users u ON u.id = t.uploaded_by WHERE t.task_id = ? AND t.pilot_key = ? ORDER BY t.uploaded_at DESC, t.id DESC", taskId, pilotKey);
   // La trace retenue au dernier calcul d'abord.
   curs.sort((a, b) => Number(b.sha256 === scoredSha) - Number(a.sha256 === scoredSha));
   const old = trackHistory(db, taskId).filter((h) => h.pilot_key === pilotKey);
@@ -140,7 +135,7 @@ export function pilotVersions(db: Db, taskId: number, pilotKey: string, scoredSh
  * "twin" si ce pilote a déjà ce même fichier (la trace en double est alors retirée).
  */
 export function assignTrack(db: Db, taskId: number, trackId: number, userId: number, pilot: { pilot_key: string; name: string }): "moved" | "same" | "twin" | "unknown" {
-  const tr = db.prepare("SELECT * FROM tracks WHERE id = ? AND task_id = ?").get(trackId, taskId) as unknown as TrackRow | undefined;
+  const tr = getTrack(db, taskId, trackId);
   if (!tr) return "unknown";
   if (tr.pilot_key === pilot.pilot_key) {
     if (tr.pilot_name !== pilot.name) db.prepare("UPDATE tracks SET pilot_name = ? WHERE id = ?").run(pilot.name, tr.id);
@@ -166,7 +161,7 @@ export function linkTracks(db: Db, store: TrackStore, taskId: number, userId: nu
   // Inscrits d'office sans numéro (« albert-nazander ») : leurs traces cherchent encore un numéro.
   const placeholder = new Set(registry.filter(isPlaceholderPilot).map((p) => p.pilot_key));
   const linked = (key: string) => reg.has(key) && !placeholder.has(key);
-  const rows = db.prepare("SELECT * FROM tracks WHERE task_id = ? ORDER BY id").all(taskId) as unknown as TrackRow[];
+  const rows = queryAll<TrackRow>(db, "SELECT * FROM tracks WHERE task_id = ? ORDER BY id", taskId);
   // Convention de nommage apprise sur toutes les traces de la manche : les rattachées confirment la place du numéro.
   const texts = new Map<number, string>();
   for (const tr of rows) {

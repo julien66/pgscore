@@ -2,6 +2,7 @@ import type { DecisionKind, PilotDecision } from "@pgscore/engine";
 import type { Db, DecisionRow } from "./db.js";
 import { FormError } from "./settings.js";
 import { N_, t } from "./i18n.js";
+import { queryAll } from "./repo.js";
 
 /** Décisions proposées dans la page de la manche, avec l'unité de leur valeur s'il en faut une. */
 export const DECISION_KINDS: Record<DecisionKind, { label: string; unit?: string }> = {
@@ -15,12 +16,8 @@ export const DECISION_KINDS: Record<DecisionKind, { label: string; unit?: string
 };
 
 export function listDecisions(db: Db, taskId: number): DecisionRow[] {
-  return db
-    .prepare(
-      `SELECT d.*, u.name AS created_by_name FROM task_decisions d LEFT JOIN users u ON u.id = d.created_by
-       WHERE d.task_id = ? ORDER BY CAST(d.pilot_key AS INTEGER), d.pilot_key, d.id`,
-    )
-    .all(taskId) as unknown as DecisionRow[];
+  return queryAll<DecisionRow>(db, `SELECT d.*, u.name AS created_by_name FROM task_decisions d LEFT JOIN users u ON u.id = d.created_by
+       WHERE d.task_id = ? ORDER BY CAST(d.pilot_key AS INTEGER), d.pilot_key, d.id`, taskId);
 }
 
 /** Ajoute une décision lue depuis le formulaire. */

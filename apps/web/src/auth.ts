@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Db, User } from "./db.js";
 import { t } from "./i18n.js";
+import { queryAll, queryOne } from "./repo.js";
 
 /**
  * Connexion par un service externe (OpenID Connect, Google par défaut). Aucun mot de passe n'est
@@ -125,7 +126,7 @@ export function upsertUser(db: Db, provider: string, subject: string, email: str
     `INSERT INTO users (provider, subject, email, name, created_at) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT (provider, subject) DO UPDATE SET email = excluded.email, name = excluded.name`,
   ).run(provider, subject, email, name, Date.now());
-  return db.prepare("SELECT id, provider, subject, email, name FROM users WHERE provider = ? AND subject = ?").get(provider, subject) as unknown as User;
+  return queryOne<User>(db, "SELECT id, provider, subject, email, name FROM users WHERE provider = ? AND subject = ?", provider, subject)!;
 }
 
 export function createSession(db: Db, userId: number): { token: string; maxAge: number } {
@@ -138,12 +139,8 @@ export function createSession(db: Db, userId: number): { token: string; maxAge: 
 
 export function sessionUser(db: Db, token: string | undefined): User | null {
   if (!token) return null;
-  const row = db
-    .prepare(
-      `SELECT u.id, u.provider, u.subject, u.email, u.name FROM sessions s JOIN users u ON u.id = s.user_id
-       WHERE s.token = ? AND s.expires_at > ?`,
-    )
-    .get(hashToken(token), Date.now()) as unknown as User | undefined;
+  const row = queryOne<User>(db, `SELECT u.id, u.provider, u.subject, u.email, u.name FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.token = ? AND s.expires_at > ?`, hashToken(token), Date.now());
   return row ?? null;
 }
 
@@ -173,7 +170,7 @@ export function createApiToken(db: Db, userId: number, name: string): string {
 }
 
 export function listApiTokens(db: Db, userId: number): ApiTokenRow[] {
-  return db.prepare("SELECT id, name, created_at, last_used_at FROM api_tokens WHERE user_id = ? ORDER BY id DESC").all(userId) as unknown as ApiTokenRow[];
+  return queryAll<ApiTokenRow>(db, "SELECT id, name, created_at, last_used_at FROM api_tokens WHERE user_id = ? ORDER BY id DESC", userId);
 }
 
 export function deleteApiToken(db: Db, userId: number, id: number): void {
@@ -183,9 +180,7 @@ export function deleteApiToken(db: Db, userId: number, id: number): void {
 /** Utilisateur d'une clé d'API (en-tête « Authorization: Bearer pgs_… »). */
 export function apiTokenUser(db: Db, token: string): User | null {
   const hash = hashToken(token);
-  const row = db
-    .prepare("SELECT u.id, u.provider, u.subject, u.email, u.name FROM api_tokens k JOIN users u ON u.id = k.user_id WHERE k.token_hash = ?")
-    .get(hash) as unknown as User | undefined;
+  const row = queryOne<User>(db, "SELECT u.id, u.provider, u.subject, u.email, u.name FROM api_tokens k JOIN users u ON u.id = k.user_id WHERE k.token_hash = ?", hash);
   if (row) db.prepare("UPDATE api_tokens SET last_used_at = ? WHERE token_hash = ?").run(Date.now(), hash);
   return row ?? null;
 }

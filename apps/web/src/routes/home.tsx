@@ -7,20 +7,20 @@ import { competitionSummaries, competitionWinners } from "../standings.js";
 import { AccountPage, ApiDocPage, AboutPage } from "../pages/account.js";
 import { HomePage } from "../pages/home.js";
 import type { App, Ctx, Env } from "./context.js";
+import { queryAll } from "../repo.js";
 
 /** Accueil, compte (clés d'API), pages À propos, Différences et documentation de l'API. */
 export function homeRoutes(app: App, ctx: Ctx) {
   const { db, cfg, me } = ctx;
   app.get("/", (c) => {
     // Dernier calcul terminé de chaque compétition : l'accueil montre d'abord les plus récemment calculées.
-    const rows = db
-      .prepare(
-        `SELECT c.*, u.name AS owner_name, u.email AS owner_email,
+    const rows = queryAll<CompetitionRow & { owner_name: string | null; owner_email: string | null; scored_at: number | null }>(
+      db,
+      `SELECT c.*, u.name AS owner_name, u.email AS owner_email,
                 (SELECT MAX(r.finished_at) FROM runs r JOIN tasks tk ON tk.id = r.task_id WHERE tk.competition_id = c.id AND r.status = 'done') AS scored_at
            FROM competitions c JOIN users u ON u.id = c.owner_id
           ORDER BY COALESCE(c.start_date, '') DESC, c.id DESC`,
-      )
-      .all() as unknown as Array<CompetitionRow & { owner_name: string | null; owner_email: string | null; scored_at: number | null }>;
+    );
     const user = c.get("user");
     // Chiffres de chaque compétition, et vainqueur du général une fois terminée.
     const sums = competitionSummaries(db);

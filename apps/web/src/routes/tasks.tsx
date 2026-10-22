@@ -21,6 +21,7 @@ import { ViewerPage } from "../pages/viewer.js";
 import type { TaskScoring } from "@pgscore/engine";
 import type { App, Ctx, Env } from "./context.js";
 import { one } from "./util.js";
+import { getTask, getTrack, latestDoneRun, latestRun, tracksOf } from "../repo.js";
 
 const MAX_UPLOAD = 200 * 1024 * 1024;
 
@@ -100,10 +101,8 @@ export function tasksRoutes(app: App, ctx: Ctx) {
   const taskPage = (c: Context<Env>, t: TaskRow, comp: CompetitionRow, extra: { error?: string; notice?: string; edit?: boolean } = {}) => {
     const rk = taskRankings(comp, c.req.query("r"));
     const task = JSON.parse(t.task) as Task;
-    const tracks = db
-      .prepare("SELECT * FROM tracks WHERE task_id = ? ORDER BY CAST(pilot_key AS INTEGER), pilot_key")
-      .all(t.id) as unknown as TrackRow[];
-    const run = (db.prepare("SELECT * FROM runs WHERE task_id = ? ORDER BY id DESC LIMIT 1").get(t.id) as unknown as RunRow | undefined) ?? null;
+    const tracks = tracksOf(db, t.id);
+    const run = latestRun(db, t.id);
     return c.html(
       <TaskPage
         openTracks={c.req.query("open") === "tracks"}
@@ -119,7 +118,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
         geometry={JSON.stringify(taskGeometry(controlTask(task, parseSettings(comp.params))))}
         run={run}
         done={
-          (db.prepare("SELECT * FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1").get(t.id) as unknown as RunRow | undefined) ?? null
+          latestDoneRun(db, t.id)
         }
         rankings={rk.list}
         ranking={rk.current}
@@ -138,8 +137,8 @@ export function tasksRoutes(app: App, ctx: Ctx) {
 
   /** Bloc « Calcul » seul, pour le mettre à jour sans recharger la page. */
   const runCard = (c: Context<Env>, t: TaskRow, comp: CompetitionRow) => {
-    const fresh = db.prepare("SELECT * FROM tasks WHERE id = ?").get(t.id) as unknown as TaskRow;
-    const run = (db.prepare("SELECT * FROM runs WHERE task_id = ? ORDER BY id DESC LIMIT 1").get(t.id) as unknown as RunRow | undefined) ?? null;
+    const fresh = getTask(db, t.id)!;
+    const run = latestRun(db, t.id);
     const counts = lastScoringChange(db, fresh);
     const lastChange = counts.changed;
     const running = isRunning(t.id) || run?.status === "running" || run?.status === "queued";
@@ -354,7 +353,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
   app.post("/tasks/:id/tracks/:trackId/replace", async (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
-    const tr = db.prepare("SELECT * FROM tracks WHERE id = ? AND task_id = ?").get(Number(c.req.param("trackId")), x.t.id) as unknown as TrackRow | undefined;
+    const tr = getTrack(db, x.t.id, Number(c.req.param("trackId")));
     if (!tr) return notFound(c);
     if (Number(c.req.header("content-length") ?? 0) > MAX_UPLOAD) return taskPage(c, x.t, x.comp, { error: t("Envoi trop gros (200 Mo au plus).") });
     const f = await c.req.parseBody();
@@ -466,7 +465,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     const key = c.req.param("key");
-    const last = db.prepare("SELECT results FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1").get(x.t.id) as { results: string } | undefined;
+    const last = latestDoneRun(db, x.t.id);
     const scored = last ? (JSON.parse(last.results) as { chosenTracks?: Record<string, string> }).chosenTracks?.[key] : undefined;
     const versions = pilotVersions(db, x.t.id, key, scored);
     if (!versions.length) return notFound(c);
@@ -521,9 +520,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
   app.get("/tasks/:id/results.csv", (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
-    const run = db.prepare("SELECT results FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1").get(x.t.id) as
-      | { results: string }
-      | undefined;
+    const run = latestDoneRun(db, x.t.id);
     if (!run) return notFound(c);
     const scoring = JSON.parse(run.results) as TaskScoring;
     const rk = taskRankings(x.comp, c.req.query("r"));

@@ -1,6 +1,7 @@
 import type { Db, PilotRow, RankingRow } from "./db.js";
 import { FormError } from "./settings.js";
 import { lang, locale, N_, t } from "./i18n.js";
+import { queryAll } from "./repo.js";
 
 /**
  * Classements extraits du général : mêmes scores de manche et même FTV, on garde les pilotes concernés
@@ -104,7 +105,7 @@ export interface Ranking {
 }
 
 export function listRankings(db: Db, compId: number): Ranking[] {
-  const rows = db.prepare("SELECT * FROM competition_rankings WHERE competition_id = ? ORDER BY id").all(compId) as unknown as RankingRow[];
+  const rows = queryAll<RankingRow>(db, "SELECT * FROM competition_rankings WHERE competition_id = ? ORDER BY id", compId);
   const ov = db.prepare("SELECT pilot_key, included FROM ranking_overrides WHERE ranking_id = ?");
   return rows.map((row) => ({
     row,
