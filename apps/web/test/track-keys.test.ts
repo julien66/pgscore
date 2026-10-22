@@ -161,3 +161,52 @@ describe("numéro du pilote : en-tête d'abord, puis convention de nommage du lo
     expect(keys).toEqual(["58008", "60", "4", "12"]);
   });
 });
+
+describe("inscrits d'office sans numéro (« albert-nazander »)", () => {
+  const fm = (pilot: string, cid = "", n = 0) =>
+    `AXFMSFP Flymaster Live, V1.0\r\nHFPLTPILOT:${pilot}\r\nHFCIDCOMPETITIONID:${cid}\r\nHFDTE210626\r\nB19164${n}4748232N12002329WA0109001128\r\n`;
+  const files: Array<[string, string]> = [
+    ["albert_nazander_2026-06-21_01.24.igc", fm("Albert Nazander", "24", 1)],
+    ["bob_smith_2026-06-21_01.7.igc", fm("Bob Smith", "", 2)],
+    ["carla_rossi_2026-06-21_01.131.igc", fm("Carla Rossi", "131", 3)],
+  ];
+
+  it("le numéro de la trace passe avant eux, et l'inscrit prend ce numéro, même pour un fichier déjà envoyé", async () => {
+    const tracks = new TrackStore(mkdtempSync(join(tmpdir(), "pgscore-tracks-")));
+    const db = openDb(":memory:", tracks);
+    const app = createApp(db, tracks, { baseUrl: "http://localhost", devLogin: true });
+    let cookie = "";
+    const req = async (path: string, init: RequestInit = {}) => {
+      const r = await app.request(`http://localhost${path}`, { ...init, headers: { cookie, ...(init.headers ?? {}) } });
+      const set = r.headers.get("set-cookie");
+      if (set) cookie = set.split(";")[0]!;
+      return r;
+    };
+    await req("/auth/dev", { method: "POST", body: new URLSearchParams({ email: "o@example.org", name: "o" }) });
+    const f = new FormData();
+    for (const [k, v] of Object.entries({ name: "US Open", location: "Chelan", start_date: "2026-06-21", end_date: "2026-06-21", nominalDistance: "80", minimumDistance: "5", nominalTime: "90", ftvFactor: "25", gapProfile: "S7F2026", airspacePenaltyRule: "s7a", timeZone: "America/Los_Angeles" })) f.append(k, v);
+    const compUrl = (await req("/competitions", { method: "POST", body: f })).headers.get("location")!;
+    const compId = Number(compUrl.split("/").pop());
+    const ft = new FormData();
+    ft.append("number", "1");
+    ft.append("date", "2026-06-21");
+    ft.append("text", QR);
+    const taskUrl = (await req(`${compUrl}/tasks`, { method: "POST", body: ft })).headers.get("location")!.split("?")[0]!;
+    const taskId = Number(taskUrl.split("/").pop());
+    // État laissé par l'ancienne version : pilotes et traces rangés sous le nom.
+    for (const [name, text] of files.slice(0, 2)) {
+      const pilot = /HFPLTPILOT:(.*)/.exec(text)![1]!.trim();
+      const key = pilot.toLowerCase().replace(/ /g, "-");
+      db.prepare("INSERT INTO competition_pilots (competition_id, pilot_key, name) VALUES (?, ?, ?)").run(compId, key, pilot);
+      const bytes = new TextEncoder().encode(text);
+      db.prepare("INSERT INTO tracks (task_id, pilot_key, pilot_name, filename, sha256, size, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(taskId, key, pilot, name, tracks.put(bytes), bytes.length, 0);
+    }
+    const up = new FormData();
+    for (const [name, text] of files) up.append("files", new Blob([text]), name);
+    await req(`${taskUrl}/tracks`, { method: "POST", body: up });
+    const keys = (db.prepare("SELECT pilot_key FROM tracks WHERE task_id = ? ORDER BY filename").all(taskId) as Array<{ pilot_key: string }>).map((r) => r.pilot_key);
+    expect(keys).toEqual(["24", "7", "131"]);
+    const pilots = (db.prepare("SELECT pilot_key, name FROM competition_pilots WHERE competition_id = ? ORDER BY name").all(compId) as Array<{ pilot_key: string; name: string }>).map((p) => `${p.pilot_key} ${p.name}`);
+    expect(pilots).toEqual(["24 Albert Nazander", "7 Bob Smith", "131 Carla Rossi"]);
+  });
+});

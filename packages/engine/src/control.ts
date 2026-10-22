@@ -4,7 +4,7 @@ import { taskDistances } from "./distances.js";
 import { detectFlights, type FlightPeriod } from "./flight.js";
 import { findTaskAreaCentre } from "./projection.js";
 import { RouteFrom, type RouteZone } from "./route.js";
-import type { Task, TaskTurnpoint } from "./task.js";
+import { taskSeconds, type Task, type TaskTurnpoint } from "./task.js";
 
 /** Tolérance absolue des cylindres et des lignes (S7F 2026, 9.1). */
 export const ABSOLUTE_TOLERANCE = 5;
@@ -87,9 +87,9 @@ export interface ControlOptions {
 const alt = (f: IgcFix) => f.gnssAltitude ?? f.pressureAltitude;
 
 /** "HH:MM:SS" UTC → ms UTC, le jour de la trace. */
-function timeOnDay(hms: string, dayStart: number): number {
-  const [h, m, s] = hms.split(":").map(Number);
-  return dayStart + ((h ?? 0) * 3600 + (m ?? 0) * 60 + (s ?? 0)) * 1000;
+/** Heure de la manche (UTC, éventuellement après minuit) en ms, à partir de 0 h UTC du jour du vol. */
+function timeOnDay(task: Task, hms: string, dayStart: number): number {
+  return dayStart + taskSeconds(task, hms) * 1000;
 }
 
 /** Repère plan local (m) centré sur un point : suffisant à l'échelle d'une ligne de goal. */
@@ -166,8 +166,8 @@ export function controlFlight(task: Task, fixes: IgcFix[], options: ControlOptio
   const valid = fixes.filter((f) => f.valid);
   if (!task.stopAnnouncement || !valid.length) return controlUntil(task, valid, Infinity);
   const dayStart = Math.floor(valid[0]!.time / 86_400_000) * 86_400_000;
-  const stop = timeOnDay(task.stopAnnouncement, dayStart) - (task.scoreBackTime ?? DEFAULT_SCORE_BACK_TIME) * 1000;
-  const gates = task.startGates.map((g) => timeOnDay(g, dayStart)).sort((a, b) => a - b);
+  const stop = timeOnDay(task, task.stopAnnouncement, dayStart) - (task.scoreBackTime ?? DEFAULT_SCORE_BACK_TIME) * 1000;
+  const gates = task.startGates.map((g) => timeOnDay(task, g, dayStart)).sort((a, b) => a - b);
 
   // Fenêtre de vol (13.4.4) : jusqu'à l'arrêt pour une race à une porte ; sinon, la même durée
   // pour tous, comptée depuis le départ de chacun.
@@ -222,7 +222,7 @@ function controlUntil(task: Task, valid: IgcFix[], end: number): FlightControl {
   const distances = taskDistances(task);
 
   const dayStart = valid.length ? Math.floor(valid[0]!.time / 86_400_000) * 86_400_000 : 0;
-  const gates = task.startGates.map((g) => timeOnDay(g, dayStart)).sort((a, b) => a - b);
+  const gates = task.startGates.map((g) => timeOnDay(task, g, dayStart)).sort((a, b) => a - b);
   const firstGate = gates[0] ?? -Infinity;
 
   // Vol retenu : le dernier décollage avant la première porte (redécollage), sinon le premier vol.
@@ -263,7 +263,7 @@ function controlUntil(task: Task, valid: IgcFix[], end: number): FlightControl {
     return goalLineCrossings(pts, z.waypoint, z.length, { x: v.x / n, y: v.y / n });
   };
 
-  const deadline = task.deadline ? timeOnDay(task.deadline, dayStart) : Infinity;
+  const deadline = task.deadline ? timeOnDay(task, task.deadline, dayStart) : Infinity;
   const zv = (i: number, j: number): ZoneValidation => ({
     index: i,
     name: tps[i]!.zone.waypoint.name,

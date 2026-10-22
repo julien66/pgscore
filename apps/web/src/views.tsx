@@ -1,3 +1,4 @@
+import { isPlaceholderPilot } from "./files.js";
 import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import { GAP_RULES, NOMINAL_GOAL, NOMINAL_LAUNCH, speedFraction, type DecisionKind, type LeadingWarning, type PilotResult, type Task, type TaskScoring } from "@pgscore/engine";
@@ -1425,7 +1426,8 @@ export const TaskPage: FC<{
   const fileUrl = (sha: string) => `/tasks/${tk.id}/files/${sha}`;
   // Lien entre les traces et les pilotes de la compétition : le numéro (pilot_key) de la trace est celui de l'inscrit.
   const reg = new Map(registry.map((p) => [p.pilot_key, p]));
-  const unlinked = tracks.filter((x) => !reg.has(x.pilot_key));
+  // Un inscrit d'office sous le nom de sa trace (« albert-nazander ») n'a pas encore de numéro : sa trace compte comme non rattachée.
+  const unlinked = tracks.filter((x) => !reg.has(x.pilot_key) || isPlaceholderPilot(reg.get(x.pilot_key)!));
   const pilotsUrl = `/competitions/${c.id}/edit#pilots`;
   return (
     <Layout title={`${edit ? `${t("Éditer")} · ` : ""}${t("Manche {n}", { n: tk.number })} · ${c.name}`} user={user}>

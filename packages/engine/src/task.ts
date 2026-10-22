@@ -69,3 +69,26 @@ export interface Task {
   /** Modèle terrestre déclaré par le fichier source ; le contrôle utilise toujours WGS84. */
   sourceEarthModel?: "WGS84" | "FAI_SPHERE";
 }
+
+/** "HH:MM:SS" en secondes. */
+export function hmsSeconds(hms: string): number {
+  const [h, m, s] = hms.split(":").map(Number);
+  return (h ?? 0) * 3600 + (m ?? 0) * 60 + (s ?? 0);
+}
+
+/**
+ * Heure d'une manche en secondes depuis 0 h UTC du jour du vol. Les heures UTC d'une manche peuvent
+ * passer minuit : aux États-Unis, porte à 20:00 et deadline à 01:30 UTC (le lendemain). Une heure qui
+ * tombe plus de 6 h avant l'ouverture du décollage (ou, à défaut, la première porte) est donc celle du lendemain.
+ */
+export function taskSeconds(task: Pick<Task, "startGates" | "takeoffOpen">, hms: string): number {
+  const t = hmsSeconds(hms);
+  const ref = task.takeoffOpen ? hmsSeconds(task.takeoffOpen) : task.startGates.length ? Math.min(...task.startGates.map(hmsSeconds)) : null;
+  return ref !== null && ref - t > 6 * 3600 ? t + 86_400 : t;
+}
+
+/** Instant (ms) d'une heure de la manche, connaissant l'instant de la première porte. */
+export function taskTimeFromGate(task: Pick<Task, "startGates" | "takeoffOpen">, hms: string, firstGateMs: number): number {
+  const gate = Math.min(...task.startGates.map((g) => taskSeconds(task, g)));
+  return firstGateMs + (taskSeconds(task, hms) - (Number.isFinite(gate) ? gate : taskSeconds(task, hms))) * 1000;
+}

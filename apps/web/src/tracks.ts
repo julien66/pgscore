@@ -1,5 +1,5 @@
 import type { Db, PilotRow, TrackHistoryRow, TrackRow } from "./db.js";
-import { learnFilenameConvention, pilotKeyForTrack } from "./files.js";
+import { isPlaceholderPilot, learnFilenameConvention, pilotKeyForTrack } from "./files.js";
 import type { TrackStore } from "./track-store.js";
 import type { VersionMeta } from "./viewer-data.js";
 
@@ -163,11 +163,14 @@ export function assignTrack(db: Db, taskId: number, trackId: number, userId: num
 export function linkTracks(db: Db, store: TrackStore, taskId: number, userId: number, registry: PilotRow[]): number {
   if (!registry.length) return 0;
   const reg = new Map(registry.map((p) => [p.pilot_key, p]));
+  // Inscrits d'office sans numéro (« albert-nazander ») : leurs traces cherchent encore un numéro.
+  const placeholder = new Set(registry.filter(isPlaceholderPilot).map((p) => p.pilot_key));
+  const linked = (key: string) => reg.has(key) && !placeholder.has(key);
   const rows = db.prepare("SELECT * FROM tracks WHERE task_id = ? ORDER BY id").all(taskId) as unknown as TrackRow[];
   // Convention de nommage apprise sur toutes les traces de la manche : les rattachées confirment la place du numéro.
   const texts = new Map<number, string>();
   for (const tr of rows) {
-    if (reg.has(tr.pilot_key)) continue;
+    if (linked(tr.pilot_key)) continue;
     try {
       texts.set(tr.id, store.text(tr.sha256));
     } catch {
@@ -175,14 +178,14 @@ export function linkTracks(db: Db, store: TrackStore, taskId: number, userId: nu
     }
   }
   const conv = learnFilenameConvention(
-    rows.map((tr) => (reg.has(tr.pilot_key) ? { filename: tr.filename, knownId: tr.pilot_key } : { filename: tr.filename, text: texts.get(tr.id) })),
+    rows.map((tr) => (linked(tr.pilot_key) ? { filename: tr.filename, knownId: tr.pilot_key } : { filename: tr.filename, text: texts.get(tr.id) })),
     registry,
   );
   let n = 0;
   db.exec("BEGIN");
   try {
     for (const tr of rows) {
-      const own = reg.get(tr.pilot_key);
+      const own = linked(tr.pilot_key) ? reg.get(tr.pilot_key) : undefined;
       if (own) {
         if (tr.pilot_name !== own.name) db.prepare("UPDATE tracks SET pilot_name = ? WHERE id = ?").run(own.name, tr.id);
         continue;
@@ -190,6 +193,14 @@ export function linkTracks(db: Db, store: TrackStore, taskId: number, userId: nu
       const text = texts.get(tr.id);
       if (text === undefined) continue;
       const key = pilotKeyForTrack(tr.filename, text, registry, new Map(), conv);
+      if (placeholder.has(tr.pilot_key)) {
+        // Numéro trouvé pour une trace d'inscrit d'office : elle le prend (registerTrackPilots renumérote ensuite l'inscrit).
+        if (key !== tr.pilot_key && /^\d+$/.test(key) && !reg.has(key)) {
+          if (db.prepare("UPDATE OR IGNORE tracks SET pilot_key = ? WHERE id = ?").run(key, tr.id).changes) n++;
+          continue;
+        }
+        if (!reg.has(key) || key === tr.pilot_key) continue;
+      }
       const p = reg.get(key);
       if (!p) continue;
       const r = assignTrack(db, taskId, tr.id, userId, p);
