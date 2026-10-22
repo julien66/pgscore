@@ -1,7 +1,7 @@
 import { controlFlight, zoneApproaches, type FlightControl, type ZoneApproach } from "./control.js";
 import { taskDistances, type TaskDistances } from "./distances.js";
 import { parseIgc } from "./igc.js";
-import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingSpeedSectionKm, leadingTrack, type LeadingTrack, type LeadingWarning } from "./leading.js";
+import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingSpeedSectionKm, leadingTrack, type LeadingEnd, type LeadingTrack, type LeadingWarning } from "./leading.js";
 import {
   airspaceInfringements,
   airspacePenalty,
@@ -33,10 +33,12 @@ export interface ScoringOptions {
   /** Pilotes présents au décollage (tous sauf ABS) ; à défaut, les pilotes qui ont volé. */
   pilotsPresent?: number;
   /**
-   * Fin de manche fixée par l'organisation (UTC, "HH:MM:SS") : remplace le dernier posé pour le leading
+   * Fin de manche fixée par l'organisation (UTC, "HH:MM:SS") : remplace la fin des vols pour le leading
    * si elle est plus tardive (maxTime, 12.3.1), comme le « Maximum task time » de SVL.
    */
   taskEndTime?: string;
+  /** Fin des vols pour maxTime du leading : dernière arrivée à l'ESS (par défaut) ou dernier posé s'il est plus tardif. */
+  leadingEnd?: LeadingEnd;
   /** Décisions de l'organisateur, appliquées avant les points. */
   decisions?: PilotDecision[];
 }
@@ -245,7 +247,7 @@ export function finishScoring(task: Task, controlled: ControlledPilot[], options
     // mais pas toujours (Sopot 2026 T2 : arrêt à 15:51, 15:46) ; taskEndTime donne alors la valeur publiée.
     const cap = task.deadline ? at(task.deadline) : Infinity;
     const end = options.taskEndTime ?? (options.gapProfile === "PWCA" && c0.stopped ? task.stopAnnouncement : undefined);
-    maxTime = leadingMaxTime(withLeading.map((p) => p.leading!), cap, end ? at(end) : undefined);
+    maxTime = leadingMaxTime(withLeading.map((p) => p.leading!), cap, end ? at(end) : undefined, options.leadingEnd);
     for (const p of withLeading) p.result.leadingCoefficient = leadingCoefficient(p.leading!, ssKm, maxTime);
     lcMin = Math.min(...withLeading.map((p) => p.result.leadingCoefficient!));
     for (const p of withLeading) p.result.leadingFactor = leadingFactor(p.result.leadingCoefficient!, lcMin);

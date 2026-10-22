@@ -253,12 +253,19 @@ function controlUntil(task: Task, valid: IgcFix[], end: number): FlightControl {
   result.inFlight = pts;
   if (pts.length < 2) return result;
 
-  // Orientation de la ligne de goal : perpendiculaire à la route optimisée qui y arrive (6.2.3.1).
+  // Orientation de la ligne de goal : perpendiculaire à la route optimisée qui y arrive (6.2.3.1), ou à la
+  // direction du centre de la balise précédente en degrés bruts (goalLineOrientation "previousCentre").
   const crossingsOf = (i: number): number[] => {
     const z = tps[i]!.zone;
     if (z.kind === "cylinder") return cylinderCrossings(pts, z.waypoint, z.radius, task.cylinderTolerance ?? RELATIVE_TOLERANCE);
-    const prev = distances.route.points[i - 1]!;
-    const v = localXY(z.waypoint, prev);
+    const c = z.waypoint;
+    let v = localXY(c, distances.route.points[i - 1]!);
+    if (task.goalLineOrientation === "previousCentre") {
+      let j = i - 1;
+      while (j > 0 && tps[j]!.zone.waypoint.lat === c.lat && tps[j]!.zone.waypoint.lon === c.lon) j--;
+      const w = tps[j]!.zone.waypoint;
+      v = { x: w.lon - c.lon, y: w.lat - c.lat };
+    }
     const n = Math.hypot(v.x, v.y) || 1;
     return goalLineCrossings(pts, z.waypoint, z.length, { x: v.x / n, y: v.y / n });
   };

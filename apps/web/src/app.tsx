@@ -995,6 +995,9 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       if (eg === "" || Number(eg) === 0) delete task.elevatedGoal;
       else if (Number.isFinite(Number(eg)) && Number(eg) > 0 && Number(eg) <= 1000) task.elevatedGoal = Number(eg);
       else throw new Error(t("Elevated goal : hauteur entre 0 et 1000 m attendue."));
+      // Règles anciennes : ligne de goal orientée vers le centre de la balise précédente (S7F 2024).
+      if (f.goalLineOrientation === "previousCentre") task.goalLineOrientation = "previousCentre";
+      else delete task.goalLineOrientation;
       if (stop) task.stopAnnouncement = localHmsToUtc(stop, date, tz);
       else delete task.stopAnnouncement;
       const gr = String(f.bonusGlideRatio ?? "").trim().replace(",", ".");
@@ -1004,6 +1007,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       delete task.leadingTimeRatio;
       delete task.pilotsPresent;
       delete task.taskEndTime;
+      delete task.leadingEnd;
       Object.assign(task, taskScoringFromForm(f));
       if (end) task.taskEndTime = localHmsToUtc(end, date, tz);
     } catch (e) {

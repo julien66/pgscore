@@ -4,6 +4,7 @@ import {
   type AirspacePenaltyRule,
   type CompetitionParameters,
   type GapProfile,
+  type LeadingEnd,
   type Task,
 } from "@pgscore/engine";
 import { N_, t } from "./i18n.js";
@@ -36,6 +37,18 @@ export const PENALTY_RULES: Record<AirspacePenaltyRule, string> = {
   s7a: N_("S7A 2026 : 0 à 100 % des points entre 0 et 100 m"),
   "pwca-soft": N_("PWCA « soft » : 1000 points à 100 m"),
   "pwca-hard": N_("PWCA « hard » : 1000 points à 50 m"),
+};
+
+/** Fin des vols pour maxTime du leading, réglée par manche. */
+export const LEADING_ENDS: Record<LeadingEnd, string> = {
+  lastEss: N_("Dernière arrivée à l'ESS"),
+  lastLanding: N_("Dernier pilote en vol (posé plus tardif)"),
+};
+
+/** Orientation d'un goal en ligne, réglée par manche (rubrique « Règles anciennes »). */
+export const GOAL_LINE_ORIENTATIONS: Record<NonNullable<Task["goalLineOrientation"]>, string> = {
+  route: N_("Perpendiculaire à la route optimisée (S7F 2026, PWCA)"),
+  previousCentre: N_("Perpendiculaire au centre de la balise précédente (S7F 2024)"),
 };
 
 export function parseSettings(json: string): CompetitionSettings {
@@ -80,7 +93,13 @@ export function settingsFromForm(form: Record<string, unknown>): CompetitionSett
   } catch (e) {
     throw new FormError((e as Error).message);
   }
-  return { ...params, gapProfile, airspacePenaltyRule, roundAirspaceLimits: form.roundAirspaceLimits === "on", timeZone };
+  return {
+    ...params,
+    gapProfile,
+    airspacePenaltyRule,
+    roundAirspaceLimits: form.roundAirspaceLimits === "on",
+    timeZone,
+  };
 }
 
 /** Réglages de points propres à une manche, rangés avec elle. */
@@ -89,8 +108,10 @@ export interface TaskScoringSettings {
   leadingTimeRatio?: number;
   /** Pilotes présents au décollage (tous sauf ABS) ; à défaut, ceux qui ont une trace avec un vol. */
   pilotsPresent?: number;
-  /** Fin de manche pour le leading (UTC, "HH:MM:SS") si elle est plus tardive que le dernier posé. */
+  /** Fin de manche pour le leading (UTC, "HH:MM:SS") si elle est plus tardive que la fin des vols. */
   taskEndTime?: string;
+  /** Fin des vols pour le leading : dernière arrivée à l'ESS (par défaut) ou dernier pilote en vol. */
+  leadingEnd?: LeadingEnd;
 }
 
 export type StoredTask = Task & TaskScoringSettings;
@@ -110,6 +131,9 @@ export function taskScoringFromForm(form: Record<string, unknown>): TaskScoringS
     if (!(Number.isInteger(v) && v >= 0)) throw new FormError(t("Pilotes présents : nombre entier attendu."));
     out.pilotsPresent = v;
   }
+  const end = String(form.leadingEnd ?? "lastEss");
+  if (!(end in LEADING_ENDS)) throw new FormError(t("Fin des vols pour le leading inconnue."));
+  if (end !== "lastEss") out.leadingEnd = end as LeadingEnd;
   return out;
 }
 
