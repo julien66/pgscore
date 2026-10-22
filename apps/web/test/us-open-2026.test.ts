@@ -33,11 +33,6 @@ const OVERALL_TOLERANCE = 1;
 
 /** Écarts connus, par manche : numéro du pilote → raison. Ces pilotes sont sortis de la comparaison. */
 const KNOWN: Record<number, Record<string, string>> = {
-  1: {
-    // Sort du cylindre de départ à 13:00:00 pile, l'heure de la porte : FS refuse ce départ (S7F 9.2.4,
-    // passage après la porte), pgscore l'accepte encore.
-    "1": "Korey Curtis : départ à l'heure pile de la porte",
-  },
   2: {
     // Points ajoutés à la main dans FS, sans pénalité ni bonus publiés (921,8 → 966,5 et 913,2 → 920,0).
     "259": "Shoemaker : correction manuelle FS (+44,7)",
