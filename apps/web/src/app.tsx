@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { DifferencesPage } from "./differences.js";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { parseOpenAir, parseXctsk, taskDistances, taskToXctskQr, type Task } from "@pgscore/engine";
 import qrcode from "qrcode-generator";
@@ -280,6 +281,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     return c.redirect("/account");
   });
   app.get("/about", (c) => c.html(<AboutPage user={c.get("user")} />));
+  app.get("/differences", (c) => c.html(<DifferencesPage user={c.get("user")} />));
   app.get("/api", (c) => c.html(<ApiDocPage user={c.get("user")} baseUrl={cfg.baseUrl} />));
 
   // --- API : liste, export et import de compétitions ---------------------------------------------

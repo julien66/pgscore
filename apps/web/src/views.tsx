@@ -189,7 +189,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
       </header>
       <main>{children}</main>
       <footer>
-        <a href="/about">{t("À propos de pgscore")}</a> · <a href="/api">{t("API")}</a> ·{" "}
+        <a href="/about">{t("À propos de pgscore")}</a> · <a href="/differences">{t("Différences CIVL / PWCA")}</a> · <a href="/api">{t("API")}</a> ·{" "}
         <a href="https://github.com/julien66/pgscore">{t("Logiciel libre, licence AGPL-3.0")}</a>
       </footer>
     </body>
