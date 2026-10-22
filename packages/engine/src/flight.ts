@@ -45,10 +45,64 @@ function walkBack(fixes: IgcFix[], still: number, takeoff: number): number {
   }
 }
 
+/** Écart d'altitude maximal avec le point d'immobilité pour un fix encore au sol, en mètres (bruit GNSS). */
+const TOUCHDOWN_ALTITUDE = 3;
+
+/**
+ * Posé au fix près. La marche (`walkBack`) se mesure par fenêtres de 20 s, dont la dernière peut encore
+ * contenir quelques secondes au sol ; l'immobilité, qui tolère 30 m, peut commencer un peu avant le posé.
+ * On avance donc jusqu'à la fin du dernier segment rapide, puis on remonte fix par fix tant que le segment
+ * qui arrive au fix est lent (vitesse de marche) et que le fix d'avant est à l'altitude du sol.
+ * Le fix renvoyé est le premier au sol.
+ */
+function touchdown(fixes: IgcFix[], k: number, takeoff: number): number {
+  const speed = (a: IgcFix, b: IgcFix) => (b.time > a.time ? distance(a, b) / ((b.time - a.time) / 1000) : 0);
+  while (k < fixes.length - 1 && speed(fixes[k]!, fixes[k + 1]!) >= WALK_SPEED) k++;
+  const ground = alt(fixes[k]!);
+  let i = k;
+  while (i > takeoff + 1) {
+    const a = fixes[i - 1]!;
+    const b = fixes[i]!;
+    if (speed(a, b) >= WALK_SPEED) break;
+    const h = alt(a);
+    if (h !== null && ground !== null && Math.abs(h - ground) > TOUCHDOWN_ALTITUDE) break;
+    i--;
+  }
+  return i;
+}
+
+/**
+ * Fin de trace au sol, trop courte pour les 60 s d'immobilité : au moins WALK_SECONDS jusqu'au dernier
+ * fix, avec les mêmes seuils de déplacement et d'altitude. Renvoie le premier fix de cette fin immobile.
+ */
+function stillTail(fixes: IgcFix[], from: number): number | null {
+  const n = fixes.length;
+  const last = fixes[n - 1]!;
+  for (let i = from; i < n && last.time - fixes[i]!.time >= WALK_SECONDS * 1000; i++) {
+    const a = fixes[i]!;
+    let lo = alt(a);
+    let hi = lo;
+    let ok = true;
+    for (let j = i + 1; j < n && ok; j++) {
+      const b = fixes[j]!;
+      if (distance(a, b) > STILL_DISTANCE) ok = false;
+      const h = alt(b);
+      if (h !== null && lo !== null && hi !== null) {
+        lo = Math.min(lo, h);
+        hi = Math.max(hi, h);
+        if (hi - lo > STILL_ALTITUDE) ok = false;
+      }
+    }
+    if (ok) return i;
+  }
+  return null;
+}
+
 /**
  * Repère le vol dans une trace : décollage au premier déplacement rapide et soutenu, atterrissage
  * à la première immobilité d'au moins 60 s ensuite. Tout ce qui suit (navette, voiture)
- * ne doit plus valider de balise. Une trace peut contenir plusieurs vols (redécollage).
+ * ne doit plus valider de balise. Une trace qui s'arrête moins de 60 s après le posé est posée si
+ * ses 20 dernières secondes au moins sont immobiles. Une trace peut contenir plusieurs vols (redécollage).
  */
 export function detectFlights(fixes: IgcFix[]): FlightPeriod[] {
   const n = fixes.length;
@@ -93,10 +147,14 @@ export function detectFlights(fixes: IgcFix[]): FlightPeriod[] {
     for (let i = takeoff; i < n; i++) {
       const s = still(i);
       if (s === true) {
-        end = { takeoffIndex: takeoff, landingIndex: walkBack(fixes, i, takeoff), landed: true };
+        end = { takeoffIndex: takeoff, landingIndex: touchdown(fixes, walkBack(fixes, i, takeoff), takeoff), landed: true };
         break;
       }
-      if (s === null) break;
+      if (s === null) {
+        const t = stillTail(fixes, i);
+        if (t !== null) end = { takeoffIndex: takeoff, landingIndex: touchdown(fixes, walkBack(fixes, t, takeoff), takeoff), landed: true };
+        break;
+      }
     }
     flights.push(end);
     if (!end.landed) break;

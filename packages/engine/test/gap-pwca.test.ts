@@ -51,7 +51,8 @@ const cases: Case[] = [
     stopAnnouncement: "13:47:00",
     options: { params: competitionParameters({ minimumDistance: 5000, nominalDistance: 55_000, nominalTime: 5400 }), pilotsPresent: 118 },
     // Nos distances sont un peu plus longues (route PWCA avec cylindres agrandis de 0,1 %) : validité 0,4676 contre 0,4667.
-    available: [420.8, 0, 46.8],
+    // Posé au fix près : le pilote 346, posé à 12:37:46 et non 12:37:42 (encore à 8 m/s), gagne 19 m (420,8 avant).
+    available: [420.9, 0, 46.8],
     skip: {},
     tolerance: 1,
   },
