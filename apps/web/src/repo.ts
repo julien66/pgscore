@@ -51,3 +51,16 @@ export type DoneRun = RunRow & { status: "done"; results: string };
 /** Dernier calcul terminé de la manche : celui dont les résultats sont publiés. */
 export const latestDoneRun = (db: Db, taskId: number) =>
   queryOne<DoneRun>(db, "SELECT * FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1", taskId) ?? null;
+
+/**
+ * Ne garde de la manche que son dernier calcul et son dernier calcul terminé : les autres ne sont jamais
+ * montrés, et chacun garde tous les résultats de la manche.
+ */
+export function purgeRuns(db: Db, taskId: number): void {
+  stmt(
+    db,
+    `DELETE FROM runs WHERE task_id = ?1
+       AND id <> (SELECT MAX(id) FROM runs WHERE task_id = ?1)
+       AND id <> COALESCE((SELECT MAX(id) FROM runs WHERE task_id = ?1 AND status = 'done'), 0)`,
+  ).run(taskId);
+}

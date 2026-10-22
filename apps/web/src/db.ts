@@ -209,6 +209,10 @@ export const MIGRATIONS: Migration[] = [
   // Dernier calcul (terminé) d'une manche et manches d'une compétition, cherchés à chaque page.
   `CREATE INDEX runs_task_status ON runs (task_id, status);
    CREATE INDEX tasks_competition ON tasks (competition_id);`,
+  // Anciens calculs jamais montrés : seuls restent le dernier de chaque manche et son dernier terminé (repo.ts, purgeRuns).
+  `DELETE FROM runs
+    WHERE id NOT IN (SELECT MAX(id) FROM runs GROUP BY task_id)
+      AND id NOT IN (SELECT MAX(id) FROM runs WHERE status = 'done' GROUP BY task_id);`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {
