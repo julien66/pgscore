@@ -138,6 +138,12 @@ function registryByName(name: string, registry: Array<{ pilot_key: string; name:
   return hits.length === 1 ? hits[0]!.pilot_key : undefined;
 }
 
+/**
+ * Inscrit sans numéro : inscrit d'office sous le nom de sa trace (clé = nom en minuscules avec tirets,
+ * « albert-nazander »). Un numéro trouvé plus tard dans une trace doit pouvoir le remplacer.
+ */
+export const isPlaceholderPilot = (p: { pilot_key: string; name: string }) => !/^\d+$/.test(p.pilot_key) && p.pilot_key === slug(p.name);
+
 /** Morceaux de la date du vol (HFDTE) tels qu'ils apparaissent dans un nom de fichier : « 2026 », « 06 », « 21 », « 20260621 »… */
 function dateParts(text: string | undefined): Set<string> {
   const m = text ? /^HFDTE(?:DATE:)?(\d{2})(\d{2})(\d{2})/m.exec(text) : null;
@@ -184,8 +190,10 @@ export function filenameId(filename: string, conv: FilenameConvention): string |
  */
 export function learnFilenameConvention(
   samples: Array<{ filename: string; text?: string; knownId?: string | null }>,
-  registry: Array<{ pilot_key: string; name: string }>,
+  allRegistry: Array<{ pilot_key: string; name: string }>,
 ): FilenameConvention {
+  // Les inscrits d'office sous leur nom (« albert-nazander ») n'ont pas de numéro : ils ne confirment rien.
+  const registry = allRegistry.filter((p) => !isPlaceholderPilot(p));
   const keys = new Set(registry.map((p) => normId(p.pilot_key)));
   const byName = new Map(registry.map((p) => [nameKey(p.name), p.pilot_key]));
   const rows = samples
@@ -257,7 +265,7 @@ export function learnFilenameConvention(
 export function pilotKeyForTrack(
   filename: string,
   text: string,
-  registry: Array<{ pilot_key: string; name: string }>,
+  allRegistry: Array<{ pilot_key: string; name: string }>,
   used: Map<string, string | null> = new Map(),
   conv?: FilenameConvention,
 ): string {
@@ -273,6 +281,10 @@ export function pilotKeyForTrack(
   } else fileKey = pilotKeyFromFilename(filename);
   const { pilot, cid: rawCid } = igcHeader(text);
   const cid = rawCid ? normId(rawCid) : null;
+  // Inscrits d'office sous le nom de leur trace (« albert-nazander ») : pas encore de numéro. Un numéro
+  // lu dans la trace (HFCID, convention du lot) passe avant eux ; registerTrackPilots leur donne ensuite ce numéro.
+  const registry = allRegistry.filter((p) => !isPlaceholderPilot(p));
+  const placeholders = allRegistry.filter(isPlaceholderPilot);
   const keys = new Set(registry.map((p) => p.pilot_key));
   const byName = new Map(registry.map((p) => [nameKey(p.name), p.pilot_key]));
   const fromName = pilot ? byName.get(nameKey(pilot)) : undefined;
@@ -297,6 +309,7 @@ export function pilotKeyForTrack(
     key = fileKey;
     strong = learned;
   }
+  else if ((pilot || fileName) && registryByName((pilot || fileName)!, placeholders)) key = registryByName((pilot || fileName)!, placeholders)!;
   else if (pilot && slug(pilot)) key = slug(pilot);
   else if (cid) key = cid;
   else key = fileKey;

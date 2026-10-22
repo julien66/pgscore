@@ -10,7 +10,7 @@ import {
 } from "./openair.js";
 import { GAP_RULES, goalAltitudeFactor, scoreGap, type GapProfile, type GapPoints, type GapTaskScore } from "./gap.js";
 import { scoredDistance, type CompetitionParameters } from "./params.js";
-import type { Task } from "./task.js";
+import { taskTimeFromGate, type Task } from "./task.js";
 
 /**
  * Calcul d'une manche à partir des traces : contrôle de chaque vol, espaces aériens, distance retenue
@@ -237,11 +237,8 @@ export function finishScoring(task: Task, controlled: ControlledPilot[], options
   if (withLeading.length) {
     const c0 = withLeading[0]!.control!;
     const gate = c0.firstStartGate!;
-    const day = Math.floor(gate / 86_400_000) * 86_400_000;
-    const at = (hms: string) => {
-      const [h, m, s] = hms.split(":").map(Number);
-      return (day + ((h ?? 0) * 3600 + (m ?? 0) * 60 + (s ?? 0)) * 1000 - gate) / 1000;
-    };
+    // Heure de la manche en secondes après la première porte (une deadline peut passer minuit UTC).
+    const at = (hms: string) => (taskTimeFromGate(task, hms, gate) - gate) / 1000;
     // Manche arrêtée : les vols s'arrêtent à l'heure d'arrêt (leadingTrack), maxTime aussi. SVL (PWCA) prend
     // en général l'heure d'annonce de l'arrêt comme fin de manche (« Maximum task time », Feltre 2025 T3),
     // mais pas toujours (Sopot 2026 T2 : arrêt à 15:51, 15:46) ; taskEndTime donne alors la valeur publiée.

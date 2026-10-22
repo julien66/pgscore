@@ -19,7 +19,7 @@ import {
   type OidcConfig,
 } from "./auth.js";
 import type { CompetitionRow, Db, RunRow, TaskRow, TrackRow, User } from "./db.js";
-import { collectIgc, decodeQrImage, decodeText, learnFilenameConvention, nameKey, pilotKeyForTrack } from "./files.js";
+import { collectIgc, decodeQrImage, decodeText, isPlaceholderPilot, learnFilenameConvention, nameKey, pilotKeyForTrack } from "./files.js";
 import { isRunning, startRun, startRuns } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
 import { assignTrack, linkTracks, pilotVersions, removeAllTracks, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
@@ -637,6 +637,8 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       if (k) touchScoring(db, id);
       n += k;
     }
+    // Traces d'inscrits d'office qui ont trouvé leur numéro : l'inscrit prend ce numéro.
+    if (n) registerTrackPilots(db, comp.id);
     if (n) msg += " " + (one(n) ? t("{n} trace rattachée à un pilote inscrit.", { n }) : t("{n} traces rattachées à des pilotes inscrits.", { n }));
     return c.redirect(`/competitions/${comp.id}/edit?msg=${encodeURIComponent(msg)}#pilots`);
   };
@@ -1082,8 +1084,9 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const bySha = new Map(existing.map((e) => [e.sha256, e.pilot_key]));
     const used = new Map<string, string | null>(existing.map((e) => [e.pilot_key, e.pilot_name ? nameKey(e.pilot_name) : null]));
     const regName = new Map(registry.map((p) => [p.pilot_key, p.name]));
+    const placeholderKeys = new Set(registry.filter(isPlaceholderPilot).map((p) => p.pilot_key));
     // Convention de nommage des fichiers apprise sur tout l'envoi, et sur les traces déjà rangées de la manche.
-    const regKeys = new Set(registry.map((p) => p.pilot_key));
+    const regKeys = new Set(registry.filter((p) => !isPlaceholderPilot(p)).map((p) => p.pilot_key));
     const conv = learnFilenameConvention(
       [
         ...igcs.map((g) => ({ filename: g.filename, text: g.text })),
@@ -1099,7 +1102,16 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     db.exec("BEGIN");
     for (const { g, sha256 } of stored) {
       // Fichier déjà présent dans la manche : c'est la même trace, elle garde son pilote.
-      const pilotKey = bySha.get(sha256) ?? pilotKeyForTrack(g.filename, g.text, registry, used, conv);
+      let pilotKey = bySha.get(sha256) ?? pilotKeyForTrack(g.filename, g.text, registry, used, conv);
+      // Fichier déjà rangé sous un inscrit d'office sans numéro (« albert-nazander ») : s'il porte un numéro
+      // (HFCID, convention du lot), la trace le prend ; registerTrackPilots donne ensuite ce numéro à l'inscrit.
+      if (placeholderKeys.has(pilotKey)) {
+        const better = pilotKeyForTrack(g.filename, g.text, registry, new Map(), conv);
+        if (/^\d+$/.test(better)) {
+          db.prepare("UPDATE OR IGNORE tracks SET pilot_key = ? WHERE task_id = ? AND pilot_key = ? AND sha256 = ?").run(better, x.t.id, pilotKey, sha256);
+          pilotKey = better;
+        }
+      }
       count[saveTrack(db, x.t.id, me(c).id, { pilotKey, pilotName: regName.get(pilotKey) ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
     }
     // Pilotes des traces pas encore inscrits : ajoutés à la liste des pilotes de la compétition.
@@ -1154,7 +1166,10 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
     const n = linkTracks(db, tracks, x.t.id, me(c).id, listPilots(db, x.comp.id));
-    if (n) touchScoring(db, x.t.id);
+    if (n) {
+      registerTrackPilots(db, x.comp.id);
+      touchScoring(db, x.t.id);
+    }
     return c.redirect(`/tasks/${x.t.id}/edit?linked=${n}&open=tracks#tracks`);
   });
 

@@ -4,7 +4,7 @@ import { GAP_RULES, type GapProfile } from "./gap.js";
 import { distance } from "./geo.js";
 import { findTaskAreaCentre } from "./projection.js";
 import { RouteFrom, type RouteZone } from "./route.js";
-import type { Task } from "./task.js";
+import { taskTimeFromGate, type Task } from "./task.js";
 
 /**
  * Points de leading en parapente (S7F 2026, 12.3).
@@ -124,7 +124,7 @@ export function leadingTrack(task: Task, control: FlightControl, profile: GapPro
   if (control.sssTime === null || control.firstStartGate === null) return null;
 
   const ssKm = leadingSpeedSectionKm(task, profile);
-  const deadline = task.deadline ? timeOfDay(task.deadline, control.firstStartGate) : Infinity;
+  const deadline = task.deadline ? taskTimeFromGate(task, task.deadline, control.firstStartGate) : Infinity;
   const taskTime = (ms: number) => (Math.min(ms, deadline) - control.firstStartGate!) / 1000;
   const centre = findTaskAreaCentre(tps.map((t) => t.zone.waypoint));
   const essZone = tps[essIdx]!.zone;
@@ -182,11 +182,6 @@ export function leadingTrack(task: Task, control: FlightControl, profile: GapPro
 }
 
 /** "HH:MM:SS" UTC le jour de la porte donnée (ms UTC). */
-function timeOfDay(hms: string, sameDay: number): number {
-  const [h, m, s] = hms.split(":").map(Number);
-  return Math.floor(sameDay / 86_400_000) * 86_400_000 + ((h ?? 0) * 3600 + (m ?? 0) * 60 + (s ?? 0)) * 1000;
-}
-
 /**
  * Fin des vols pour maxTime : "lastEss" (par défaut) prend la dernière arrivée à l'ESS, les posés ne comptant
  * que si personne n'y est arrivé (paramètre maxtime de Flymaster, German Open 2026) ; "lastLanding" (12.3.1)
