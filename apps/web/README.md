@@ -20,6 +20,8 @@ Variables :
 | `BASE_URL` | adresse publique, sans « / » final | `http://localhost:PORT` |
 | `DATABASE_PATH` | fichier SQLite | `data/pgscore.db` |
 | `TRACKS_DIR` | dossier des fichiers IGC | `tracks` à côté de la base |
+| `UPLOAD_DIR` | envois en cours (traces, archives), écrits sur disque puis effacés | `uploads` à côté de la base |
+| `SCORE_WORKER_HEAP_MB` | mémoire du calcul d'une manche (Mo) | 160 |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | connexion Google | aucune |
 | `DEV_LOGIN` | `1` : connexion de test sans fournisseur, **jamais en production** | désactivée |
 | `ADMIN_EMAILS` | e-mails des administrateurs, séparés par des virgules : ils modifient toutes les compétitions (les autres utilisateurs voient tout mais ne modifient que les leurs) | aucun |

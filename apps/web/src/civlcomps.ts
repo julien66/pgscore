@@ -1,4 +1,4 @@
-import { unzipSync } from "fflate";
+import { ZipReader } from "./zip.js";
 import { createHash } from "node:crypto";
 import { controlFlight, goalAltitudeFactor, parseIgc, taskDistances, type TaskTurnpoint } from "@pgscore/engine";
 import { ARCHIVE_FORMAT, ARCHIVE_VERSION, type ArchiveFile, type ArchiveTask, type CompetitionArchive } from "./archive.js";
@@ -587,24 +587,26 @@ export async function civlToArchive(
     if (link.igcUrl) {
       progress(t("{task} : téléchargement des traces", { task: link.label }));
       const zip = await fetcher(link.igcUrl);
-      const listing: string[] = [];
+      // ZIP lu fichier par fichier : une seule trace décompressée à la fois.
+      let reader: ZipReader;
       try {
-        unzipSync(zip, {
-          filter: (f) => {
-            if (/\.igc$/i.test(f.name) && !f.name.startsWith("__MACOSX/")) listing.push(f.name);
-            return false;
-          },
-        });
+        reader = ZipReader.open(zip);
       } catch (e) {
         throw new FormError(t("{task} : ZIP des traces illisible ({error}).", { task: link.label, error: (e as Error).message }));
       }
+      const listing = reader.names().filter((name) => /\.igc$/i.test(name) && !name.startsWith("__MACOSX/"));
       for (const path of listing) {
         const key = pilotForTrack(path, names);
         if (!key) {
           unmatched++;
           continue;
         }
-        const data = unzipSync(zip, { filter: (f) => f.name === path })[path]!;
+        let data: Uint8Array;
+        try {
+          data = reader.file(path);
+        } catch (e) {
+          throw new FormError(t("{task} : ZIP des traces illisible ({error}).", { task: link.label, error: (e as Error).message }));
+        }
         const sha256 = store ? store.put(data) : createHash("sha256").update(data).digest("hex");
         const file = `tracks/m${n}/${sha256}.igc`;
         if (files[file]) continue;
