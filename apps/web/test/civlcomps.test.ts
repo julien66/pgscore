@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { civlResultsUrl, civlToArchive, eventDates, parseEventPage, parseTaskPage, pilotForTrack, startTimes } from "../src/civlcomps.js";
+import { civlResultsUrl, civlToArchive, eventDates, parseEventPage, parseTaskPage, pilotForTrack, startTimes, taskFromPage, type CivlTaskPage } from "../src/civlcomps.js";
 
 const fx = (f: string) => readFileSync(new URL(`./fixtures/${f}`, import.meta.url), "utf8");
 
@@ -38,6 +38,17 @@ describe("import civlcomps.org", () => {
     expect(p.formula.nom_dist).toBe("50");
     expect(p.penalties).toEqual([{ key: "1", name: "Honorin Hamard", percent: 0, points: 1000, reason: "251 m dans VAC Altiport Peyresourde" }]);
     expect(p.pilots[0]).toMatchObject({ key: "37", name: "Michel Cervellin", gender: "M", nation: "FRA", rank: "1" });
+  });
+
+  it("accepte un décollage de rayon nul (US Open Chelan 2026)", () => {
+    const tp = (label: string, name: string, radius: number, lat: number, lon: number) => ({ label, name, radius, open: "13:00:00", close: "18:30:00", lat, lon, altitude: 0 });
+    const page: CivlTaskPage = {
+      turnpoints: [tp("1", "LAUNCH", 0, 47.80415, -120.03862), tp("2SS", "LAUNCH", 3000, 47.80415, -120.03862), tp("3ES", "SOCCER", 2000, 47.79867, -119.98502), tp("4", "SOCCER", 100, 47.79867, -119.98503)],
+      startTimes: ["13:00:00"], deadline: "18:30:00", stop: null, utcOffset: -420, stats: {}, formula: {}, penalties: [], pilots: [],
+    };
+    const task = taskFromPage(page, "race", -420, 1);
+    expect(task.turnpoints[0]).toMatchObject({ role: "takeoff", zone: { radius: 0 } });
+    expect(() => taskFromPage({ ...page, turnpoints: [page.turnpoints[1]!, { ...page.turnpoints[2]!, radius: 0 }, page.turnpoints[3]!] }, "race", -420, 1)).toThrow();
   });
 
   it("retrouve le pilote d'une trace", () => {

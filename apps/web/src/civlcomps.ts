@@ -341,9 +341,11 @@ export function taskFromPage(p: CivlTaskPage, type: "race" | "time-trial", offse
   if (ss < 0) ss = Math.min(1, tps.length - 1);
   const last = tps.length - 1;
   const turnpoints: TaskTurnpoint[] = tps.map((x, i) => {
-    if (!Number.isFinite(x.lat) || !Number.isFinite(x.lon) || !(x.radius > 0))
+    // Le décollage peut avoir un rayon nul (FS, XCTrack) : c'est un point, pas une zone à valider.
+    const takeoff = i === 0 && ss > 0;
+    if (!Number.isFinite(x.lat) || !Number.isFinite(x.lon) || !(x.radius > 0 || (takeoff && x.radius === 0)))
       throw new FormError(t("Manche {n} : balise {tp} illisible.", { n, tp: x.name || String(i + 1) }));
-    const role = i === last ? "goal" : i === ss ? "sss" : i === es ? "ess" : i === 0 && ss > 0 ? "takeoff" : "turnpoint";
+    const role = i === last ? "goal" : i === ss ? "sss" : i === es ? "ess" : takeoff ? "takeoff" : "turnpoint";
     return { role, zone: { kind: "cylinder" as const, waypoint: { name: x.name || `TP${i + 1}`, lat: x.lat, lon: x.lon, altitude: x.altitude }, radius: x.radius } };
   });
   fitToStats(turnpoints, p.stats, ss);
