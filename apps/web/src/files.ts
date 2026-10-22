@@ -3,6 +3,7 @@ import jpeg from "jpeg-js";
 import jsQRModule from "jsqr";
 import { PNG } from "pngjs";
 import { t } from "./i18n.js";
+import { decodeFsName } from "./text.js";
 
 // Le paquet jsqr est en CommonJS : sa fonction est soit l'export par défaut, soit le module lui-même.
 type JsQr = typeof import("jsqr").default;
@@ -92,12 +93,7 @@ export function igcHeader(text: string): { pilot: string | null; cid: string | n
 }
 
 /** Nom de fichier sans dossier ni extension ; « #U00e4 » (accents encodés par FS) redevient « ä ». */
-const baseName = (filename: string) =>
-  filename
-    .split(/[\\/]/)
-    .pop()!
-    .replace(/\.igc$/i, "")
-    .replace(/#U([0-9a-f]{4})/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
+const baseName = (filename: string) => decodeFsName(filename.split(/[\\/]/).pop()!.replace(/\.igc$/i, ""));
 
 /** Numéro sans zéros devant (« 007 » = « 7 »), pour comparer nom de fichier, HFCID et inscrits. */
 const normId = (v: string) => (/^\d+$/.test(v) ? v.replace(/^0+(?=\d)/, "") : v);

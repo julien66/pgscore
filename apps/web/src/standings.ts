@@ -5,6 +5,7 @@ import { controlTask, parseSettings } from "./settings.js";
 import { listPilots } from "./pilots.js";
 import { listRankings, rankingMembers } from "./rankings.js";
 import { latestDoneRun, tasksOf } from "./repo.js";
+import { toCsv } from "./text.js";
 
 /** Dernier changement qui rend un calcul périmé : traces envoyées ou retirées, réglages, décisions. */
 export function lastScoringChange(db: Db, t: TaskRow): { tracks: number; changed: number } {
@@ -122,10 +123,6 @@ export function competitionStandings(db: Db, comp: CompetitionRow, view: Standin
 }
 
 export function standingsCsv(s: Standings): string {
-  const q = (v: unknown) => {
-    const x = v === null || v === undefined ? "" : String(v);
-    return /[",\n;]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x;
-  };
   const head = ["rang", "pilote", "nom", ...s.ranked.flatMap((x) => [`m${x.t.number}`, `m${x.t.number}_retenu`]), "total", "somme_sans_ftv"];
   const rows = s.ranking.pilots.map((p) => [
     p.rank,
@@ -138,7 +135,7 @@ export function standingsCsv(s: Standings): string {
     p.total.toFixed(1),
     p.sum.toFixed(1),
   ]);
-  return [head, ...rows].map((r) => r.map(q).join(",")).join("\n") + "\n";
+  return toCsv([head, ...rows]);
 }
 
 /** Classement extrait : les pilotes choisis, avec leur total du général, renumérotés. */
