@@ -206,6 +206,9 @@ export const MIGRATIONS: Migration[] = [
   (db) => {
     for (const { id } of db.prepare("SELECT id FROM competitions").all() as Array<{ id: number }>) registerTrackPilots(db, id);
   },
+  // Dernier calcul (terminé) d'une manche et manches d'une compétition, cherchés à chaque page.
+  `CREATE INDEX runs_task_status ON runs (task_id, status);
+   CREATE INDEX tasks_competition ON tasks (competition_id);`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {

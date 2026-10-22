@@ -3,6 +3,7 @@ import type { CompetitionRow, Db, TaskRow } from "./db.js";
 import { controlTask, parseSettings } from "./settings.js";
 import { listPilots } from "./pilots.js";
 import { listRankings, rankingMembers } from "./rankings.js";
+import { latestDoneRun, tasksOf } from "./repo.js";
 
 /** Dernier changement qui rend un calcul périmé : traces envoyées ou retirées, réglages, décisions. */
 export function lastScoringChange(db: Db, t: TaskRow): { tracks: number; changed: number } {
@@ -62,7 +63,7 @@ export interface StandingsView {
  * Tout vient des calculs déjà enregistrés : rien n'est recalculé ni stocké en plus.
  */
 export function competitionStandings(db: Db, comp: CompetitionRow, view: StandingsView = {}): Standings {
-  const rows = db.prepare("SELECT * FROM tasks WHERE competition_id = ? ORDER BY number, id").all(comp.id) as unknown as TaskRow[];
+  const rows = tasksOf(db, comp.id);
   const tasks: StandingsTask[] = [];
   const inputs = [];
   const ranked: StandingsTask[] = [];
@@ -70,9 +71,7 @@ export function competitionStandings(db: Db, comp: CompetitionRow, view: Standin
   const names = new Map(listPilots(db, comp.id).map((p) => [p.pilot_key, p.name]));
   let viewed: TaskScoring | undefined;
   for (const t of rows) {
-    const run = db
-      .prepare("SELECT results, started_at FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1")
-      .get(t.id) as { results: string; started_at: number } | undefined;
+    const run = latestDoneRun(db, t.id);
     const st: StandingsTask = {
       t,
       official: t.official === 1,

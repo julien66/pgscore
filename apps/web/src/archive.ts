@@ -8,6 +8,7 @@ import { cleanPilot, listPilots, PILOT_COLUMNS, type PilotFields } from "./pilot
 import { listRankings, RULE_FIELDS, RULE_OPS, type RankingRule } from "./rankings.js";
 import { DEFAULT_SETTINGS, FormError, parseSettings, type CompetitionSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
+import { latestDoneRun, queryAll, tasksOf, tracksOf } from "./repo.js";
 
 /**
  * Archive d'une compétition complète (format « pgscore-competition », version 1) : un ZIP avec
@@ -63,10 +64,7 @@ export interface CompetitionArchive {
 
 /** Contenu de competition.json pour une compétition. */
 export function competitionArchive(db: Db, comp: CompetitionRow): CompetitionArchive {
-  const tasks = db.prepare("SELECT * FROM tasks WHERE competition_id = ? ORDER BY number").all(comp.id) as unknown as TaskRow[];
-  const decisions = db.prepare("SELECT * FROM task_decisions WHERE task_id = ? ORDER BY id");
-  const tracks = db.prepare("SELECT * FROM tracks WHERE task_id = ? ORDER BY CAST(pilot_key AS INTEGER), pilot_key");
-  const lastRun = db.prepare("SELECT * FROM runs WHERE task_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1");
+  const tasks = tasksOf(db, comp.id);
   return {
     format: ARCHIVE_FORMAT,
     version: ARCHIVE_VERSION,
@@ -86,7 +84,7 @@ export function competitionArchive(db: Db, comp: CompetitionRow): CompetitionArc
       overrides: [...r.overrides].map(([pilot_key, included]) => ({ pilot_key, included })),
     })),
     tasks: tasks.map((tk) => {
-      const run = lastRun.get(tk.id) as unknown as RunRow | undefined;
+      const run = latestDoneRun(db, tk.id);
       return {
         number: tk.number,
         date: tk.date,
@@ -95,7 +93,7 @@ export function competitionArchive(db: Db, comp: CompetitionRow): CompetitionArc
         source_text: tk.source_text,
         task: JSON.parse(tk.task) as StoredTask,
         scoring_changed_at: tk.scoring_changed_at,
-        decisions: (decisions.all(tk.id) as unknown as DecisionRow[]).map((d) => ({
+        decisions: queryAll<DecisionRow>(db, "SELECT * FROM task_decisions WHERE task_id = ? ORDER BY id", tk.id).map((d) => ({
           pilot_key: d.pilot_key,
           pilot_name: d.pilot_name,
           kind: d.kind,
@@ -103,7 +101,7 @@ export function competitionArchive(db: Db, comp: CompetitionRow): CompetitionArc
           reason: d.reason,
           created_at: d.created_at,
         })),
-        tracks: (tracks.all(tk.id) as unknown as TrackRow[]).map((tr) => ({
+        tracks: tracksOf(db, tk.id).map((tr) => ({
           pilot_key: tr.pilot_key,
           pilot_name: tr.pilot_name,
           filename: tr.filename,

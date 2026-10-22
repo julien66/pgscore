@@ -5,6 +5,7 @@ import { listPilots } from "./pilots.js";
 import { controlTask, parseSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
 import { t } from "./i18n.js";
+import { getCompetition, getTask } from "./repo.js";
 
 /**
  * Calcul d'une manche, lancé à la main. Il tourne dans le processus du serveur, un pilote à la fois,
@@ -66,8 +67,8 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
     // 1. Manche, paramètres et espaces aériens.
     report("prepare", 0, {});
     await tick();
-    const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as unknown as TaskRow;
-    const comp = db.prepare("SELECT * FROM competitions WHERE id = ?").get(row.competition_id) as unknown as CompetitionRow;
+    const row = getTask(db, taskId)!;
+    const comp = getCompetition(db, row.competition_id)!;
     const s = parseSettings(comp.params);
     const task = controlTask(JSON.parse(row.task) as StoredTask, s);
     const options = {
