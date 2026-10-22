@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { openDb } from "../src/db.js";
-import { pilotKeyForTrack } from "../src/files.js";
+import { learnFilenameConvention, pilotKeyForTrack } from "../src/files.js";
 import { TrackStore } from "../src/track-store.js";
 
 const QR = readFileSync(new URL("../../../packages/engine/test/fixtures/pwca-gemona-2026-t3.qr.txt", import.meta.url), "utf8").trim();
@@ -80,5 +80,84 @@ describe("pilote d'une trace envoyée", () => {
     expect(del.headers.get("location")).toContain("open=tracks");
     const page = await (await req(del.headers.get("location")!)).text();
     expect(page).toMatch(/<details class="mt" open="">\s*<summary>Voir les traces/);
+  });
+});
+
+describe("numéro du pilote : en-tête d'abord, puis convention de nommage du lot", () => {
+  // En-tête d'une trace Flymaster comme celles de l'US Open Chelan 2026 (« albert_nazander_2026-06-21_01.24.igc »).
+  const fm = (pilot: string, cid = "", n = 0) =>
+    `AXFMSFP Flymaster Live, V1.0\r\nHFPLTPILOT:${pilot}\r\nHFCIDCOMPETITIONID:${cid}\r\nHFDTE210626\r\nB19164${n}4748232N12002329WA0109001128\r\n`;
+  const batch = (files: Array<[string, string]>, reg: Array<{ pilot_key: string; name: string }>) => {
+    const conv = learnFilenameConvention(files.map(([filename, text]) => ({ filename, text })), reg);
+    const used = new Map<string, string | null>();
+    return files.map(([f, text]) => pilotKeyForTrack(f, text, reg, used, conv));
+  };
+
+  it("HFCID de l'en-tête avant le nom et le numéro du fichier", () => {
+    expect(batch([["albert_nazander_2026-06-21_01.24.igc", fm("Albert Nazander", "24")]], [])).toEqual(["24"]);
+    const reg = [
+      { pilot_key: "12", name: "Jean Douze" },
+      { pilot_key: "7", name: "Ana Essai" },
+    ];
+    expect(pilotKeyForTrack("12.igc", igc("HFCIDCOMPETITIONID:7"), reg)).toBe("7");
+    // Instrument prêté : nom de l'en-tête et numéro du fichier désignent ensemble l'autre inscrit.
+    expect(pilotKeyForTrack("12.igc", igc("HFPLTPILOTINCHARGE:Jean Douze\r\nHFCIDCOMPETITIONID:7"), reg)).toBe("12");
+  });
+
+  it("traces sans HFCID : la place du numéro est apprise sur celles qui en ont un", () => {
+    const keys = batch(
+      [
+        ["albert_nazander_2026-06-21_01.24.igc", fm("Albert Nazander", "24", 1)],
+        ["bea_martin_2026-06-21_01.131.igc", fm("Bea Martin", "131", 2)],
+        ["carl_olsen_2026-06-21_02.7.igc", fm("", "", 3)],
+        ["dora_kent_2026-06-21_01.56.igc", fm("Dora Kent", "", 4)],
+      ],
+      [],
+    );
+    expect(keys).toEqual(["24", "131", "7", "56"]);
+  });
+
+  it("heures dans le nom de fichier : pas prises pour des numéros, le nom du fichier retrouve l'inscrit", () => {
+    const reg = [
+      { pilot_key: "101", name: "NAZANDER Albert" },
+      { pilot_key: "102", name: "SMITH Bob" },
+      { pilot_key: "103", name: "ROSSI Carla" },
+      { pilot_key: "24", name: "OTHER Dan" },
+    ];
+    const keys = batch(
+      [
+        ["albert_nazander_2026-06-21_13.24.igc", fm("", "", 1)],
+        ["bob_smith_2026-06-21_13.07.igc", fm("", "", 2)],
+        ["carla_rossi_2026-06-21_14.24.igc", fm("", "", 3)],
+      ],
+      reg,
+    );
+    expect(keys).toEqual(["101", "102", "103"]);
+  });
+
+  it("date seule dans le nom : aucun numéro, le nom du pilote", () => {
+    const conv = learnFilenameConvention([{ filename: "albert_nazander_2026-06-21.igc", text: fm("Albert Nazander") }], []);
+    expect(conv.slot).toBeNull();
+    expect(pilotKeyForTrack("albert_nazander_2026-06-21.igc", fm("Albert Nazander"), [], new Map(), conv)).toBe("albert-nazander");
+  });
+
+  it("archive FS (« LiveTrack Nom..date-heure.civl.numéro ») : le dernier nombre, confirmé par les inscrits", () => {
+    const reg = [
+      { pilot_key: "58008", name: "HÄGER Andreas" },
+      { pilot_key: "60", name: "RAISSON Adrien" },
+      { pilot_key: "4", name: "DUBOIS-MERCE Antoine" },
+      { pilot_key: "12", name: "BOUVARD Téo" },
+    ];
+    const keys = batch(
+      [
+        ["LiveTrack Andreas H#U00e4ger..20260614-092611.82848.58008.igc", igc("HFPLTPILOTINCHARGE:", 1)],
+        ["LiveTrack Adrien Raisson..20260614-084424.60845.60.igc", igc("HFPLTPILOTINCHARGE:", 2)],
+        ["LiveTrack Antoine Dubois-Merce..20260614-084809.75810.4.igc", igc("HFPLTPILOTINCHARGE:", 3)],
+        // Accent perdu dans le nom du fichier, numéro absent : retrouvé par le nom.
+        ["T_o_Bouvard.igc", igc("HFPLTPILOTINCHARGE:", 4)],
+      ],
+      reg,
+    );
+    expect(keys).toEqual(["58008", "60", "4", "12"]);
   });
 });

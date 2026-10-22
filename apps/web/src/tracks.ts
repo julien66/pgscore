@@ -1,5 +1,5 @@
 import type { Db, PilotRow, TrackHistoryRow, TrackRow } from "./db.js";
-import { pilotKeyForTrack } from "./files.js";
+import { learnFilenameConvention, pilotKeyForTrack } from "./files.js";
 import type { TrackStore } from "./track-store.js";
 import type { VersionMeta } from "./viewer-data.js";
 
@@ -157,13 +157,27 @@ export function assignTrack(db: Db, taskId: number, trackId: number, userId: num
 
 /**
  * Rattache aux pilotes inscrits les traces de la manche qui ne le sont pas encore (envoyées avant
- * l'inscription, ou avec une liste incomplète) : même règle qu'à l'envoi (numéro du fichier, HFCID,
- * nom de l'en-tête). Remet aussi le nom de l'inscrit sur les traces déjà rattachées. Rend le nombre de traces rattachées.
+ * l'inscription, ou avec une liste incomplète) : même règle qu'à l'envoi (HFCID, numéro du fichier selon
+ * la convention de nommage de la manche, nom de l'en-tête ou du fichier). Remet aussi le nom de l'inscrit sur les traces déjà rattachées. Rend le nombre de traces rattachées.
  */
 export function linkTracks(db: Db, store: TrackStore, taskId: number, userId: number, registry: PilotRow[]): number {
   if (!registry.length) return 0;
   const reg = new Map(registry.map((p) => [p.pilot_key, p]));
   const rows = db.prepare("SELECT * FROM tracks WHERE task_id = ? ORDER BY id").all(taskId) as unknown as TrackRow[];
+  // Convention de nommage apprise sur toutes les traces de la manche : les rattachées confirment la place du numéro.
+  const texts = new Map<number, string>();
+  for (const tr of rows) {
+    if (reg.has(tr.pilot_key)) continue;
+    try {
+      texts.set(tr.id, store.text(tr.sha256));
+    } catch {
+      // Fichier manquant : la trace reste comme elle est.
+    }
+  }
+  const conv = learnFilenameConvention(
+    rows.map((tr) => (reg.has(tr.pilot_key) ? { filename: tr.filename, knownId: tr.pilot_key } : { filename: tr.filename, text: texts.get(tr.id) })),
+    registry,
+  );
   let n = 0;
   db.exec("BEGIN");
   try {
@@ -173,13 +187,9 @@ export function linkTracks(db: Db, store: TrackStore, taskId: number, userId: nu
         if (tr.pilot_name !== own.name) db.prepare("UPDATE tracks SET pilot_name = ? WHERE id = ?").run(own.name, tr.id);
         continue;
       }
-      let text: string;
-      try {
-        text = store.text(tr.sha256);
-      } catch {
-        continue;
-      }
-      const key = pilotKeyForTrack(tr.filename, text, registry, new Map());
+      const text = texts.get(tr.id);
+      if (text === undefined) continue;
+      const key = pilotKeyForTrack(tr.filename, text, registry, new Map(), conv);
       const p = reg.get(key);
       if (!p) continue;
       const r = assignTrack(db, taskId, tr.id, userId, p);

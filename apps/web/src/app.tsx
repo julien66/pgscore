@@ -19,7 +19,7 @@ import {
   type OidcConfig,
 } from "./auth.js";
 import type { CompetitionRow, Db, RunRow, TaskRow, TrackRow, User } from "./db.js";
-import { collectIgc, decodeQrImage, decodeText, nameKey, pilotKeyForTrack } from "./files.js";
+import { collectIgc, decodeQrImage, decodeText, learnFilenameConvention, nameKey, pilotKeyForTrack } from "./files.js";
 import { isRunning, startRun, startRuns } from "./runner.js";
 import type { TrackStore } from "./track-store.js";
 import { assignTrack, linkTracks, pilotVersions, removeAllTracks, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "./tracks.js";
@@ -1071,17 +1071,31 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     // Fichiers écrits sur disque avant la base : une ligne de la base pointe toujours vers un fichier présent.
     const stored = igcs.map((g) => ({ g, sha256: tracks.put(g.bytes) }));
     const count = { added: 0, extra: 0, same: 0 };
-    // Pilote de chaque trace : nom de fichier, sinon en-tête IGC rapproché des inscrits (traces anonymes).
+    // Pilote de chaque trace : HFCID de l'en-tête, sinon nom de fichier ou nom de l'en-tête rapprochés des inscrits.
     const registry = listPilots(db, x.comp.id);
     // Traces déjà dans la manche : une trace anonyme ne les remplace pas, elle prend une nouvelle clé.
     const existing = db.prepare("SELECT pilot_key, pilot_name, sha256 FROM tracks WHERE task_id = ?").all(x.t.id) as Array<{ pilot_key: string; pilot_name: string | null; sha256: string }>;
     const bySha = new Map(existing.map((e) => [e.sha256, e.pilot_key]));
     const used = new Map<string, string | null>(existing.map((e) => [e.pilot_key, e.pilot_name ? nameKey(e.pilot_name) : null]));
     const regName = new Map(registry.map((p) => [p.pilot_key, p.name]));
+    // Convention de nommage des fichiers apprise sur tout l'envoi, et sur les traces déjà rangées de la manche.
+    const regKeys = new Set(registry.map((p) => p.pilot_key));
+    const conv = learnFilenameConvention(
+      [
+        ...igcs.map((g) => ({ filename: g.filename, text: g.text })),
+        ...db
+          .prepare("SELECT filename, pilot_key FROM tracks WHERE task_id = ?")
+          .all(x.t.id)
+          .map((r) => r as { filename: string; pilot_key: string })
+          .filter((r) => regKeys.has(r.pilot_key))
+          .map((r) => ({ filename: r.filename, knownId: r.pilot_key })),
+      ],
+      registry,
+    );
     db.exec("BEGIN");
     for (const { g, sha256 } of stored) {
       // Fichier déjà présent dans la manche : c'est la même trace, elle garde son pilote.
-      const pilotKey = bySha.get(sha256) ?? pilotKeyForTrack(g.filename, g.text, registry, used);
+      const pilotKey = bySha.get(sha256) ?? pilotKeyForTrack(g.filename, g.text, registry, used, conv);
       count[saveTrack(db, x.t.id, me(c).id, { pilotKey, pilotName: regName.get(pilotKey) ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
     }
     // Pilotes des traces pas encore inscrits : ajoutés à la liste des pilotes de la compétition.

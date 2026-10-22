@@ -91,44 +91,219 @@ export function igcHeader(text: string): { pilot: string | null; cid: string | n
   return { pilot: pilot && !empty.test(pilot) ? pilot : null, cid: cid && !empty.test(cid) && /^[\w-]{1,12}$/.test(cid) ? cid : null };
 }
 
+/** Nom de fichier sans dossier ni extension ; « #U00e4 » (accents encodés par FS) redevient « ä ». */
+const baseName = (filename: string) =>
+  filename
+    .split(/[\\/]/)
+    .pop()!
+    .replace(/\.igc$/i, "")
+    .replace(/#U([0-9a-f]{4})/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
+
+/** Numéro sans zéros devant (« 007 » = « 7 »), pour comparer nom de fichier, HFCID et inscrits. */
+const normId = (v: string) => (/^\d+$/.test(v) ? v.replace(/^0+(?=\d)/, "") : v);
+
+// Nom long normalisé IGC (« 2026-05-29-XCT-ARO-01 », « …-XSD-UB5380-01 2 ») : date, fabricant,
+// instrument, numéro du vol du jour. Ce dernier n'identifie pas le pilote : on garde fabricant-instrument.
+const STD_NAME = /^\d{4}-\d{2}-\d{2}-([A-Z0-9]{3})-([A-Z0-9]+)-\d{1,3}(?:[ _(]+\d+\)?)?$/i;
+
+/** Mots d'un nom de fichier qui ne sont jamais un nom de pilote. */
+const NOT_A_NAME = new Set(["livetrack", "igc", "track", "tracklog", "alt", "flight", "vol", "task", "manche", "xcontest", "flymaster"]);
+
+/** Nom de pilote lisible dans un nom de fichier (« albert_nazander_2026-06-21_01.24 » → « albert nazander ») ; null s'il n'y en a pas. */
+export function filenamePilotName(filename: string): string | null {
+  const base = baseName(filename);
+  if (STD_NAME.test(base)) return null;
+  const words = (base.match(/\p{L}+/gu) ?? []).filter((w) => w.length > 1 && !NOT_A_NAME.has(w.toLowerCase()));
+  return words.length ? words.join(" ") : null;
+}
+
 /**
- * Choisit le pilote d'une trace envoyée. Dans l'ordre : numéro du nom de fichier s'il est inscrit,
- * numéro de compétition de l'en-tête (HFCID) s'il est inscrit, nom de l'en-tête retrouvé parmi les
- * inscrits ; à défaut, le numéro du fichier quand le nom n'est qu'un numéro, puis le nom du pilote,
- * puis le HFCID, puis l'instrument (« XTR-ED1831420028 »). `used` (clés déjà prises : traces de la manche et du même envoi, avec le nom de leur pilote)
- * évite qu'une trace en écrase une autre : hors inscrits, la même clé ne remplace que la trace du même nom.
+ * Inscrit dont le nom correspond : nom complet (ordre, casse et accents ignorés), sinon le seul inscrit
+ * dont le nom contient tous les mots du nom de fichier (« T_o_Bouvard » pour « Téo BOUVARD », accent perdu), ou l'inverse.
+ */
+function registryByName(name: string, registry: Array<{ pilot_key: string; name: string }>): string | undefined {
+  const key = nameKey(name);
+  const exact = registry.find((p) => nameKey(p.name) === key);
+  if (exact) return exact.pilot_key;
+  const words = key.split(" ").filter((w) => w.length >= 3);
+  if (!words.length) return undefined;
+  const mine = new Set(key.split(" "));
+  // Tous les mots du fichier dans le nom de l'inscrit, ou tous ceux de l'inscrit dans le fichier (« Filipe Ribeiro - Phil »).
+  const hits = registry.filter((p) => {
+    const own = nameKey(p.name).split(" ");
+    const ownSet = new Set(own);
+    const long = own.filter((w) => w.length >= 3);
+    return words.every((w) => ownSet.has(w)) || (long.length > 0 && long.every((w) => mine.has(w)));
+  });
+  return hits.length === 1 ? hits[0]!.pilot_key : undefined;
+}
+
+/** Morceaux de la date du vol (HFDTE) tels qu'ils apparaissent dans un nom de fichier : « 2026 », « 06 », « 21 », « 20260621 »… */
+function dateParts(text: string | undefined): Set<string> {
+  const m = text ? /^HFDTE(?:DATE:)?(\d{2})(\d{2})(\d{2})/m.exec(text) : null;
+  if (!m) return new Set();
+  const [dd, mm, yy] = [m[1]!, m[2]!, m[3]!];
+  const yyyy = `${Number(yy) >= 80 ? 19 : 20}${yy}`;
+  return new Set([dd, mm, yy, yyyy, `${yyyy}${mm}${dd}`, `${yy}${mm}${dd}`, `${dd}${mm}${yy}`, `${dd}${mm}${yyyy}`, `${mm}${dd}`, `${dd}${mm}`].map(normId));
+}
+const looksLikeDate = (v: string) => /^(19|20)\d{2}$/.test(v) || /^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/.test(v);
+
+/** Place du numéro du pilote parmi les nombres du nom de fichier : n-ième en partant du début ou de la fin. */
+export interface FilenameSlot {
+  from: "start" | "end";
+  i: number;
+}
+/**
+ * Convention de nommage apprise sur un lot de traces. `evidence` : traces dont l'identité connue
+ * (HFCID, inscrit) confirme la place. `confident` : place confirmée, ou devinée sur au moins trois
+ * fichiers sans rien contre elle ; le numéro sert alors de clé même pour un pilote pas encore inscrit.
+ */
+export interface FilenameConvention {
+  slot: FilenameSlot | null;
+  evidence: number;
+  confident: boolean;
+}
+
+const numbersOf = (filename: string) => baseName(filename).match(/\d+/g) ?? [];
+const atSlot = (nums: string[], s: FilenameSlot) => (s.from === "start" ? nums[s.i] : nums[nums.length - 1 - s.i]);
+
+/** Numéro du pilote lu dans un nom de fichier selon une convention apprise ; null si la convention n'en trouve pas. */
+export function filenameId(filename: string, conv: FilenameConvention): string | null {
+  if (!conv.slot) return null;
+  const v = atSlot(numbersOf(filename), conv.slot);
+  return v === undefined ? null : normId(v);
+}
+
+/**
+ * Apprend sur tout un lot de traces où se trouve le numéro du pilote dans le nom des fichiers.
+ * Chaque place possible (1er, 2e… nombre depuis le début ou la fin) est comparée à ce qu'on sait déjà
+ * de chaque trace : HFCID de l'en-tête, pilote inscrit retrouvé par le nom (en-tête ou fichier), clé
+ * déjà donnée (`knownId`). La place qui s'accorde le mieux l'emporte. Sans rien pour confirmer, on
+ * écarte les nombres qui sont la date du vol, ceux qui se répètent d'une trace à l'autre (numéro du
+ * vol du jour), les heures et minutes (« 13.24 ») et les longs nombres (heure « 221753 ») ; le dernier nombre reste le choix par défaut.
+ */
+export function learnFilenameConvention(
+  samples: Array<{ filename: string; text?: string; knownId?: string | null }>,
+  registry: Array<{ pilot_key: string; name: string }>,
+): FilenameConvention {
+  const keys = new Set(registry.map((p) => normId(p.pilot_key)));
+  const byName = new Map(registry.map((p) => [nameKey(p.name), p.pilot_key]));
+  const rows = samples
+    .filter((s) => !STD_NAME.test(baseName(s.filename)))
+    .map((s) => {
+      const h = s.text ? igcHeader(s.text) : { pilot: null, cid: null };
+      let known = s.knownId ? normId(s.knownId) : null;
+      const cid = h.cid ? normId(h.cid) : null;
+      if (!known && cid && (!keys.size || keys.has(cid))) known = cid;
+      if (!known && h.pilot) known = byName.get(nameKey(h.pilot)) ?? null;
+      const fname = !known && keys.size ? filenamePilotName(s.filename) : null;
+      if (!known && fname) known = registryByName(fname, registry) ?? null;
+      return { nums: numbersOf(s.filename), dates: dateParts(s.text), known: known ? normId(known) : null };
+    });
+  // Fichiers sans aucun nombre (« T_o_Bouvard.igc ») : ils ne disent rien de la place du numéro.
+  const numbered = rows.filter((r) => r.nums.length).length;
+  if (!numbered) return { slot: null, evidence: 0, confident: false };
+  const slots: FilenameSlot[] = [0, 1, 2, 3].flatMap((i) => [{ from: "end" as const, i }, { from: "start" as const, i }]);
+  let best: { slot: FilenameSlot; score: number; evidence: number; confident: boolean } | null = null;
+  for (const slot of slots) {
+    const raw = rows.map((r) => atSlot(r.nums, slot));
+    const vals = raw.map((v) => (v === undefined ? null : normId(v)));
+    const defined = vals.filter((v): v is string => v !== null);
+    const n = defined.length;
+    if (!n || n < 0.8 * numbered) continue;
+    let agree = 0;
+    let disagree = 0;
+    let regHits = 0;
+    let dateLike = 0;
+    let timeLike = 0;
+    rows.forEach((r, k) => {
+      const v = vals[k];
+      if (v === null || v === undefined) return;
+      // « 13.24 » : heures puis minutes, deux nombres de deux chiffres.
+      const at = slot.from === "start" ? slot.i : r.nums.length - 1 - slot.i;
+      const prev = r.nums[at - 1];
+      if (prev && /^\d{2}$/.test(prev) && /^\d{2}$/.test(raw[k]!) && Number(prev) <= 23 && Number(v) <= 59) timeLike++;
+      if (r.dates.has(v) || (!r.dates.size && looksLikeDate(v))) dateLike++;
+      if (r.known) v === r.known ? agree++ : disagree++;
+      else if (keys.has(v)) regHits++;
+    });
+    const distinct = new Set(defined).size / n;
+    if (dateLike > n / 2) continue;
+    if (n >= 3 && distinct < 0.5) continue;
+    if (disagree > 0.2 * (agree + disagree)) continue;
+    const evidence = agree + regHits;
+    if (!evidence) {
+      // Rien pour confirmer : un numéro de pilote est court et différent pour chaque trace.
+      if (n >= 3 && distinct < 0.9) continue;
+      if (defined.filter((v) => v.length > 5).length > n / 2) continue;
+      if (timeLike > n / 2) continue;
+    }
+    const score = 3 * agree - 5 * disagree + regHits;
+    if (!best || score > best.score) best = { slot, score, evidence, confident: evidence > 0 || n >= 3 };
+  }
+  return best ? { slot: best.slot, evidence: best.evidence, confident: best.confident } : { slot: null, evidence: 0, confident: false };
+}
+
+/**
+ * Choisit le pilote d'une trace envoyée. L'en-tête d'abord : numéro de compétition (HFCID) s'il est
+ * inscrit (ou s'il n'y a encore aucun inscrit). Puis le numéro du nom de fichier s'il est inscrit,
+ * le nom de l'en-tête ou du fichier retrouvé parmi les inscrits ; à défaut, le numéro du fichier quand le
+ * nom n'est qu'un numéro (ou que la convention du lot l'a confirmé), puis le nom du pilote, puis le
+ * HFCID, puis l'instrument (« XTR-ED1831420028 »). `conv` : convention de nommage apprise sur tout le
+ * lot (`learnFilenameConvention`) ; sans elle, le dernier nombre du nom de fichier. `used` (clés déjà
+ * prises : traces de la manche et du même envoi, avec le nom de leur pilote) évite qu'une trace en
+ * écrase une autre : hors inscrits, la même clé ne remplace que la trace du même nom.
  */
 export function pilotKeyForTrack(
   filename: string,
   text: string,
   registry: Array<{ pilot_key: string; name: string }>,
   used: Map<string, string | null> = new Map(),
+  conv?: FilenameConvention,
 ): string {
   const base = filename.replace(/\.igc$/i, "").split(/[\\/]/).pop()!;
-  // Nom long normalisé IGC (« 2026-05-29-XCT-ARO-01 », « …-XSD-UB5380-01 2 ») : date, fabricant,
-  // instrument, numéro du vol du jour. Ce dernier n'identifie pas le pilote : on garde fabricant-instrument.
-  const std = /^\d{4}-\d{2}-\d{2}-([A-Z0-9]{3})-([A-Z0-9]+)-\d{1,3}(?:[ _(]+\d+\)?)?$/i.exec(base);
-  const fileKey = std ? `${std[1]}-${std[2]}`.toUpperCase() : pilotKeyFromFilename(filename);
-  const { pilot, cid } = igcHeader(text);
+  const std = STD_NAME.exec(base);
+  let fileKey: string;
+  let learned = false;
+  if (std) fileKey = `${std[1]}-${std[2]}`.toUpperCase();
+  else if (conv) {
+    const id = filenameId(filename, conv);
+    learned = id !== null && conv.confident;
+    fileKey = id ?? base;
+  } else fileKey = pilotKeyFromFilename(filename);
+  const { pilot, cid: rawCid } = igcHeader(text);
+  const cid = rawCid ? normId(rawCid) : null;
   const keys = new Set(registry.map((p) => p.pilot_key));
   const byName = new Map(registry.map((p) => [nameKey(p.name), p.pilot_key]));
   const fromName = pilot ? byName.get(nameKey(pilot)) : undefined;
+  const fileName = std ? null : filenamePilotName(filename);
+  const fromFileName = fileName ? registryByName(fileName, registry) : undefined;
   // Numéro seul (« 260 ») ou trace de secours PWCA (« alt_1.710 » : 2e trace du pilote 710).
   const bare = /^\d+$/.test(base) || /^alt_\d+\.\d+$/i.test(base);
   let key: string;
-  if (keys.has(fileKey) && (!fromName || fromName === fileKey)) key = fileKey;
-  else if (cid && keys.has(cid)) key = cid;
+  let strong = false;
+  // HFCID d'abord, sauf si le nom de l'en-tête et le numéro du fichier désignent ensemble un autre inscrit (instrument prêté).
+  if (cid && (keys.has(cid) || !keys.size) && !(fromName && fromName !== cid && fromName === fileKey)) {
+    key = cid;
+    strong = true;
+  }
+  else if (keys.has(fileKey) && (!fromName || fromName === fileKey)) key = fileKey;
   // Fichier nommé par un numéro pas encore inscrit (archive PWCA) : ce numéro est celui du pilote.
   else if (bare && !keys.has(fileKey)) key = fileKey;
   else if (fromName) key = fromName;
+  else if (fromFileName) key = fromFileName;
   else if (keys.has(fileKey)) key = fileKey;
-  else if (bare) key = fileKey;
+  else if (bare || learned) {
+    key = fileKey;
+    strong = learned;
+  }
   else if (pilot && slug(pilot)) key = slug(pilot);
   else if (cid) key = cid;
   else key = fileKey;
-  // Même clé déjà prise dans cet envoi par un autre pilote : on n'écrase pas, on distingue.
+  // Même clé déjà prise dans cet envoi par un autre pilote : on n'écrase pas, on distingue. Un numéro
+  // sûr (HFCID, convention confirmée) désigne bien le même pilote : ses traces vont ensemble.
   const me = pilot ? nameKey(pilot) : null;
-  if (!keys.has(key) && used.has(key) && (used.get(key) !== me || me === null)) {
+  if (!strong && !keys.has(key) && used.has(key) && (used.get(key) !== me || me === null)) {
     const base = key;
     for (let i = 2; used.has(key); i++) key = `${base}-${i}`;
   }
