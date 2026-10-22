@@ -1,5 +1,7 @@
-# Vérification automatique à chaque push et chaque pull request : types et tests, y compris le
-# calcul des points sur les manches PWCA de référence. Render ne déploie que si elle passe.
+# Vérification automatique à chaque push et chaque pull request : types et tests. Les tests de
+# compétitions de référence (traces téléchargées, plusieurs minutes) ne tournent que si le changement
+# touche au calcul : moteur, import et calcul côté appli, ou les données de test elles-mêmes.
+# Render ne déploie que si elle passe.
 name: CI
 
 on:
@@ -17,6 +19,21 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Le changement touche-t-il au calcul ?
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          files=$(git diff --name-only "$BASE" HEAD 2>/dev/null) || files="(base inconnue)"
+          echo "$files"
+          if [ "$files" = "(base inconnue)" ] || echo "$files" | grep -qE '^(packages/engine/|scripts/fetch-test-tracks\.sh|apps/web/src/(fsdb|archive|runner|settings|standings)\.ts|apps/web/test/tdc-|pnpm-lock\.yaml|\.github/workflows/)'; then
+            echo "REFERENCE_TESTS=run" >> "$GITHUB_ENV"
+          else
+            echo "REFERENCE_TESTS=skip" >> "$GITHUB_ENV"
+            echo "Calcul non touché : tests de compétitions de référence sautés."
+          fi
 
       - uses: pnpm/action-setup@v4
 
@@ -28,12 +45,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Traces de référence (cache)
+        if: env.REFERENCE_TESTS == 'run'
         uses: actions/cache@v4
         with:
           path: .test-data
           key: test-tracks-${{ hashFiles('scripts/fetch-test-tracks.sh') }}
 
       - name: Téléchargement des traces de référence
+        if: env.REFERENCE_TESTS == 'run'
         run: scripts/fetch-test-tracks.sh --env | sed 's/^export //; s/'"'"'//g' >> "$GITHUB_ENV"
 
       - name: Construction du moteur
