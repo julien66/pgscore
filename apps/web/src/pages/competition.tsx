@@ -2,7 +2,7 @@ import type { FC } from "hono/jsx";
 import { type Task } from "@pgscore/engine";
 import type { CompetitionRow, PilotRow, TaskRow, User } from "../db.js";
 import { GAP_PROFILES, PENALTY_RULES, type CompetitionSettings } from "../settings.js";
-import { km } from "../time.js";
+import { km, timeZoneGroups } from "../time.js";
 import { t } from "../i18n.js";
 import { PILOT_COLUMNS } from "../pilots.js";
 import { Ic, Bi, Layout, ErrorBox, dateRange } from "./layout.js";
@@ -79,7 +79,17 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
         </div>
         <div>
           <label>{t("Fuseau horaire du site")}</label>
-          <input type="text" name="timeZone" value={s.timeZone} placeholder="Europe/Paris" />
+          <select name="timeZone">
+            {timeZoneGroups(s.timeZone).map((g) => (
+              <optgroup label={g.region}>
+                {g.zones.map((z) => (
+                  <option value={z.id} selected={s.timeZone === z.id}>
+                    {z.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </div>
         <div style="align-self:end">
           <label class="check">

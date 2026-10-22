@@ -72,7 +72,12 @@ describe("interface web", () => {
     const { compUrl, taskUrl } = await createCompetitionAndTask(req);
     const comp = await (await req(compUrl)).text();
     expect(comp).toContain("Coupe test");
-    expect(await (await req(`${compUrl}/edit`)).text()).toContain("15 zones");
+    const edit = await (await req(`${compUrl}/edit`)).text();
+    expect(edit).toContain("15 zones");
+    // Fuseau choisi dans une liste IANA, celui de la compétition présélectionné.
+    expect(edit).toMatch(/<select name="timeZone">/);
+    expect(edit).toMatch(/<option value="Europe\/Rome" selected="">Rome \(UTC\+0[12]:00\)/);
+    expect(edit).toContain('value="America/Los_Angeles"');
     const task = await (await req(taskUrl)).text();
     expect(task).toContain("84,05 km");
     expect(task).toContain("13:25:00"); // porte 11:25Z affichée en heure de Gemona
