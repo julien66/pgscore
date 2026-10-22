@@ -112,6 +112,15 @@ const StatusTags: FC<{ p: PilotResult }> = ({ p }) => {
   );
 };
 
+/**
+ * Pilotes des résultats publiés : une trace en erreur (illisible, sans point, sans vol) n'y apparaît
+ * pas tant que l'organisateur n'a pas tranché (DNF, ABS, décollé sans trace…) ou remplacé la trace.
+ * L'erreur reste visible dans le bloc Calcul de l'onglet Éditer.
+ */
+export function publishedPilots(pilots: PilotResult[]): PilotResult[] {
+  return pilots.filter((p) => !p.error);
+}
+
 /** Décision lisible : « Bonus 799 pts », « Pénalité 10 % », « Goal accordé »… */
 export function decisionLabel(kind: DecisionKind, value?: number | null): string {
   const k = DECISION_KINDS[kind];
@@ -124,7 +133,7 @@ export function decisionLabel(kind: DecisionKind, value?: number | null): string
 }
 
 function remark(p: PilotResult, tz: string): string {
-  const decided = (p.decisions ?? []).map((d) => `${decisionLabel(d.kind, d.value)} : ${d.reason}`);
+  const decided = (p.decisions ?? []).map((d) => `${decisionLabel(d.kind, d.value)} : ${t(d.reason)}`);
   const control = controlRemark(p, tz);
   return [...decided, control].filter(Boolean).join(" · ");
 }
@@ -459,7 +468,7 @@ export const TaskResults: FC<{
   only?: Set<string>;
   rid?: number;
 }> = ({ r, tz, goalAlt, taskId, speedSection, registry, only, rid }) => {
-  const shown = only ? r.pilots.filter((p) => only.has(p.id)) : r.pilots;
+  const shown = publishedPilots(only ? r.pilots.filter((p) => only.has(p.id)) : r.pilots);
   const withPen = shown.some((p) => p.penaltyPoints);
   const elevated = shown.some((p) => p.goalAltitudeFactor !== undefined);
   const id = identity(registry, shown.map((p) => p.id));
@@ -507,7 +516,7 @@ export const TaskResults: FC<{
                   <td class="sp">{timed ? localTime(p.essTime, tz) : ""}</td>
                   <td class="n sp">{timed ? duration(p.speedSectionTime) : ""}</td>
                   <td class="n sp">{timed ? fr((speedSection / p.speedSectionTime!) * 3.6, 1) : ""}</td>
-                  <td class="n sp">{absent ? <span class="chip">{p.status}</span> : p.error ? <span class="chip s-ERREUR">{t("Erreur")}</span> : km(p.distance)}</td>
+                  <td class="n sp">{absent ? <span class="chip">{p.status}</span> : km(p.distance)}</td>
                   {elevated ? <td class="n sp">{p.status === "GOAL" ? goalHeight(p, goalAlt) : ""}</td> : null}
                   <td class="n sp">{pts(p.points?.distance)}</td>
                   <td class="n sp">{pts(p.points?.leading)}</td>
@@ -676,6 +685,12 @@ const Results: FC<{ r: TaskScoring; tz: string; settings: CompetitionSettings; t
               </li>
             ))}
         </ul>
+      ) : null}
+      {shown.some((p) => p.error) ? (
+        <p class="small muted">
+          {t("Ces pilotes n'apparaissent pas dans les résultats publiés tant qu'une décision n'est pas prise (DNF, ABS, décollé sans trace…) ou que leur trace n'est pas remplacée.")}{" "}
+          <a href="#decisions">{t("Décisions de l'organisateur")}</a>
+        </p>
       ) : null}
     </>
   );

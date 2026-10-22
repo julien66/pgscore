@@ -2,10 +2,10 @@ import { type Context } from "hono";
 import { parseXctsk, taskDistances, taskToXctskQr, type Task } from "@pgscore/engine";
 import qrcode from "qrcode-generator";
 import type { CompetitionRow, RunRow, TaskRow, TrackRow } from "../db.js";
-import { collectIgc, decodeQrImage, decodeText, isPlaceholderPilot, learnFilenameConvention, nameKey, pilotKeyForTrack } from "../files.js";
+import { collectIgc, decodeQrImage, decodeText, isPlaceholderPilot, filenamePilotName, learnFilenameConvention, nameKey, pilotKeyForTrack } from "../files.js";
 import { isRunning, startRun } from "../runner.js";
 import { assignTrack, linkTracks, pilotVersions, removeAllTracks, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "../tracks.js";
-import { addDecision, deleteDecision, listDecisions, touchScoring } from "../decisions.js";
+import { addDecision, addEmptyTrackDnf, clearEmptyTrackDnf, deleteDecision, isEmptyIgc, listDecisions, touchScoring } from "../decisions.js";
 import { controlTask, FormError, parseSettings, taskScoringFromForm, type StoredTask } from "../settings.js";
 import { localHmsToUtc } from "../time.js";
 import { t } from "../i18n.js";
@@ -15,7 +15,7 @@ import { listPilots, registerTrackPilots } from "../pilots.js";
 import { taskGeometry, viewerData } from "../viewer-data.js";
 import { GOAL_LINE_LENGTH } from "../civlcomps.js";
 import { goalAltitudeOf } from "../pages/parts.js";
-import { resultsCsv, RunCard } from "../pages/results.js";
+import { publishedPilots, resultsCsv, RunCard } from "../pages/results.js";
 import { NewTaskPage, TaskPage } from "../pages/task.js";
 import { ViewerPage } from "../pages/viewer.js";
 import type { TaskScoring } from "@pgscore/engine";
@@ -161,6 +161,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
     const same = q("same");
     const extra = q("extra");
     const linked = q("linked");
+    const dnf = q("dnf");
     const parts = [
       c.req.query("created") ? t("Manche créée : vérifiez le parcours sur la carte avant d'envoyer les traces.") : "",
       added ? (one(added) ? t("{n} trace ajoutée.", { n: added }) : t("{n} traces ajoutées.", { n: added })) : "",
@@ -168,6 +169,11 @@ export function tasksRoutes(app: App, ctx: Ctx) {
         ? one(extra)
           ? t("{n} trace en plus pour un pilote qui en avait déjà une : les deux sont gardées, le calcul retient la plus favorable au pilote.", { n: extra })
           : t("{n} traces en plus pour des pilotes qui en avaient déjà une : elles sont gardées, le calcul retient la plus favorable à chaque pilote.", { n: extra })
+        : "",
+      dnf
+        ? one(dnf)
+          ? t("{n} fichier vide : pilote marqué DNF (n'a pas volé). Supprimez la décision s'il a volé.", { n: dnf })
+          : t("{n} fichiers vides : pilotes marqués DNF (n'ont pas volé). Supprimez la décision de ceux qui ont volé.", { n: dnf })
         : "",
       replaced ? (one(replaced) ? t("{n} trace remplacée.", { n: replaced }) : t("{n} traces remplacées.", { n: replaced })) : "",
       c.req.query("linked") !== undefined
@@ -294,17 +300,21 @@ export function tasksRoutes(app: App, ctx: Ctx) {
     if (!x) return notFound(c);
     if (Number(c.req.header("content-length") ?? 0) > MAX_UPLOAD) return taskPage(c, x.t, x.comp, { error: t("Envoi trop gros (200 Mo au plus).") });
     const f = await c.req.parseBody({ all: true });
-    const list = ([] as unknown[]).concat(f.files ?? []).filter((v): v is File => v instanceof File && v.size > 0);
-    let igcs;
+    // Un .igc vide compte (pilote resté au sol, marqué DNF) ; un champ de fichier laissé vide, non.
+    const list = ([] as unknown[]).concat(f.files ?? []).filter((v): v is File => v instanceof File && (v.size > 0 || /\.igc$/i.test(v.name)));
+    let all;
     try {
-      igcs = collectIgc(await Promise.all(list.map(async (v) => ({ name: v.name, bytes: new Uint8Array(await v.arrayBuffer()) }))));
+      all = collectIgc(await Promise.all(list.map(async (v) => ({ name: v.name, bytes: new Uint8Array(await v.arrayBuffer()) }))));
     } catch (e) {
       return taskPage(c, x.t, x.comp, { error: t("Archive illisible : {error}", { error: (e as Error).message }) });
     }
-    if (!igcs.length) return taskPage(c, x.t, x.comp, { error: t("Aucun fichier IGC trouvé dans l'envoi.") });
+    if (!all.length) return taskPage(c, x.t, x.comp, { error: t("Aucun fichier IGC trouvé dans l'envoi.") });
+    // Fichiers vides : pas de trace à garder, le pilote est marqué DNF (plus bas, après les vraies traces).
+    const igcs = all.filter((g) => !isEmptyIgc(g.text));
+    const empties = all.filter((g) => isEmptyIgc(g.text));
     // Fichiers écrits sur disque avant la base : une ligne de la base pointe toujours vers un fichier présent.
     const stored = igcs.map((g) => ({ g, sha256: tracks.put(g.bytes) }));
-    const count = { added: 0, extra: 0, same: 0 };
+    const count = { added: 0, extra: 0, same: 0, dnf: 0 };
     // Pilote de chaque trace : HFCID de l'en-tête, sinon nom de fichier ou nom de l'en-tête rapprochés des inscrits.
     const registry = listPilots(db, x.comp.id);
     // Traces déjà dans la manche : une trace anonyme ne les remplace pas, elle prend une nouvelle clé.
@@ -341,6 +351,12 @@ export function tasksRoutes(app: App, ctx: Ctx) {
         }
       }
       count[saveTrack(db, x.t.id, me(c).id, { pilotKey, pilotName: regName.get(pilotKey) ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
+      clearEmptyTrackDnf(db, x.t.id, pilotKey);
+    }
+    for (const g of empties) {
+      const pilotKey = pilotKeyForTrack(g.filename, g.text, registry, new Map(), conv);
+      const name = regName.get(pilotKey) ?? igcPilot(g.text) ?? filenamePilotName(g.filename);
+      if (addEmptyTrackDnf(db, x.t.id, me(c).id, pilotKey, name)) count.dnf++;
     }
     // Pilotes des traces pas encore inscrits : ajoutés à la liste des pilotes de la compétition.
     registerTrackPilots(db, x.comp.id);
@@ -372,6 +388,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
     const note = typeof f.note === "string" && f.note.trim() ? f.note.trim().slice(0, 500) : null;
     const sha256 = tracks.put(g.bytes);
     const how = replaceTrack(db, x.t.id, tr.id, me(c).id, { pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
+    if (how === "replaced") clearEmptyTrackDnf(db, x.t.id, tr.pilot_key);
     if (how === "same") return taskPage(c, x.t, x.comp, { edit: true, notice: t("Ce fichier est déjà la trace de {pilot} : rien n'a changé.", { pilot: tr.pilot_name ?? tr.pilot_key }) });
     return c.redirect(`/tasks/${x.t.id}/edit?replaced=1&open=tracks#tracks`);
   });
@@ -386,6 +403,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
     const r = assignTrack(db, x.t.id, Number(c.req.param("trackId")), me(c).id, p);
     if (r === "unknown") return notFound(c);
     if (r !== "same") touchScoring(db, x.t.id);
+    if (r === "moved") clearEmptyTrackDnf(db, x.t.id, p.pilot_key);
     return c.redirect(`/tasks/${x.t.id}/edit?assigned=1&open=tracks#tracks`);
   });
 
@@ -525,6 +543,8 @@ export function tasksRoutes(app: App, ctx: Ctx) {
     const scoring = JSON.parse(run.results) as TaskScoring;
     const rk = taskRankings(x.comp, c.req.query("r"));
     if (rk.current) scoring.pilots = scoring.pilots.filter((p) => rk.current!.members.has(p.id));
+    // Trace en erreur sans décision de l'organisateur : pas dans les résultats publiés.
+    scoring.pilots = publishedPilots(scoring.pilots);
     const csv = resultsCsv(scoring, parseSettings(x.comp.params).timeZone, goalAltitudeOf(JSON.parse(x.t.task) as StoredTask));
     return c.body(csv, 200, {
       "content-type": "text/csv; charset=utf-8",

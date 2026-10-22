@@ -494,7 +494,7 @@ export const TaskPage: FC<{
                     <td>{d.pilot_key}</td>
                     <td>{d.pilot_name ?? tracks.find((x) => x.pilot_key === d.pilot_key)?.pilot_name ?? ""}</td>
                     <td>{decisionLabel(d.kind, d.value)}</td>
-                    <td>{d.reason}</td>
+                    <td>{t(d.reason)}</td>
                     <td class="small muted">
                       {when(d.created_at)}
                       {d.created_by_name ? `, ${d.created_by_name}` : ""}
@@ -638,6 +638,16 @@ export const TaskPage: FC<{
             <p class="small muted">
               <RunStatus run={done} tz={settings.timeZone} taskId={tk.id} inline />
             </p>
+            {canEdit && results.pilots.some((p) => p.error) ? (
+              <div class="note">
+                {results.pilots.filter((p) => p.error).length === 1
+                  ? t("1 trace en erreur ne figure pas dans ces résultats : prenez une décision (DNF, ABS, décollé sans trace…) ou remplacez la trace.")
+                  : t("{n} traces en erreur ne figurent pas dans ces résultats : prenez une décision (DNF, ABS, décollé sans trace…) ou remplacez la trace.", {
+                      n: results.pilots.filter((p) => p.error).length,
+                    })}{" "}
+                <a href={`/tasks/${tk.id}/edit#decisions`}>{t("Décisions de l'organisateur")}</a>
+              </div>
+            ) : null}
             {details ? (
               <TaskDetails r={results} settings={settings} />
             ) : (

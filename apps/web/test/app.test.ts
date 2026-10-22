@@ -455,4 +455,70 @@ describe("interface web", () => {
     expect(end).toMatchObject({ status: "done", step: "save", done: 4 });
     expect(end.detail.counts.GOAL).toBeGreaterThan(0);
   });
+
+  it("marque DNF les pilotes au fichier de trace vide, et le retire quand une vraie trace arrive", async () => {
+    const { req, db } = setup();
+    const { taskUrl } = await createCompetitionAndTask(req);
+    const enc = (s: string) => new TextEncoder().encode(s);
+    const zip = zipSync({
+      "12.igc": new Uint8Array(0),
+      "13.igc": enc("AXCT0001\r\nHFDTE280726\r\nHFPLTPILOT:Claire Sol\r\n"),
+      "14.igc": enc("AXCT0001\r\nHFDTE280726\r\nB1200004615000N01310000EA0100001000\r\n"),
+    });
+    const fu = new FormData();
+    fu.append("files", new Blob([zip]), "T3.zip");
+    const ru = await req(`${taskUrl}/tracks`, { method: "POST", body: fu });
+    expect(ru.headers.get("location")).toContain("dnf=2");
+    expect(ru.headers.get("location")).toContain("added=1");
+    const decisions = () => db.prepare("SELECT pilot_key, pilot_name, kind FROM task_decisions ORDER BY pilot_key").all() as Array<{ pilot_key: string; pilot_name: string | null; kind: string }>;
+    expect(decisions().map((d) => [d.pilot_key, d.kind])).toEqual([["12", "dnf"], ["13", "dnf"]]);
+    expect(decisions()[1]!.pilot_name).toBe("Claire Sol");
+    // Les fichiers vides ne sont pas gardés comme traces.
+    expect((db.prepare("SELECT pilot_key FROM tracks").all() as Array<{ pilot_key: string }>).map((r) => r.pilot_key)).toEqual(["14"]);
+    expect(await (await req(`${taskUrl}/edit?dnf=2`)).text()).toContain("2 fichiers vides : pilotes marqués DNF");
+    // Renvoyer le même fichier vide ne double pas la décision.
+    const again = new FormData();
+    again.append("files", new Blob([zip]), "T3.zip");
+    await req(`${taskUrl}/tracks`, { method: "POST", body: again });
+    expect(decisions().length).toBe(2);
+    // Une vraie trace pour le pilote 12 : le DNF posé d'office tombe ; une décision saisie à la main reste.
+    await req(`${taskUrl}/decisions`, { method: "POST", body: new URLSearchParams({ pilot: "13", kind: "abs", reason: "Absent" }) });
+    const real = new FormData();
+    real.append("files", new Blob([enc("AXCT0001\r\nHFDTE280726\r\nB1200004615000N01310000EA0100001000\r\nB1201004615100N01310000EA0100001000\r\n")]), "12.igc");
+    await req(`${taskUrl}/tracks`, { method: "POST", body: real });
+    expect(decisions().map((d) => [d.pilot_key, d.kind])).toEqual([["13", "dnf"], ["13", "abs"]]);
+  });
+
+  it("n'affiche jamais une trace en erreur dans les résultats publiés", { timeout: 60_000 }, async () => {
+    const { req } = setup();
+    const { taskUrl } = await createCompetitionAndTask(req);
+    const fu = new FormData();
+    // Un seul point GPS : trace en erreur.
+    fu.append("files", new Blob([new TextEncoder().encode("AXCT0001\r\nHFDTE280726\r\nHFPLTPILOT:Eric Panne\r\nB1200004615000N01310000EA0100001000\r\n")]), "14.igc");
+    await req(`${taskUrl}/tracks`, { method: "POST", body: fu });
+    const run = async () => {
+      await req(`${taskUrl}/runs`, { method: "POST" });
+      for (let i = 0; i < 100; i++) {
+        const live = await (await req(`${taskUrl}/run.json`)).json();
+        if (live.status === "done" || live.status === "error") return live.status;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    };
+    expect(await run()).toBe("done");
+    const pub = await (await req(taskUrl)).text();
+    expect(pub).not.toContain("chip s-ERREUR");
+    expect(pub).not.toContain("Eric Panne");
+    // L'organisateur est prévenu, et l'erreur reste visible dans le bloc Calcul.
+    expect(pub).toContain("1 trace en erreur ne figure pas dans ces résultats");
+    const edit = await (await req(`${taskUrl}/edit`)).text();
+    expect(edit).toContain("Aucun point GPS valide dans la trace.");
+    expect(await (await req(`${taskUrl}/results.csv`)).text()).not.toContain("ERREUR");
+    // Décision de l'organisateur : le pilote revient dans les résultats avec ce statut.
+    await req(`${taskUrl}/decisions`, { method: "POST", body: new URLSearchParams({ pilot: "14", kind: "dnf", reason: "Instrument en panne, resté au sol" }) });
+    expect(await run()).toBe("done");
+    const after = await (await req(taskUrl)).text();
+    expect(after).toContain("Eric Panne");
+    expect(after).toContain("DNF");
+    expect(after).not.toContain("en erreur ne figure");
+  });
 });
