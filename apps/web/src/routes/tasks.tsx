@@ -244,6 +244,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
       delete task.pilotsPresent;
       delete task.taskEndTime;
       delete task.leadingEnd;
+      delete task.leadingFormula;
       Object.assign(task, taskScoringFromForm(f));
       if (end) task.taskEndTime = localHmsToUtc(end, date, tz);
     } catch (e) {

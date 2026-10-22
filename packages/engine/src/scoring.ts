@@ -1,7 +1,7 @@
 import { controlFlight, zoneApproaches, type FlightControl, type ZoneApproach } from "./control.js";
 import { taskDistances, type TaskDistances } from "./distances.js";
 import { parseIgc } from "./igc.js";
-import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingSpeedSectionKm, leadingTrack, type LeadingEnd, type LeadingTrack, type LeadingWarning } from "./leading.js";
+import { leadingCoefficient, leadingFactor, leadingMaxTime, leadingSpeedSectionKm, leadingTrack, type LeadingEnd, type LeadingFormula, type LeadingTrack, type LeadingWarning } from "./leading.js";
 import {
   airspaceInfringements,
   airspacePenalty,
@@ -39,6 +39,8 @@ export interface ScoringOptions {
   taskEndTime?: string;
   /** Fin des vols pour maxTime du leading : dernière arrivée à l'ESS (par défaut) ou dernier posé s'il est plus tardif. */
   leadingEnd?: LeadingEnd;
+  /** Formule du leading pour la partie de vol manquante des pilotes posés : GAP2026 (par défaut) ou GAP2025 (FS). */
+  leadingFormula?: LeadingFormula;
   /** Décisions de l'organisateur, appliquées avant les points. */
   decisions?: PilotDecision[];
 }
@@ -245,7 +247,7 @@ export function finishScoring(task: Task, controlled: ControlledPilot[], options
     const cap = task.deadline ? at(task.deadline) : Infinity;
     const end = options.taskEndTime ?? (options.gapProfile === "PWCA" && c0.stopped ? task.stopAnnouncement : undefined);
     maxTime = leadingMaxTime(withLeading.map((p) => p.leading!), cap, end ? at(end) : undefined, options.leadingEnd);
-    for (const p of withLeading) p.result.leadingCoefficient = leadingCoefficient(p.leading!, ssKm, maxTime);
+    for (const p of withLeading) p.result.leadingCoefficient = leadingCoefficient(p.leading!, ssKm, maxTime, options.leadingFormula);
     lcMin = Math.min(...withLeading.map((p) => p.result.leadingCoefficient!));
     for (const p of withLeading) p.result.leadingFactor = leadingFactor(p.result.leadingCoefficient!, lcMin);
   }

@@ -341,9 +341,11 @@ export function taskFromPage(p: CivlTaskPage, type: "race" | "time-trial", offse
   if (ss < 0) ss = Math.min(1, tps.length - 1);
   const last = tps.length - 1;
   const turnpoints: TaskTurnpoint[] = tps.map((x, i) => {
-    if (!Number.isFinite(x.lat) || !Number.isFinite(x.lon) || !(x.radius > 0))
+    // Le décollage peut avoir un rayon nul (FS, XCTrack) : c'est un point, pas une zone à valider.
+    const takeoff = i === 0 && ss > 0;
+    if (!Number.isFinite(x.lat) || !Number.isFinite(x.lon) || !(x.radius > 0 || (takeoff && x.radius === 0)))
       throw new FormError(t("Manche {n} : balise {tp} illisible.", { n, tp: x.name || String(i + 1) }));
-    const role = i === last ? "goal" : i === ss ? "sss" : i === es ? "ess" : i === 0 && ss > 0 ? "takeoff" : "turnpoint";
+    const role = i === last ? "goal" : i === ss ? "sss" : i === es ? "ess" : takeoff ? "takeoff" : "turnpoint";
     return { role, zone: { kind: "cylinder" as const, waypoint: { name: x.name || `TP${i + 1}`, lat: x.lat, lon: x.lon, altitude: x.altitude }, radius: x.radius } };
   });
   fitToStats(turnpoints, p.stats, ss);
@@ -358,6 +360,12 @@ export function taskFromPage(p: CivlTaskPage, type: "race" | "time-trial", offse
     task.scoreBackTime = p.stop.scoreBackMinutes * 60;
     const gr = Number(p.formula.bonus_gr);
     if (p.formula.bonus_gr && Number.isFinite(gr) && gr >= 0) task.bonusGlideRatio = gr;
+  }
+  // FS GAP2025 : partie de vol manquante des pilotes posés comptée autrement, jusqu'au dernier posé
+  // (US Open Chelan 2026).
+  if (/^GAP2025$/i.test(p.formula.id ?? "")) {
+    task.leadingFormula = "GAP2025";
+    task.leadingEnd = "lastLanding";
   }
   const present = Number(p.stats.no_of_pilots_present);
   if (Number.isInteger(present) && present > 0) task.pilotsPresent = present;
