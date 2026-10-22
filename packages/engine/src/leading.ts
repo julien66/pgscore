@@ -188,9 +188,9 @@ function timeOfDay(hms: string, sameDay: number): number {
 }
 
 /**
- * Fin des vols pour maxTime : "lastLanding" (12.3.1, comme FS) prend le dernier posé ou la dernière arrivée
- * à l'ESS ; "lastEss" la dernière arrivée à l'ESS seulement, les posés ne comptant que si personne n'y est
- * arrivé (paramètre maxtime de Flymaster, German Open 2026).
+ * Fin des vols pour maxTime : "lastEss" (par défaut) prend la dernière arrivée à l'ESS, les posés ne comptant
+ * que si personne n'y est arrivé (paramètre maxtime de Flymaster, German Open 2026) ; "lastLanding" (12.3.1)
+ * prend le dernier posé s'il est plus tardif.
  */
 export type LeadingEnd = "lastLanding" | "lastEss";
 
@@ -202,7 +202,7 @@ export function leadingMaxTime(
   tracks: LeadingTrack[],
   deadlineTaskTime = Infinity,
   organizerEndTaskTime?: number,
-  end: LeadingEnd = "lastLanding",
+  end: LeadingEnd = "lastEss",
 ): number {
   let m = 0;
   const essOnly = end === "lastEss" && tracks.some((tr) => tr.essTime !== null);

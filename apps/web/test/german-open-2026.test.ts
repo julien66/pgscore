@@ -8,7 +8,6 @@ import { writeArchive } from "../src/archive.js";
 import { civlToArchive, parseEventPage, parseTaskPage, type CivlTaskPage, type Fetcher } from "../src/civlcomps.js";
 import { openDb, type CompetitionRow, type Db } from "../src/db.js";
 import { isRunning, startRuns } from "../src/runner.js";
-import { parseSettings, type CompetitionSettings } from "../src/settings.js";
 import { competitionStandings } from "../src/standings.js";
 import { TrackStore } from "../src/track-store.js";
 
@@ -23,10 +22,10 @@ import { TrackStore } from "../src/track-store.js";
  * Deux particularités de cette compétition :
  * - le ZIP de traces de la manche 1 publié par civlcomps coupe les traces juste avant la ligne de goal ; la
  *   copie contient à la place le lot Flymaster de la même manche, complet ;
- * - les résultats publiés prennent la dernière arrivée à l'ESS comme fin de manche pour le leading (maxtime
- *   de Flymaster : 16:42:18 en manche 1) et orientent la ligne de goal de la manche 1 vers le centre de la balise
- *   précédente (S7F 2024 ; la manche 5, en ligne aussi, suit l'optimisé) : la compétition et la manche 1 sont
- *   réglées ainsi après l'import.
+ * - les résultats publiés prennent la dernière arrivée à l'ESS comme fin des vols pour le leading (maxtime de
+ *   Flymaster : 16:42:18 en manche 1), le réglage par défaut, et orientent la ligne de goal de la manche 1 vers
+ *   le centre de la balise précédente (S7F 2024 ; la manche 5, en ligne aussi, suit l'optimisé) : la manche 1
+ *   est réglée ainsi après l'import.
  */
 const ZIP = process.env.GERMAN_OPEN_2026_ZIP;
 const URL_ = "https://civlcomps.org/event/german-open-2026";
@@ -56,9 +55,6 @@ describe.skipIf(!ZIP || !existsSync(ZIP))("German Open 2026 : import civlcomps e
     db.prepare("INSERT INTO users (id, provider, subject, created_at) VALUES (1, 'dev', 'test', 0)").run();
     const { a, files } = await civlToArchive(URL_, replay, store);
     const r = writeArchive(db, store, 1, a, files);
-    const params = (db.prepare("SELECT params FROM competitions WHERE id = ?").get(r.id) as { params: string }).params;
-    const settings: CompetitionSettings = { ...parseSettings(params), leadingEnd: "lastEss" };
-    db.prepare("UPDATE competitions SET params = ? WHERE id = ?").run(JSON.stringify(settings), r.id);
     const t1 = db.prepare("SELECT id, task FROM tasks WHERE competition_id = ? AND number = 1").get(r.id) as { id: number; task: string };
     db.prepare("UPDATE tasks SET task = ? WHERE id = ?").run(JSON.stringify({ ...JSON.parse(t1.task), goalLineOrientation: "previousCentre" }), t1.id);
     comp = db.prepare("SELECT * FROM competitions WHERE id = ?").get(r.id) as unknown as CompetitionRow;

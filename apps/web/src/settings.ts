@@ -18,8 +18,6 @@ export interface CompetitionSettings extends CompetitionParameters {
   roundAirspaceLimits: boolean;
   /** Fuseau horaire du site, pour afficher et saisir les heures locales. */
   timeZone: string;
-  /** Fin des vols pour maxTime du leading : dernier posé (comme FS) ou dernière arrivée à l'ESS (comme Flymaster). */
-  leadingEnd: LeadingEnd;
 }
 
 export const DEFAULT_SETTINGS: CompetitionSettings = {
@@ -28,7 +26,6 @@ export const DEFAULT_SETTINGS: CompetitionSettings = {
   airspacePenaltyRule: "s7a",
   roundAirspaceLimits: false,
   timeZone: "Europe/Paris",
-  leadingEnd: "lastLanding",
 };
 
 export const GAP_PROFILES: Record<GapProfile, string> = {
@@ -42,9 +39,10 @@ export const PENALTY_RULES: Record<AirspacePenaltyRule, string> = {
   "pwca-hard": N_("PWCA « hard » : 1000 points à 50 m"),
 };
 
+/** Fin des vols pour maxTime du leading, réglée par manche. */
 export const LEADING_ENDS: Record<LeadingEnd, string> = {
-  lastLanding: N_("Dernier posé ou dernière arrivée à l'ESS (S7F, comme FS)"),
-  lastEss: N_("Dernière arrivée à l'ESS (comme Flymaster)"),
+  lastEss: N_("Dernière arrivée à l'ESS"),
+  lastLanding: N_("Dernier pilote en vol (posé plus tardif)"),
 };
 
 /** Orientation d'un goal en ligne, réglée par manche (rubrique « Règles anciennes »). */
@@ -84,8 +82,6 @@ export function settingsFromForm(form: Record<string, unknown>): CompetitionSett
   if (!(airspacePenaltyRule in PENALTY_RULES)) throw new FormError(t("Barème d'espace aérien inconnu."));
   const timeZone = String(form.timeZone ?? "").trim() || DEFAULT_SETTINGS.timeZone;
   if (!isTimeZone(timeZone)) throw new FormError(t("Fuseau horaire inconnu : {timeZone}", { timeZone }));
-  const leadingEnd = String(form.leadingEnd ?? DEFAULT_SETTINGS.leadingEnd) as LeadingEnd;
-  if (!(leadingEnd in LEADING_ENDS)) throw new FormError(t("Fin de manche pour le leading inconnue."));
   let params;
   try {
     params = competitionParameters({
@@ -103,7 +99,6 @@ export function settingsFromForm(form: Record<string, unknown>): CompetitionSett
     airspacePenaltyRule,
     roundAirspaceLimits: form.roundAirspaceLimits === "on",
     timeZone,
-    leadingEnd,
   };
 }
 
@@ -113,8 +108,10 @@ export interface TaskScoringSettings {
   leadingTimeRatio?: number;
   /** Pilotes présents au décollage (tous sauf ABS) ; à défaut, ceux qui ont une trace avec un vol. */
   pilotsPresent?: number;
-  /** Fin de manche pour le leading (UTC, "HH:MM:SS") si elle est plus tardive que le dernier posé. */
+  /** Fin de manche pour le leading (UTC, "HH:MM:SS") si elle est plus tardive que la fin des vols. */
   taskEndTime?: string;
+  /** Fin des vols pour le leading : dernière arrivée à l'ESS (par défaut) ou dernier pilote en vol. */
+  leadingEnd?: LeadingEnd;
 }
 
 export type StoredTask = Task & TaskScoringSettings;
@@ -134,6 +131,9 @@ export function taskScoringFromForm(form: Record<string, unknown>): TaskScoringS
     if (!(Number.isInteger(v) && v >= 0)) throw new FormError(t("Pilotes présents : nombre entier attendu."));
     out.pilotsPresent = v;
   }
+  const end = String(form.leadingEnd ?? "lastEss");
+  if (!(end in LEADING_ENDS)) throw new FormError(t("Fin des vols pour le leading inconnue."));
+  if (end !== "lastEss") out.leadingEnd = end as LeadingEnd;
   return out;
 }
 

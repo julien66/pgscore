@@ -1007,6 +1007,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
       delete task.leadingTimeRatio;
       delete task.pilotsPresent;
       delete task.taskEndTime;
+      delete task.leadingEnd;
       Object.assign(task, taskScoringFromForm(f));
       if (end) task.taskEndTime = localHmsToUtc(end, date, tz);
     } catch (e) {

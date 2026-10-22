@@ -33,11 +33,11 @@ export interface ScoringOptions {
   /** Pilotes présents au décollage (tous sauf ABS) ; à défaut, les pilotes qui ont volé. */
   pilotsPresent?: number;
   /**
-   * Fin de manche fixée par l'organisation (UTC, "HH:MM:SS") : remplace le dernier posé pour le leading
+   * Fin de manche fixée par l'organisation (UTC, "HH:MM:SS") : remplace la fin des vols pour le leading
    * si elle est plus tardive (maxTime, 12.3.1), comme le « Maximum task time » de SVL.
    */
   taskEndTime?: string;
-  /** Fin des vols pour maxTime du leading : dernier posé (par défaut, comme FS) ou dernière arrivée à l'ESS. */
+  /** Fin des vols pour maxTime du leading : dernière arrivée à l'ESS (par défaut) ou dernier posé s'il est plus tardif. */
   leadingEnd?: LeadingEnd;
   /** Décisions de l'organisateur, appliquées avant les points. */
   decisions?: PilotDecision[];

@@ -389,16 +389,6 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
           </select>
         </div>
         <div>
-          <label>{t("Fin de manche pour le leading")}</label>
-          <select name="leadingEnd">
-            {Object.entries(LEADING_ENDS).map(([k, l]) => (
-              <option value={k} selected={s.leadingEnd === k}>
-                {t(l)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
           <label>{t("Fuseau horaire du site")}</label>
           <input type="text" name="timeZone" value={s.timeZone} placeholder="Europe/Paris" />
         </div>
@@ -1552,8 +1542,18 @@ export const TaskPage: FC<{
             <input type="number" step="1" min="0" name="pilotsPresent" placeholder={t("pilotes qui ont volé")} value={task.pilotsPresent ?? ""} />
           </div>
           <div>
+            <label>{t("Fin des vols pour le leading")}</label>
+            <select name="leadingEnd">
+              {Object.entries(LEADING_ENDS).map(([k, l]) => (
+                <option value={k} selected={(task.leadingEnd ?? "lastEss") === k}>
+                  {t(l)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label>{t("Fin de manche pour le leading (locale)")}</label>
-            <input type="text" name="taskEndTime" placeholder={t("dernier posé")} value={loc(task.taskEndTime)} />
+            <input type="text" name="taskEndTime" placeholder={t("fin des vols")} value={loc(task.taskEndTime)} />
           </div>
           <h3 style="grid-column:1/-1;margin:.5em 0 0">{t("Règles anciennes")}</h3>
           <div>

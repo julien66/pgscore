@@ -76,10 +76,10 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
       airspacePenaltyRule: s.airspacePenaltyRule,
       roundAirspaceLimits: s.roundAirspaceLimits,
       gapProfile: s.gapProfile,
-      leadingEnd: s.leadingEnd,
       ...(task.leadingTimeRatio !== undefined ? { leadingTimeRatio: task.leadingTimeRatio } : {}),
       ...(task.pilotsPresent !== undefined ? { pilotsPresent: task.pilotsPresent } : {}),
       ...(task.taskEndTime ? { taskEndTime: task.taskEndTime } : {}),
+      ...(task.leadingEnd ? { leadingEnd: task.leadingEnd } : {}),
       decisions: engineDecisions(listDecisions(db, taskId)),
     };
     const ids = db.prepare("SELECT id FROM tracks WHERE task_id = ? ORDER BY pilot_key, id").all(taskId) as Array<{ id: number }>;

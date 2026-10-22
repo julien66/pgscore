@@ -53,12 +53,12 @@ describe("fin des vols pour maxTime du leading", () => {
     outlandingTime,
   });
 
-  it("lastLanding (S7F, FS) compte le posé le plus tardif", () => {
-    expect(leadingMaxTime([track(5000, null), track(null, 7000)])).toBe(7000);
+  it("lastLanding compte le posé le plus tardif", () => {
+    expect(leadingMaxTime([track(5000, null), track(null, 7000)], Infinity, undefined, "lastLanding")).toBe(7000);
   });
 
-  it("lastEss (Flymaster) ne garde que la dernière arrivée à l'ESS", () => {
-    expect(leadingMaxTime([track(5000, null), track(null, 7000)], Infinity, undefined, "lastEss")).toBe(5000);
+  it("lastEss (par défaut, Flymaster) ne garde que la dernière arrivée à l'ESS", () => {
+    expect(leadingMaxTime([track(5000, null), track(null, 7000)])).toBe(5000);
   });
 
   it("lastEss revient aux posés si personne n'arrive à l'ESS", () => {
