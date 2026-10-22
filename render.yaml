@@ -7,7 +7,8 @@ services:
     plan: starter
     region: frankfurt
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @pgscore/engine build
-    startCommand: cd apps/web && npx tsx src/main.tsx
+    # node --import tsx : un seul processus (npx tsx en lançait trois, environ 135 Mo de plus).
+    startCommand: cd apps/web && node --import tsx src/main.tsx
     healthCheckPath: /healthz
     # Déploiement seulement quand la vérification GitHub (CI : types et tests) est passée.
     autoDeployTrigger: checksPass
@@ -18,9 +19,10 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.22.0
-      # Le plan Starter a 512 Mo : on borne le tas de Node pour qu'il libère la mémoire avant d'y arriver.
+      # Le plan Starter a 512 Mo : on borne le tas du serveur (256 Mo) et celui du calcul (160 Mo, dans
+      # runner.ts) pour que Node libère la mémoire avant d'y arriver. Envois et imports passent par le disque.
       - key: NODE_OPTIONS
-        value: --max-old-space-size=384
+        value: --max-old-space-size=256
       - key: DATABASE_PATH
         value: /var/data/pgscore.db
       - key: TRACKS_DIR

@@ -1,9 +1,9 @@
-import { unzipSync } from "fflate";
 import jpeg from "jpeg-js";
 import jsQRModule from "jsqr";
 import { PNG } from "pngjs";
 import { t } from "./i18n.js";
 import { decodeFsName } from "./text.js";
+import { isZipHead, sourceBytes, sourceHead, ZipReader, type ZipSource } from "./zip.js";
 
 // Le paquet jsqr est en CommonJS : sa fonction est soit l'export par défaut, soit le module lui-même.
 type JsQr = typeof import("jsqr").default;
@@ -38,21 +38,49 @@ export interface UploadedIgc {
   text: string;
 }
 
-/** Fichiers IGC d'un envoi : fichiers .igc directs et contenu des archives .zip. */
-export function collectIgc(files: Array<{ name: string; bytes: Uint8Array }>): UploadedIgc[] {
-  const out: UploadedIgc[] = [];
+/**
+ * Fichiers IGC d'un envoi, un par un : fichiers .igc directs et contenu des archives .zip (lues fichier
+ * par fichier). `fn` reçoit chaque trace ; elle n'est plus gardée en mémoire ensuite.
+ */
+export function forEachIgc(files: Array<{ name: string; src: ZipSource }>, fn: (g: UploadedIgc) => void): void {
   for (const f of files) {
-    const isZip = f.bytes[0] === 0x50 && f.bytes[1] === 0x4b && f.bytes[2] === 0x03 && f.bytes[3] === 0x04;
-    if (isZip) {
-      const entries = unzipSync(f.bytes, { filter: (e) => /\.igc$/i.test(e.name) && !e.name.startsWith("__MACOSX/") });
-      for (const [name, data] of Object.entries(entries)) out.push({ filename: name.split("/").pop()!, bytes: data, text: decodeText(data) });
-    } else if (/\.igc$/i.test(f.name) || /^A[A-Z0-9]{3}/.test(decodeText(f.bytes.subarray(0, 8)))) {
+    const head = sourceHead(f.src, 8);
+    if (isZipHead(head) && head[2] === 0x03 && head[3] === 0x04) {
+      ZipReader.with(f.src, (zip) => {
+        for (const name of zip.names()) {
+          if (!/\.igc$/i.test(name) || name.startsWith("__MACOSX/")) continue;
+          const data = zip.file(name);
+          fn({ filename: name.split("/").pop()!, bytes: data, text: decodeText(data) });
+        }
+      });
+    } else if (/\.igc$/i.test(f.name) || /^A[A-Z0-9]{3}/.test(decodeText(head))) {
       // Fichier .igc, ou fichier sans extension qui commence comme un IGC (enregistrement A).
       const name = /\.igc$/i.test(f.name) ? f.name : `${f.name}.igc`;
-      out.push({ filename: name, bytes: f.bytes, text: decodeText(f.bytes) });
+      const bytes = sourceBytes(f.src);
+      fn({ filename: name, bytes, text: decodeText(bytes) });
     }
   }
+}
+
+/** Fichiers IGC d'un envoi, tous en mémoire (petits envois et tests). */
+export function collectIgc(files: Array<{ name: string; bytes: Uint8Array }>): UploadedIgc[] {
+  const out: UploadedIgc[] = [];
+  forEachIgc(
+    files.map((f) => ({ name: f.name, src: f.bytes })),
+    (g) => out.push(g),
+  );
   return out;
+}
+
+/**
+ * En-tête d'un IGC (tout ce qui précède le premier point B), copié : c'est tout ce qu'il faut pour
+ * reconnaître le pilote, sans garder la trace entière en mémoire.
+ */
+export function igcHeaderText(text: string): string {
+  const i = text.search(/^B\d{6}/m);
+  const h = i < 0 ? text.slice(0, 16384) : text.slice(0, Math.min(i, 16384));
+  // Copie à plat : une sous-chaîne garderait sinon tout le texte de la trace en mémoire.
+  return Buffer.from(h, "utf16le").toString("utf16le");
 }
 
 /**

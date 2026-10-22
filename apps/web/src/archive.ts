@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
+import { strFromU8, strToU8 } from "fflate";
 import { taskDistances, type DecisionKind } from "@pgscore/engine";
 import type { CompetitionRow, Db, DecisionRow, RunRow, TaskRow, TrackRow } from "./db.js";
 import { DECISION_KINDS } from "./decisions.js";
@@ -9,6 +9,7 @@ import { listRankings, RULE_FIELDS, RULE_OPS, type RankingRule } from "./ranking
 import { DEFAULT_SETTINGS, FormError, parseSettings, type CompetitionSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
 import { latestDoneRun, queryAll, tasksOf, tracksOf } from "./repo.js";
+import { isZipHead, sourceBytes, sourceHead, ZipReader, zipStream, type ZipSource } from "./zip.js";
 
 /**
  * Archive d'une compétition complète (format « pgscore-competition », version 1) : un ZIP avec
@@ -116,19 +117,19 @@ export function competitionArchive(db: Db, comp: CompetitionRow): CompetitionArc
   };
 }
 
-/** ZIP de la compétition. Sans les traces, seul competition.json est mis (résultats compris). */
-export function exportCompetition(db: Db, store: TrackStore, comp: CompetitionRow, opts: { tracks: boolean }): Uint8Array {
+/** ZIP de la compétition, construit au fil de l'envoi. Sans les traces, seul competition.json est mis (résultats compris). */
+export function exportCompetition(db: Db, store: TrackStore, comp: CompetitionRow, opts: { tracks: boolean }): ReadableStream<Uint8Array> {
   const a = competitionArchive(db, comp);
-  const files: Zippable = {};
+  const files: Array<{ name: string; data: () => Uint8Array; level?: 1 }> = [];
   if (opts.tracks)
     for (const tk of a.tasks)
       for (const tr of tk.tracks) {
         tr.file = `tracks/m${tk.number}/${tr.sha256}.igc`;
         // Compression rapide : une archive de plusieurs centaines de traces se construit en quelques secondes.
-        files[tr.file] = [store.bytes(tr.sha256), { level: 1 }];
+        files.push({ name: tr.file, data: () => store.bytes(tr.sha256), level: 1 });
       }
-  files["competition.json"] = strToU8(JSON.stringify(a, null, 2));
-  return zipSync(files);
+  files.push({ name: "competition.json", data: () => strToU8(JSON.stringify(a, null, 2)) });
+  return zipStream(files);
 }
 
 // --- Import --------------------------------------------------------------------------------
@@ -140,18 +141,46 @@ function bad(what: string): never {
   throw new FormError(t("Archive invalide : {what}", { what }));
 }
 
-/** Lit l'archive (ZIP, ou competition.json seul) et vérifie sa forme. */
-export function readArchive(bytes: Uint8Array): { a: CompetitionArchive; files: Record<string, Uint8Array> } {
-  let files: Record<string, Uint8Array>;
-  if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
-    try {
-      files = unzipSync(bytes);
-    } catch (e) {
-      bad((e as Error).message);
-    }
-  } else files = { "competition.json": bytes };
-  const json = files["competition.json"];
-  if (!json) bad(t("competition.json manquant"));
+/**
+ * Lit l'archive (ZIP, ou competition.json seul) et vérifie sa forme. Le ZIP est lu fichier par fichier ;
+ * avec `store`, chaque trace est rangée tout de suite dans le dossier des traces au lieu d'être gardée en
+ * mémoire (une archive de plusieurs centaines de traces ne tient jamais entière en mémoire).
+ */
+export function readArchive(src: ZipSource, store?: TrackStore): { a: CompetitionArchive; files: Record<string, ArchiveFile> } {
+  if (!isZipHead(sourceHead(src, 2))) return { a: parseArchiveJson(sourceBytes(src)), files: {} };
+  let zip: ZipReader;
+  try {
+    zip = ZipReader.open(src);
+  } catch (e) {
+    bad((e as Error).message);
+  }
+  try {
+    if (!zip.has("competition.json")) bad(t("competition.json manquant"));
+    const a = parseArchiveJson(readZipFile(zip, "competition.json"));
+    // Seules les traces citées par competition.json sont lues, une à une.
+    const files: Record<string, ArchiveFile> = {};
+    for (const tk of a.tasks ?? [])
+      for (const tr of Array.isArray(tk?.tracks) ? tk.tracks : []) {
+        const name = tr?.file ?? `tracks/m${Number(tk?.number)}/${tr?.sha256}.igc`;
+        if (typeof name !== "string" || name in files || !zip.has(name)) continue;
+        const data = readZipFile(zip, name);
+        files[name] = store ? { stored: store.put(data), size: data.length } : data;
+      }
+    return { a, files };
+  } finally {
+    zip.close();
+  }
+}
+
+function readZipFile(zip: ZipReader, name: string): Uint8Array {
+  try {
+    return zip.file(name);
+  } catch (e) {
+    bad((e as Error).message);
+  }
+}
+
+function parseArchiveJson(json: Uint8Array): CompetitionArchive {
   let a: CompetitionArchive;
   try {
     a = JSON.parse(strFromU8(json)) as CompetitionArchive;
@@ -164,7 +193,7 @@ export function readArchive(bytes: Uint8Array): { a: CompetitionArchive; files: 
   if (!c || !str(c.name)) bad(t("nom de la compétition manquant"));
   if (!isDate(c.start_date) || !isDate(c.end_date)) bad(t("dates attendues au format AAAA-MM-JJ"));
   if (!Array.isArray(a.pilots ?? []) || !Array.isArray(a.rankings ?? []) || !Array.isArray(a.tasks ?? [])) bad(t("listes attendues"));
-  return { a, files };
+  return a;
 }
 
 /** Réglages connus seulement, avec les valeurs par défaut pour ceux qui manquent. */
@@ -187,8 +216,8 @@ function cleanRule(rule: unknown, where: string): RankingRule {
  * fichier manque dans l'archive sont ignorées (et comptées) ; un fichier dont l'empreinte ne correspond
  * pas fait échouer l'import. Tout est écrit en une transaction.
  */
-export function importCompetition(db: Db, store: TrackStore, userId: number, bytes: Uint8Array): ImportReport {
-  const { a, files } = readArchive(bytes);
+export function importCompetition(db: Db, store: TrackStore, userId: number, src: ZipSource): ImportReport {
+  const { a, files } = readArchive(src, store);
   return writeArchive(db, store, userId, a, files);
 }
 

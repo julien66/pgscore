@@ -1,5 +1,5 @@
 import type { Db, PilotRow, TrackHistoryRow, TrackRow } from "./db.js";
-import { isPlaceholderPilot, learnFilenameConvention, pilotKeyForTrack } from "./files.js";
+import { igcHeaderText, isPlaceholderPilot, learnFilenameConvention, pilotKeyForTrack } from "./files.js";
 import type { TrackStore } from "./track-store.js";
 import type { VersionMeta } from "./viewer-data.js";
 import { getTrack, queryAll } from "./repo.js";
@@ -167,7 +167,8 @@ export function linkTracks(db: Db, store: TrackStore, taskId: number, userId: nu
   for (const tr of rows) {
     if (linked(tr.pilot_key)) continue;
     try {
-      texts.set(tr.id, store.text(tr.sha256));
+      // En-tête seulement : de quoi reconnaître le pilote, sans garder toutes les traces en mémoire.
+      texts.set(tr.id, igcHeaderText(store.text(tr.sha256)));
     } catch {
       // Fichier manquant : la trace reste comme elle est.
     }

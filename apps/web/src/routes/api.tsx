@@ -9,6 +9,7 @@ import { civlToArchive } from "../civlcomps.js";
 import type { App, Ctx, Env } from "./context.js";
 import { queryAll } from "../repo.js";
 import { MAX_IMPORT } from "./util.js";
+import { saveUpload, TooLarge } from "../upload.js";
 
 /** API : liste, export et import de compétitions, import civlcomps, suppression. */
 export function apiRoutes(app: App, ctx: Ctx) {
@@ -41,7 +42,7 @@ export function apiRoutes(app: App, ctx: Ctx) {
     if (!comp) return c.json({ error: t("Compétition introuvable.") }, 404);
     const withTracks = c.req.query("tracks") !== "0";
     const zip = exportCompetition(db, tracks, comp, { tracks: withTracks });
-    return c.body(zip as Uint8Array<ArrayBuffer>, 200, {
+    return c.body(zip, 200, {
       "content-type": "application/zip",
       "content-disposition": `attachment; filename="${slug(comp.name)}${withTracks ? "" : "-sans-traces"}.pgscore.zip"`,
     });
@@ -58,30 +59,38 @@ export function apiRoutes(app: App, ctx: Ctx) {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return c.json({ error: t("Compétition introuvable.") }, 404);
     const zip = competitionFsdbZip(db, tracks, comp, `${slug(comp.name)}.fsdb`);
-    return c.body(zip as Uint8Array<ArrayBuffer>, 200, {
+    return c.body(zip, 200, {
       "content-type": "application/zip",
       "content-disposition": `attachment; filename="${slug(comp.name)}.fsdb.zip"`,
     });
   });
-  /** Import d'une archive pgscore ou d'un fichier FSDB, reconnu à son contenu. */
-  const importAny = (userId: number, bytes: Uint8Array) => {
-    if (!looksLikeFsdb(bytes)) return importCompetition(db, tracks, userId, bytes);
-    const { a, files, warnings } = fsdbToArchive(bytes, tracks);
+  /** Import d'une archive pgscore ou d'un fichier FSDB, reconnu à son contenu (fichier sur disque). */
+  const importAny = (userId: number, src: string) => {
+    if (!looksLikeFsdb(src)) return importCompetition(db, tracks, userId, src);
+    const { a, files, warnings } = fsdbToArchive(src, tracks);
     const r = writeArchive(db, tracks, userId, a, files);
     return { ...r, warnings: [...warnings, ...(r.warnings ?? [])] };
   };
-  const readImport = async (c: Context<Env>): Promise<Uint8Array> => {
-    if (Number(c.req.header("content-length") ?? 0) > MAX_IMPORT) throw new FormError(t("Archive trop grosse (1 Go au plus)."));
-    if ((c.req.header("content-type") ?? "").startsWith("multipart/form-data")) {
-      const f = await c.req.parseBody();
-      if (!(f.file instanceof File) || !f.file.size) throw new FormError(t("Choisissez l'archive de la compétition."));
-      return new Uint8Array(await f.file.arrayBuffer());
+  /** Archive envoyée (formulaire ou corps brut), écrite sur disque puis importée ; le fichier est ensuite effacé. */
+  const importUpload = async (c: Context<Env>, userId: number) => {
+    let up;
+    try {
+      up = await saveUpload(c, MAX_IMPORT);
+    } catch (e) {
+      if (e instanceof TooLarge) throw new FormError(t("Archive trop grosse (1 Go au plus)."));
+      throw e;
     }
-    return new Uint8Array(await c.req.arrayBuffer());
+    try {
+      const file = up.files.find((f) => f.field === "file" && f.size > 0);
+      if (!file) throw new FormError(t("Choisissez l'archive de la compétition."));
+      return importAny(userId, file.path);
+    } finally {
+      up.done();
+    }
   };
   app.post("/api/competitions/import", async (c) => {
     try {
-      const r = importAny(me(c).id, await readImport(c));
+      const r = await importUpload(c, me(c).id);
       return c.json({ ...r, url: `${cfg.baseUrl}/competitions/${r.id}` }, 201);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
@@ -113,7 +122,7 @@ export function apiRoutes(app: App, ctx: Ctx) {
       if ((c.req.header("content-type") ?? "").startsWith("application/x-www-form-urlencoded")) {
         const f = await c.req.parseBody();
         r = await importCivl(me(c), String(f.civl_url ?? ""));
-      } else r = importAny(me(c).id, await readImport(c));
+      } else r = await importUpload(c, me(c).id);
       // Les manches importées avec leurs traces sont calculées tout de suite, l'une après l'autre ;
       // la page de la compétition montre l'avancement.
       const taskIds = (db.prepare("SELECT id FROM tasks WHERE competition_id = ? ORDER BY number, id").all(r.id) as Array<{ id: number }>).map((x) => x.id);

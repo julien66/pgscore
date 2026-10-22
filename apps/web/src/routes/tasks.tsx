@@ -2,7 +2,7 @@ import { type Context } from "hono";
 import { parseXctsk, taskDistances, taskToXctskQr, type Task } from "@pgscore/engine";
 import qrcode from "qrcode-generator";
 import type { CompetitionRow, RunRow, TaskRow, TrackRow } from "../db.js";
-import { collectIgc, decodeQrImage, decodeText, isPlaceholderPilot, filenamePilotName, learnFilenameConvention, nameKey, pilotKeyForTrack } from "../files.js";
+import { forEachIgc, igcHeaderText, decodeQrImage, decodeText, isPlaceholderPilot, filenamePilotName, learnFilenameConvention, nameKey, pilotKeyForTrack } from "../files.js";
 import { isRunning, startRun } from "../runner.js";
 import { assignTrack, linkTracks, pilotVersions, removeAllTracks, removeTrack, replaceTrack, saveTrack, taskHasFile, trackHistory } from "../tracks.js";
 import { addDecision, addEmptyTrackDnf, clearEmptyTrackDnf, deleteDecision, isEmptyIgc, listDecisions, touchScoring } from "../decisions.js";
@@ -21,6 +21,7 @@ import { ViewerPage } from "../pages/viewer.js";
 import type { TaskScoring } from "@pgscore/engine";
 import type { App, Ctx, Env } from "./context.js";
 import { MAX_UPLOAD, one } from "./util.js";
+import { saveUpload } from "../upload.js";
 import { getTask, getTrack, latestDoneRun, latestRun, tracksOf } from "../repo.js";
 
 
@@ -298,22 +299,36 @@ export function tasksRoutes(app: App, ctx: Ctx) {
   app.post("/tasks/:id/tracks", async (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
-    if (Number(c.req.header("content-length") ?? 0) > MAX_UPLOAD) return taskPage(c, x.t, x.comp, { error: t("Envoi trop gros (200 Mo au plus).") });
-    const f = await c.req.parseBody({ all: true });
-    // Un .igc vide compte (pilote resté au sol, marqué DNF) ; un champ de fichier laissé vide, non.
-    const list = ([] as unknown[]).concat(f.files ?? []).filter((v): v is File => v instanceof File && (v.size > 0 || /\.igc$/i.test(v.name)));
-    let all;
+    // Envoi écrit sur disque puis lu trace par trace : seul l'en-tête de chaque trace reste en mémoire.
+    let up;
     try {
-      all = collectIgc(await Promise.all(list.map(async (v) => ({ name: v.name, bytes: new Uint8Array(await v.arrayBuffer()) }))));
+      up = await saveUpload(c, MAX_UPLOAD);
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return taskPage(c, x.t, x.comp, { error: e.message });
+    }
+    // Un .igc vide compte (pilote resté au sol, marqué DNF) ; un champ de fichier laissé vide, non.
+    const list = up.files.filter((v) => v.field === "files" && (v.size > 0 || /\.igc$/i.test(v.name)));
+    // Fichiers vides : pas de trace à garder, le pilote est marqué DNF (plus bas, après les vraies traces).
+    // Les autres sont écrits dans le dossier des traces avant la base : une ligne de la base pointe
+    // toujours vers un fichier présent.
+    const igcs: Array<{ filename: string; text: string; sha256: string; size: number }> = [];
+    const empties: Array<{ filename: string; text: string }> = [];
+    try {
+      forEachIgc(
+        list.map((v) => ({ name: v.name, src: v.path })),
+        (g) => {
+          if (isEmptyIgc(g.text)) empties.push({ filename: g.filename, text: igcHeaderText(g.text) });
+          else igcs.push({ filename: g.filename, text: igcHeaderText(g.text), sha256: tracks.put(g.bytes), size: g.bytes.length });
+        },
+      );
     } catch (e) {
       return taskPage(c, x.t, x.comp, { error: t("Archive illisible : {error}", { error: (e as Error).message }) });
+    } finally {
+      up.done();
     }
-    if (!all.length) return taskPage(c, x.t, x.comp, { error: t("Aucun fichier IGC trouvé dans l'envoi.") });
-    // Fichiers vides : pas de trace à garder, le pilote est marqué DNF (plus bas, après les vraies traces).
-    const igcs = all.filter((g) => !isEmptyIgc(g.text));
-    const empties = all.filter((g) => isEmptyIgc(g.text));
-    // Fichiers écrits sur disque avant la base : une ligne de la base pointe toujours vers un fichier présent.
-    const stored = igcs.map((g) => ({ g, sha256: tracks.put(g.bytes) }));
+    if (!igcs.length && !empties.length) return taskPage(c, x.t, x.comp, { error: t("Aucun fichier IGC trouvé dans l'envoi.") });
+    const stored = igcs.map((g) => ({ g, sha256: g.sha256 }));
     const count = { added: 0, extra: 0, same: 0, dnf: 0 };
     // Pilote de chaque trace : HFCID de l'en-tête, sinon nom de fichier ou nom de l'en-tête rapprochés des inscrits.
     const registry = listPilots(db, x.comp.id);
@@ -350,7 +365,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
           pilotKey = better;
         }
       }
-      count[saveTrack(db, x.t.id, me(c).id, { pilotKey, pilotName: regName.get(pilotKey) ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length })]++;
+      count[saveTrack(db, x.t.id, me(c).id, { pilotKey, pilotName: regName.get(pilotKey) ?? igcPilot(g.text), filename: g.filename, sha256, size: g.size })]++;
       clearEmptyTrackDnf(db, x.t.id, pilotKey);
     }
     for (const g of empties) {
@@ -371,23 +386,36 @@ export function tasksRoutes(app: App, ctx: Ctx) {
     if (!x) return notFound(c);
     const tr = getTrack(db, x.t.id, Number(c.req.param("trackId")));
     if (!tr) return notFound(c);
-    if (Number(c.req.header("content-length") ?? 0) > MAX_UPLOAD) return taskPage(c, x.t, x.comp, { error: t("Envoi trop gros (200 Mo au plus).") });
-    const f = await c.req.parseBody();
-    const file = f.file instanceof File && f.file.size > 0 ? f.file : null;
-    if (!file) return taskPage(c, x.t, x.comp, { error: t("Choisissez le nouveau fichier IGC.") });
-    let igcs;
+    let up;
     try {
-      igcs = collectIgc([{ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) }]);
+      up = await saveUpload(c, MAX_UPLOAD);
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return taskPage(c, x.t, x.comp, { error: e.message });
+    }
+    const file = up.files.find((v) => v.field === "file" && v.size > 0);
+    if (!file) {
+      up.done();
+      return taskPage(c, x.t, x.comp, { error: t("Choisissez le nouveau fichier IGC.") });
+    }
+    const igcs: Array<{ filename: string; text: string; sha256: string; size: number }> = [];
+    try {
+      forEachIgc([{ name: file.name, src: file.path }], (g) => {
+        // Une seule trace attendue : au-delà, on compte sans ranger.
+        igcs.push({ filename: g.filename, text: igcHeaderText(g.text), sha256: igcs.length ? "" : tracks.put(g.bytes), size: g.bytes.length });
+      });
     } catch (e) {
       return taskPage(c, x.t, x.comp, { error: t("Archive illisible : {error}", { error: (e as Error).message }) });
+    } finally {
+      up.done();
     }
     if (igcs.length !== 1) {
       return taskPage(c, x.t, x.comp, { error: igcs.length ? t("L'archive contient plusieurs traces : envoyez un seul fichier IGC.") : t("Ce fichier n'est pas une trace IGC.") });
     }
     const g = igcs[0]!;
-    const note = typeof f.note === "string" && f.note.trim() ? f.note.trim().slice(0, 500) : null;
-    const sha256 = tracks.put(g.bytes);
-    const how = replaceTrack(db, x.t.id, tr.id, me(c).id, { pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.bytes.length, note });
+    const note = typeof up.fields.note === "string" && up.fields.note.trim() ? up.fields.note.trim().slice(0, 500) : null;
+    const sha256 = g.sha256;
+    const how = replaceTrack(db, x.t.id, tr.id, me(c).id, { pilotName: tr.pilot_name ?? igcPilot(g.text), filename: g.filename, sha256, size: g.size, note });
     if (how === "replaced") clearEmptyTrackDnf(db, x.t.id, tr.pilot_key);
     if (how === "same") return taskPage(c, x.t, x.comp, { edit: true, notice: t("Ce fichier est déjà la trace de {pilot} : rien n'a changé.", { pilot: tr.pilot_name ?? tr.pilot_key }) });
     return c.redirect(`/tasks/${x.t.id}/edit?replaced=1&open=tracks#tracks`);

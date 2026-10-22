@@ -69,13 +69,13 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   });
 
   // Taille des envois, vérifiée sur les octets reçus (y compris sans Content-Length, en envoi par morceaux).
-  // Les envois de traces et les imports, qui ont leur propre message d'erreur, gardent leur contrôle sur
-  // l'en-tête Content-Length.
+  // Les envois de traces et les imports sont écrits sur disque au fil de l'eau (upload.ts), qui compte
+  // lui-même les octets et rend son propre message d'erreur.
   app.use("*", async (c, next) => {
     if (c.req.method !== "POST") return next();
-    const own = uploadLimit(c.req.path);
-    if (own && c.req.header("content-length") && !c.req.header("transfer-encoding")) return next();
-    const maxSize = own ?? MAX_FORM;
+    // Un formulaire simple sur ces adresses (adresse civlcomps.org) reste soumis à la limite générale.
+    if (uploadLimit(c.req.path) && !(c.req.header("content-type") ?? "").startsWith("application/x-www-form-urlencoded")) return next();
+    const maxSize = MAX_FORM;
     return bodyLimit({ maxSize, onError: (c) => c.text(t("Envoi trop gros ({n} Mo au plus).", { n: maxSize / 1024 / 1024 }), 413) })(c, next);
   });
 

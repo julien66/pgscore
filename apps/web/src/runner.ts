@@ -67,7 +67,12 @@ const BOOT = `import(${JSON.stringify(import.meta.resolve("tsx/esm/api"))}).then
   tsx.register();
   return import(${JSON.stringify(new URL("./score-worker.ts", import.meta.url).href)});
 });`;
-const spawnScoring = (job: ScoreJob) => new Worker(BOOT, { eval: true, workerData: job });
+/**
+ * Mémoire du worker : 65 Mo de données utiles environ pour une manche PWCA de 124 traces. Le plafond
+ * oblige V8 à nettoyer au lieu de grossir jusqu'à la limite du serveur (SCORE_WORKER_HEAP_MB pour le changer).
+ */
+const WORKER_HEAP_MB = Number(process.env.SCORE_WORKER_HEAP_MB) || 160;
+const spawnScoring = (job: ScoreJob) => new Worker(BOOT, { eval: true, workerData: job, resourceLimits: { maxOldGenerationSizeMb: WORKER_HEAP_MB } });
 
 async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number): Promise<void> {
   const progress = db.prepare("UPDATE runs SET status = 'running', step = ?, done = ?, detail = ? WHERE id = ?");
@@ -137,7 +142,9 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
           resolve(m.result);
         }
       });
-      worker.on("error", reject);
+      worker.on("error", (e: Error & { code?: string }) =>
+        reject(e.code === "ERR_WORKER_OUT_OF_MEMORY" ? new Error(t("Mémoire insuffisante pour calculer cette manche ({mb} Mo pour le calcul).", { mb: WORKER_HEAP_MB })) : e),
+      );
       worker.on("exit", (code) => {
         if (!finished) reject(new Error(t("Le calcul s'est arrêté (code {code}).", { code: String(code) })));
       });

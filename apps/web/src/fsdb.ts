@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
+import { strFromU8, strToU8 } from "fflate";
 import { BONUS_GLIDE_RATIO, type PilotResult, type TaskScoring, type TaskTurnpoint } from "@pgscore/engine";
 import { ARCHIVE_FORMAT, ARCHIVE_VERSION, competitionArchive, type ArchiveFile, type ArchiveTask, type CompetitionArchive } from "./archive.js";
 import type { CompetitionRow, Db } from "./db.js";
@@ -12,6 +12,7 @@ import { offsetMinutes } from "./time.js";
 import type { TrackStore } from "./track-store.js";
 import { cdata, child, children, el, parseXml, type XmlEl } from "./xml.js";
 import { decodeFsName } from "./text.js";
+import { isZipHead, sourceBytes, sourceHead, ZipReader, zipStream, type ZipSource } from "./zip.js";
 
 /**
  * Échange avec FS, le logiciel de la CIVL, par son fichier .fsdb (XML, version 3.5).
@@ -218,17 +219,18 @@ const base = (p: string) =>
     .toLowerCase();
 
 /** Le fichier envoyé est-il du FSDB (XML seul, ou ZIP avec un .fsdb et pas d'archive pgscore) ? */
-export function looksLikeFsdb(bytes: Uint8Array): boolean {
-  if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+export function looksLikeFsdb(src: ZipSource): boolean {
+  const head = sourceHead(src, 200);
+  if (isZipHead(head)) {
     let names: string[] = [];
     try {
-      names = Object.keys(unzipSync(bytes, { filter: (f) => /\.fsdb$/i.test(f.name) || f.name === "competition.json" }));
+      names = ZipReader.with(src, (zip) => zip.names());
     } catch {
       return false;
     }
     return names.some((n) => /\.fsdb$/i.test(n)) && !names.includes("competition.json");
   }
-  return /^\s*(<\?xml|<Fs[\s>])/.test(strFromU8(bytes.subarray(0, 200)).replace(/^﻿/, ""));
+  return /^\s*(<\?xml|<Fs[\s>])/.test(strFromU8(head).replace(/^\uFEFF/, ""));
 }
 
 /**
@@ -239,33 +241,35 @@ export function looksLikeFsdb(bytes: Uint8Array): boolean {
  * Lit un FSDB (XML seul ou ZIP avec ses traces). Avec `store`, chaque trace du ZIP est décompressée puis
  * rangée une à une : une grosse archive (plusieurs centaines de traces) ne tient jamais entière en mémoire.
  */
-export function fsdbToArchive(bytes: Uint8Array, store?: TrackStore): { a: CompetitionArchive; files: Record<string, ArchiveFile>; warnings: string[] } {
-  let text: string;
-  const zipNames: string[] = [];
-  const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
-  const unzipOne = (name: string): Uint8Array => {
-    try {
-      return unzipSync(bytes, { filter: (f) => f.name === name })[name]!;
-    } catch (e) {
-      throw new FormError(t("Archive illisible : {error}", { error: (e as Error).message }));
-    }
-  };
-  if (isZip) {
-    try {
-      // Premier passage : la liste des fichiers seulement, sans rien décompresser.
-      unzipSync(bytes, {
-        filter: (f) => {
-          if (!f.name.startsWith("__MACOSX/")) zipNames.push(f.name);
-          return false;
-        },
-      });
-    } catch (e) {
-      throw new FormError(t("Archive illisible : {error}", { error: (e as Error).message }));
-    }
-    const fsdb = zipNames.filter((k) => /\.fsdb$/i.test(k));
+export function fsdbToArchive(src: ZipSource, store?: TrackStore): { a: CompetitionArchive; files: Record<string, ArchiveFile>; warnings: string[] } {
+  const isZip = isZipHead(sourceHead(src, 2));
+  if (!isZip) return fsdbFromText(strFromU8(sourceBytes(src)), null, store);
+  let zip: ZipReader;
+  try {
+    zip = ZipReader.open(src);
+  } catch (e) {
+    throw new FormError(t("Archive illisible : {error}", { error: (e as Error).message }));
+  }
+  try {
+    const fsdb = zip.names().filter((k) => !k.startsWith("__MACOSX/") && /\.fsdb$/i.test(k));
     if (fsdb.length !== 1) throw new FormError(t("Le ZIP doit contenir un seul fichier .fsdb (trouvés : {n}).", { n: fsdb.length }));
-    text = strFromU8(unzipOne(fsdb[0]!));
-  } else text = strFromU8(bytes);
+    return fsdbFromText(strFromU8(unzipOne(zip, fsdb[0]!)), zip, store);
+  } finally {
+    zip.close();
+  }
+}
+
+const unzipOne = (zip: ZipReader, name: string): Uint8Array => {
+  try {
+    return zip.file(name);
+  } catch (e) {
+    throw new FormError(t("Archive illisible : {error}", { error: (e as Error).message }));
+  }
+};
+
+function fsdbFromText(text: string, zip: ZipReader | null, store?: TrackStore): { a: CompetitionArchive; files: Record<string, ArchiveFile>; warnings: string[] } {
+  const isZip = zip !== null;
+  const zipNames = zip ? zip.names().filter((k) => !k.startsWith("__MACOSX/")) : [];
   let doc: XmlEl;
   try {
     doc = parseXml(text);
@@ -322,7 +326,7 @@ export function fsdbToArchive(bytes: Uint8Array, store?: TrackStore): { a: Compe
         missing++;
         continue;
       }
-      const data = unzipOne(path);
+      const data = unzipOne(zip!, path);
       const sha256 = store ? store.put(data) : createHash("sha256").update(data).digest("hex");
       const file = `tracks/m${n}/${sha256}.igc`;
       files[file] = store ? { stored: sha256, size: data.length } : data;
@@ -667,9 +671,10 @@ export function competitionFsdb(db: Db, comp: CompetitionRow, opts: { withTracks
 }
 
 /** ZIP pour FS : le .fsdb et les traces rangées comme FS les range (tracks\T01\fichier.igc). */
-export function competitionFsdbZip(db: Db, store: TrackStore, comp: CompetitionRow, fileName: string): Uint8Array {
+export function competitionFsdbZip(db: Db, store: TrackStore, comp: CompetitionRow, fileName: string): ReadableStream<Uint8Array> {
   const a = competitionArchive(db, comp);
-  const files: Zippable = { [fileName]: strToU8(competitionFsdb(db, comp, { withTracks: true })) };
-  for (const tk of a.tasks) for (const tr of tk.tracks) files[`tracks/T${String(tk.number).padStart(2, "0")}/${tr.filename}`] = [store.bytes(tr.sha256), { level: 1 }];
-  return zipSync(files);
+  const files: Array<{ name: string; data: () => Uint8Array; level?: 1 }> = [{ name: fileName, data: () => strToU8(competitionFsdb(db, comp, { withTracks: true })) }];
+  for (const tk of a.tasks)
+    for (const tr of tk.tracks) files.push({ name: `tracks/T${String(tk.number).padStart(2, "0")}/${tr.filename}`, data: () => store.bytes(tr.sha256), level: 1 });
+  return zipStream(files);
 }

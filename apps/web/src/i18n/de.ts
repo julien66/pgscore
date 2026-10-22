@@ -344,6 +344,7 @@ const dict: Record<string, string> = {
   "Aucune trace : envoyez les fichiers IGC avant de lancer le calcul.": "Keine Tracks: Laden Sie die IGC-Dateien hoch, bevor Sie die Berechnung starten.",
   "Envoi trop gros ({n} Mo au plus).": "Upload zu groß (höchstens {n} MB).",
   "espace aérien {name}": "Luftraum {name}",
+  "Mémoire insuffisante pour calculer cette manche ({mb} Mo pour le calcul).": "Nicht genug Speicher, um diesen Task zu berechnen ({mb} MB für die Berechnung).",
   "Le calcul s'est arrêté (code {code}).": "Die Berechnung wurde abgebrochen (Code {code}).",
   "PWCA 2026 (comme SVL)": "PWCA 2026 (wie SVL)",
   "S7A 2026 : 0 à 100 % des points entre 0 et 100 m": "S7A 2026: 0 bis 100 % der Punkte zwischen 0 und 100 m",

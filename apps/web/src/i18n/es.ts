@@ -344,6 +344,7 @@ const dict: Record<string, string> = {
   "Aucune trace : envoyez les fichiers IGC avant de lancer le calcul.": "Ningún track: envíe los archivos IGC antes de lanzar el cálculo.",
   "Envoi trop gros ({n} Mo au plus).": "Envío demasiado grande ({n} MB como máximo).",
   "espace aérien {name}": "espacio aéreo {name}",
+  "Mémoire insuffisante pour calculer cette manche ({mb} Mo pour le calcul).": "Memoria insuficiente para calcular esta manga ({mb} MB para el cálculo).",
   "Le calcul s'est arrêté (code {code}).": "El cálculo se detuvo (código {code}).",
   "PWCA 2026 (comme SVL)": "PWCA 2026 (como SVL)",
   "S7A 2026 : 0 à 100 % des points entre 0 et 100 m": "S7A 2026: del 0 al 100 % de los puntos entre 0 y 100 m",
