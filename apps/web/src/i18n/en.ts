@@ -820,5 +820,12 @@ const dict: Record<string, string> = {
   "Sopot 2026, manche 3 : notre distance de manche fait 53,74 km, contre 53,70 km chez SVL, soit 0,8 point au plus par pilote. La méthode d'optimisation de la route de SVL n'est pas publiée.": "Sopot 2026, task 3: our task distance is 53.74 km, against 53.70 km in SVL, i.e. at most 0.8 point per pilot. SVL's route optimisation method is not published.",
   "Gemona 2026, manche 3, pilote 260 : un arc d'espace aérien mal fermé dans le fichier OpenAir est dessiné différemment, d'où 3,8 points de pénalité chez nous contre 1,8 chez SVL.": "Gemona 2026, task 3, pilot 260: a badly closed airspace arc in the OpenAir file is drawn differently, hence a 3.8-point penalty with us against 1.8 in SVL.",
   "Vous connaissez une autre différence, ou la raison d'un de ces écarts ? Ouvrez une issue :": "Do you know another difference, or the reason for one of these gaps? Open an issue:",
+  "Décisions de l'organisateur": "Organiser decisions",
+  "Trace vide à l'envoi : présent, n'a pas volé.": "Empty track on upload: present, did not fly.",
+  "{n} fichier vide : pilote marqué DNF (n'a pas volé). Supprimez la décision s'il a volé.": "{n} empty file: pilot marked DNF (did not fly). Delete the decision if they flew.",
+  "{n} fichiers vides : pilotes marqués DNF (n'ont pas volé). Supprimez la décision de ceux qui ont volé.": "{n} empty files: pilots marked DNF (did not fly). Delete the decision for those who flew.",
+  "Ces pilotes n'apparaissent pas dans les résultats publiés tant qu'une décision n'est pas prise (DNF, ABS, décollé sans trace…) ou que leur trace n'est pas remplacée.": "These pilots do not appear in the published results until a decision is made (DNF, ABS, launched without track…) or their track is replaced.",
+  "{n} traces en erreur ne figurent pas dans ces résultats : prenez une décision (DNF, ABS, décollé sans trace…) ou remplacez la trace.": "{n} tracks in error are not in these results: make a decision (DNF, ABS, launched without track…) or replace the track.",
+  "1 trace en erreur ne figure pas dans ces résultats : prenez une décision (DNF, ABS, décollé sans trace…) ou remplacez la trace.": "1 track in error is not in these results: make a decision (DNF, ABS, launched without track…) or replace the track.",
 };
 export default dict;

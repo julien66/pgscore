@@ -820,5 +820,12 @@ const dict: Record<string, string> = {
   "Sopot 2026, manche 3 : notre distance de manche fait 53,74 km, contre 53,70 km chez SVL, soit 0,8 point au plus par pilote. La méthode d'optimisation de la route de SVL n'est pas publiée.": "Sopot 2026, manga 3: nuestra distancia de manga es de 53,74 km, frente a 53,70 km en SVL, es decir, 0,8 puntos como máximo por piloto. El método de optimización de ruta de SVL no está publicado.",
   "Gemona 2026, manche 3, pilote 260 : un arc d'espace aérien mal fermé dans le fichier OpenAir est dessiné différemment, d'où 3,8 points de pénalité chez nous contre 1,8 chez SVL.": "Gemona 2026, manga 3, piloto 260: un arco de espacio aéreo mal cerrado en el archivo OpenAir se dibuja de otra forma, de ahí 3,8 puntos de penalización en pgscore frente a 1,8 en SVL.",
   "Vous connaissez une autre différence, ou la raison d'un de ces écarts ? Ouvrez une issue :": "¿Conoce otra diferencia, o el motivo de una de estas diferencias? Abra una issue:",
+  "Décisions de l'organisateur": "Decisiones del organizador",
+  "Trace vide à l'envoi : présent, n'a pas volé.": "Track vacío al subirlo: presente, no voló.",
+  "{n} fichier vide : pilote marqué DNF (n'a pas volé). Supprimez la décision s'il a volé.": "{n} archivo vacío: piloto marcado DNF (no voló). Elimine la decisión si voló.",
+  "{n} fichiers vides : pilotes marqués DNF (n'ont pas volé). Supprimez la décision de ceux qui ont volé.": "{n} archivos vacíos: pilotos marcados DNF (no volaron). Elimine la decisión de quienes volaron.",
+  "Ces pilotes n'apparaissent pas dans les résultats publiés tant qu'une décision n'est pas prise (DNF, ABS, décollé sans trace…) ou que leur trace n'est pas remplacée.": "Estos pilotos no aparecen en los resultados publicados hasta que se tome una decisión (DNF, ABS, despegó sin track…) o se sustituya su track.",
+  "{n} traces en erreur ne figurent pas dans ces résultats : prenez une décision (DNF, ABS, décollé sans trace…) ou remplacez la trace.": "{n} tracks con error no figuran en estos resultados: tome una decisión (DNF, ABS, despegó sin track…) o sustituya el track.",
+  "1 trace en erreur ne figure pas dans ces résultats : prenez une décision (DNF, ABS, décollé sans trace…) ou remplacez la trace.": "1 track con error no figura en estos resultados: tome una decisión (DNF, ABS, despegó sin track…) o sustituya el track.",
 };
 export default dict;
