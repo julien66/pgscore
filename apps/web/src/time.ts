@@ -55,3 +55,41 @@ export function duration(seconds: number | null | undefined): string {
 
 export const km = (m: number | null | undefined, digits = 2) =>
   m === null || m === undefined ? "" : (m / 1000).toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
+/** "UTC+02:00" : décalage d'un fuseau à l'instant donné. */
+export function offsetLabel(timeZone: string, at = Date.now()): string {
+  const off = offsetMinutes(at, timeZone);
+  const a = Math.abs(off);
+  return `UTC${off < 0 ? "−" : "+"}${String(Math.floor(a / 60)).padStart(2, "0")}:${String(a % 60).padStart(2, "0")}`;
+}
+
+export interface TimeZoneGroup {
+  region: string;
+  zones: { id: string; label: string }[];
+}
+
+/** Fuseaux IANA proposés au choix, groupés par région, plus UTC et les décalages fixes (imports FS). */
+export function timeZoneGroups(current?: string): TimeZoneGroup[] {
+  const at = Date.now();
+  const byRegion = new Map<string, { id: string; label: string }[]>();
+  for (const id of Intl.supportedValuesOf("timeZone")) {
+    const slash = id.indexOf("/");
+    if (slash < 0) continue;
+    const region = id.slice(0, slash);
+    const place = id.slice(slash + 1).replaceAll("_", " ").replaceAll("/", " / ");
+    if (!byRegion.has(region)) byRegion.set(region, []);
+    byRegion.get(region)!.push({ id, label: `${place} (${offsetLabel(id, at)})` });
+  }
+  const fixed = [{ id: "UTC", label: "UTC" }];
+  for (let h = -12; h <= 14; h++) {
+    if (h === 0) continue;
+    // Etc/GMT a le signe inversé : Etc/GMT-2 = UTC+2.
+    const id = `Etc/GMT${h > 0 ? "-" : "+"}${Math.abs(h)}`;
+    fixed.push({ id, label: `${offsetLabel(id, at)} (${id})` });
+  }
+  const groups = [...byRegion].map(([region, zones]) => ({ region, zones }));
+  groups.push({ region: "UTC", zones: fixed });
+  const known = groups.some((g) => g.zones.some((z) => z.id === current));
+  if (current && !known) groups.unshift({ region: current, zones: [{ id: current, label: current }] });
+  return groups;
+}
