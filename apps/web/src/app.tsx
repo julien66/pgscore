@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { getCookie, setCookie } from "hono/cookie";
 import { apiTokenUser, SESSION_COOKIE, sessionUser } from "./auth.js";
 import type { CompetitionRow, Db, TaskRow, User } from "./db.js";
@@ -14,8 +15,26 @@ import { competitionsRoutes } from "./routes/competitions.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import type { AppConfig, Ctx, Env } from "./routes/context.js";
 import { getCompetition, getTask } from "./repo.js";
+import { MAX_FORM, uploadLimit } from "./routes/util.js";
 
 export type { AppConfig };
+
+/** Fonds de carte (basemaps.js), chargés en images par Leaflet et par Cesium. */
+const TILES = "https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://*.tile.opentopomap.org https://server.arcgisonline.com";
+const csp = (script: string) => [
+  "default-src 'self'",
+  `script-src ${script}`,
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: blob: ${TILES}`,
+  `connect-src 'self' ${TILES}`,
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+const CSP = csp("'self'");
+/** Visionneuse : Cesium (vue 3D) compile du WebAssembly, génère du code à la volée et lance ses workers depuis des blob:. */
+const VIEWER_CSP = csp("'self' blob: 'wasm-unsafe-eval' 'unsafe-eval'");
 
 export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   const app = new Hono<Env>();
@@ -49,9 +68,29 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
     await next();
   });
 
+  // Taille des envois, vérifiée sur les octets reçus (y compris sans Content-Length, en envoi par morceaux).
+  // Les envois de traces et les imports, qui ont leur propre message d'erreur, gardent leur contrôle sur
+  // l'en-tête Content-Length.
+  app.use("*", async (c, next) => {
+    if (c.req.method !== "POST") return next();
+    const own = uploadLimit(c.req.path);
+    if (own && c.req.header("content-length") && !c.req.header("transfer-encoding")) return next();
+    const maxSize = own ?? MAX_FORM;
+    return bodyLimit({ maxSize, onError: (c) => c.text(t("Envoi trop gros ({n} Mo au plus).", { n: maxSize / 1024 / 1024 }), 413) })(c, next);
+  });
+
+  // En-têtes de sécurité : scripts et styles servis par l'appli seulement, fonds de carte autorisés en
+  // images, pas d'affichage dans un cadre d'un autre site.
+  app.use("*", async (c, next) => {
+    await next();
+    c.header("content-security-policy", /^\/tasks\/\d+\/pilots\//.test(c.req.path) ? VIEWER_CSP : CSP);
+    c.header("x-content-type-options", "nosniff");
+    c.header("referrer-policy", "strict-origin-when-cross-origin");
+  });
+
   // Scripts de l'interface, lus au démarrage.
   const scripts = Object.fromEntries(
-    ["viewer.js", "run.js", "taskmap.js", "basemaps.js", "competition.js", "comp-runs.js"].map((f) => [f, readFileSync(new URL(`./static/${f}`, import.meta.url), "utf8")]),
+    ["common.js", "viewer.js", "run.js", "taskmap.js", "basemaps.js", "competition.js", "comp-runs.js"].map((f) => [f, readFileSync(new URL(`./static/${f}`, import.meta.url), "utf8")]),
   );
   // Contrôle de santé pour l'hébergeur : le serveur répond et la base est lisible.
   app.get("/healthz", (c) => {

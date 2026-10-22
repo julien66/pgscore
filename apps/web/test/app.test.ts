@@ -390,7 +390,7 @@ describe("interface web", () => {
     await req("/auth/dev", { method: "POST", body: new URLSearchParams({ email: "admin@example.org" }) });
     const page = await (await req(`${compUrl}/edit`)).text();
     expect(page).toContain(`${compUrl}/delete`);
-    expect(page).toContain("return confirm(");
+    expect(page).toContain("data-confirm=");
     // Mauvais nom : rien n'est supprimé.
     const bad = await req(`${compUrl}/delete`, { method: "POST", body: new URLSearchParams({ confirm: "Coupe" }) });
     expect(bad.headers.get("location")).toContain("error=");

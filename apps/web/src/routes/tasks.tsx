@@ -20,10 +20,9 @@ import { NewTaskPage, TaskPage } from "../pages/task.js";
 import { ViewerPage } from "../pages/viewer.js";
 import type { TaskScoring } from "@pgscore/engine";
 import type { App, Ctx, Env } from "./context.js";
-import { one } from "./util.js";
+import { MAX_UPLOAD, one } from "./util.js";
 import { getTask, getTrack, latestDoneRun, latestRun, tracksOf } from "../repo.js";
 
-const MAX_UPLOAD = 200 * 1024 * 1024;
 
 /** Nom du pilote dans l'en-tête IGC (HFPLT). */
 const igcPilot = (text: string) => /^HF[A-Z]{0,3}PLT[^:]*:(.*)$/im.exec(text)?.[1]?.trim() || null;

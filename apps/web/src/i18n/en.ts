@@ -342,6 +342,7 @@ const dict: Record<string, string> = {
   "Nom du classement obligatoire.": "Ranking name required.",
   "Un calcul est déjà en cours pour cette manche.": "A calculation is already running for this task.",
   "Aucune trace : envoyez les fichiers IGC avant de lancer le calcul.": "No tracks: upload the IGC files before starting the calculation.",
+  "Envoi trop gros ({n} Mo au plus).": "Upload too large ({n} MB max).",
   "espace aérien {name}": "airspace {name}",
   "Le calcul s'est arrêté (code {code}).": "Scoring stopped (code {code}).",
   "PWCA 2026 (comme SVL)": "PWCA 2026 (like SVL)",

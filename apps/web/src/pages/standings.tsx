@@ -145,7 +145,7 @@ const DeleteRanking: FC<{ c: CompetitionRow; id: number; name: string; cls?: str
     method="post"
     action={`/competitions/${c.id}/rankings/${id}/delete`}
     class={cls}
-    onsubmit={`return confirm(${JSON.stringify(t("Supprimer le classement « {name} » ? Le classement général n'est pas touché.", { name: t(name) }))})`}
+    data-confirm={t("Supprimer le classement « {name} » ? Le classement général n'est pas touché.", { name: t(name) })}
   >
     <button class={big ? "danger" : "link"} title={t("Supprimer ce classement")}>
       <Bi n="trash" />

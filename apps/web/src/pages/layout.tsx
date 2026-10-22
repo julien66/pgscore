@@ -149,6 +149,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; user?: User | null; r
       <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <script src="/static/i18n.js" />
+      <script src="/static/common.js" defer />
     </head>
     <body>
       <header>

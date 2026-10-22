@@ -342,6 +342,7 @@ const dict: Record<string, string> = {
   "Nom du classement obligatoire.": "Nombre de la clasificación obligatorio.",
   "Un calcul est déjà en cours pour cette manche.": "Ya hay un cálculo en curso para esta manga.",
   "Aucune trace : envoyez les fichiers IGC avant de lancer le calcul.": "Ningún track: envíe los archivos IGC antes de lanzar el cálculo.",
+  "Envoi trop gros ({n} Mo au plus).": "Envío demasiado grande ({n} MB como máximo).",
   "espace aérien {name}": "espacio aéreo {name}",
   "Le calcul s'est arrêté (code {code}).": "El cálculo se detuvo (código {code}).",
   "PWCA 2026 (comme SVL)": "PWCA 2026 (como SVL)",

@@ -8,12 +8,12 @@ import { competitionFsdb, competitionFsdbZip, fsdbToArchive, looksLikeFsdb } fro
 import { civlToArchive } from "../civlcomps.js";
 import type { App, Ctx, Env } from "./context.js";
 import { queryAll } from "../repo.js";
+import { MAX_IMPORT } from "./util.js";
 
 /** API : liste, export et import de compétitions, import civlcomps, suppression. */
 export function apiRoutes(app: App, ctx: Ctx) {
   const { db, tracks, cfg, me, competition, isAdmin, canEdit, notFound } = ctx;
   // --- API : liste, export et import de compétitions ---------------------------------------------
-  const MAX_IMPORT = 1024 * 1024 * 1024;
   const slug = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "competition";
   const scoredAt = db.prepare(
     "SELECT MAX(r.finished_at) AS at FROM runs r JOIN tasks tk ON tk.id = r.task_id WHERE tk.competition_id = ? AND r.status = 'done'",
