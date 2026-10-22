@@ -343,6 +343,7 @@ const dict: Record<string, string> = {
   "Un calcul est déjà en cours pour cette manche.": "A calculation is already running for this task.",
   "Aucune trace : envoyez les fichiers IGC avant de lancer le calcul.": "No tracks: upload the IGC files before starting the calculation.",
   "espace aérien {name}": "airspace {name}",
+  "Le calcul s'est arrêté (code {code}).": "Scoring stopped (code {code}).",
   "PWCA 2026 (comme SVL)": "PWCA 2026 (like SVL)",
   "S7A 2026 : 0 à 100 % des points entre 0 et 100 m": "S7A 2026: 0 to 100% of points between 0 and 100 m",
   "PWCA « soft » : 1000 points à 100 m": "PWCA “soft”: 1000 points at 100 m",

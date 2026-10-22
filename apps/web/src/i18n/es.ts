@@ -343,6 +343,7 @@ const dict: Record<string, string> = {
   "Un calcul est déjà en cours pour cette manche.": "Ya hay un cálculo en curso para esta manga.",
   "Aucune trace : envoyez les fichiers IGC avant de lancer le calcul.": "Ningún track: envíe los archivos IGC antes de lanzar el cálculo.",
   "espace aérien {name}": "espacio aéreo {name}",
+  "Le calcul s'est arrêté (code {code}).": "El cálculo se detuvo (código {code}).",
   "PWCA 2026 (comme SVL)": "PWCA 2026 (como SVL)",
   "S7A 2026 : 0 à 100 % des points entre 0 et 100 m": "S7A 2026: del 0 al 100 % de los puntos entre 0 y 100 m",
   "PWCA « soft » : 1000 points à 100 m": "PWCA «soft»: 1000 puntos a 100 m",
