@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { competitionRanking, taskDistances, type CompetitionRanking, type Task, type TaskScoring } from "@pgscore/engine";
 import type { CompetitionRow, Db, TaskRow } from "./db.js";
 import { controlTask, parseSettings } from "./settings.js";
@@ -198,10 +199,38 @@ function womenKeys(db: Db, comp: CompetitionRow): Set<string> {
   return r ? rankingMembers(r, pilots) : new Set(pilots.filter((p) => p.gender?.toUpperCase() === "F").map((p) => p.pilot_key));
 }
 
-/** Vainqueurs du général et du classement féminin (ex aequo réunis), une fois la compétition terminée. */
+/**
+ * Tout ce dont dépendent les vainqueurs : réglages, manches, dernier calcul terminé de chacune, pilotes
+ * et classements. Bien moins cher à lire que le classement lui-même, qui relit tous les résultats.
+ */
+function winnersKey(db: Db, comp: CompetitionRow): string {
+  const tasks = tasksOf(db, comp.id).map((t) => [t.id, t.number, t.official, t.task, latestDoneRun(db, t.id)?.id ?? null]);
+  const rankings = listRankings(db, comp.id).map((r) => [r.row, [...r.overrides]]);
+  const data = JSON.stringify([comp.params, comp.start_date, comp.end_date, tasks, listPilots(db, comp.id), rankings]);
+  return createHash("sha256").update(data).digest("hex");
+}
+
+/** Vainqueurs déjà calculés, par base et par compétition, avec la clé des données dont ils viennent. */
+const winnersCache = new WeakMap<Db, Map<number, { key: string; winners: CompetitionWinners }>>();
+
+/**
+ * Vainqueurs du général et du classement féminin (ex aequo réunis), une fois la compétition terminée.
+ * Gardés en mémoire tant que rien de ce dont ils dépendent ne change (l'accueil les montre à chaque visite).
+ */
 export function competitionWinners(db: Db, comp: CompetitionRow, today = new Date().toISOString().slice(0, 10)): CompetitionWinners | null {
   const end = comp.end_date || comp.start_date;
   if (!end || end >= today) return null;
+  let cache = winnersCache.get(db);
+  if (!cache) winnersCache.set(db, (cache = new Map()));
+  const key = winnersKey(db, comp);
+  const hit = cache.get(comp.id);
+  if (hit?.key === key) return hit.winners;
+  const winners = computeWinners(db, comp);
+  cache.set(comp.id, { key, winners });
+  return winners;
+}
+
+function computeWinners(db: Db, comp: CompetitionRow): CompetitionWinners {
   const all = competitionStandings(db, comp);
   const first = (s: Standings) => {
     const p = s.ranking.pilots.filter((x) => x.rank === 1 && x.total > 0);

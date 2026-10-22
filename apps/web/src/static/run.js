@@ -15,6 +15,8 @@
       : T("{n} fichiers dont {z} archives, {size}", { n, z, size: s });
   for (const f of document.querySelectorAll("form.upload")) {
     const input = f.querySelector("input[type=file]");
+    // Formulaires sans fichier (rattacher une trace à un pilote) : envoi normal.
+    if (!input) continue;
     const status = document.createElement("div");
     status.className = "upl small";
     f.after(status);

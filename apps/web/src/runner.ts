@@ -5,7 +5,7 @@ import { listPilots } from "./pilots.js";
 import { controlTask, parseSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
 import { t } from "./i18n.js";
-import { getCompetition, getTask, queryAll } from "./repo.js";
+import { getCompetition, getTask, purgeRuns, queryAll } from "./repo.js";
 import type { ScoreJob, ScoreMessage } from "./score-worker.js";
 
 /**
@@ -148,4 +148,5 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
   } catch (e) {
     db.prepare("UPDATE runs SET status = 'error', error = ?, finished_at = ? WHERE id = ?").run((e as Error).message, Date.now(), runId);
   }
+  purgeRuns(db, taskId);
 }
