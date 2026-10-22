@@ -17,6 +17,8 @@ const STILL_DISTANCE = 30;
 const STILL_ALTITUDE = 5;
 
 const alt = (f: IgcFix) => f.gnssAltitude ?? f.pressureAltitude;
+/** Altitude pour la vitesse verticale de la marche : le baromètre, bien moins bruité que le GNSS au sol. */
+const baroAlt = (f: IgcFix) => f.pressureAltitude ?? f.gnssAltitude;
 
 /** Au sol, on marche : moins de 2,5 m/s de vitesse sol et moins de 0,5 m/s de vitesse verticale, sur 20 s. */
 const WALK_SECONDS = 20;
@@ -37,8 +39,8 @@ function walkBack(fixes: IgcFix[], still: number, takeoff: number): number {
     const a = fixes[j]!;
     const dt = (b.time - a.time) / 1000;
     if (j <= takeoff || dt < WALK_SECONDS / 2) return k;
-    const ha = alt(a);
-    const hb = alt(b);
+    const ha = baroAlt(a);
+    const hb = baroAlt(b);
     const vz = ha !== null && hb !== null ? Math.abs(hb - ha) / dt : 0;
     if (distance(a, b) / dt >= WALK_SPEED || vz >= WALK_VERTICAL) return k;
     k = j;
