@@ -714,6 +714,7 @@ const dict: Record<string, string> = {
   "{task} : pas de résultats publiés, manche ignorée.": "{task}: keine veröffentlichten Ergebnisse, Task übersprungen.",
   "{task} : lecture de la manche": "{task}: Task wird gelesen",
   "{task} : fuseau horaire introuvable, heures lues en UTC.": "{task}: Zeitzone nicht gefunden, Zeiten als UTC gelesen.",
+  "{task} : fuseau horaire absent de la page, déduit du décollage : {zone}.": "{task}: Zeitzone fehlt auf der Seite, aus dem Startplatz abgeleitet: {zone}.",
   "{task} : pilote {key} ignoré ({error}).": "{task}: Pilot {key} übersprungen ({error}).",
   "Pénalité reprise de civlcomps.org": "Von civlcomps.org übernommene Strafe",
   "Repris de civlcomps.org ({status})": "Von civlcomps.org übernommen ({status})",
