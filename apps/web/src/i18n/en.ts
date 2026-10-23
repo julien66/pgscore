@@ -714,6 +714,7 @@ const dict: Record<string, string> = {
   "{task} : pas de résultats publiés, manche ignorée.": "{task}: no published results, task skipped.",
   "{task} : lecture de la manche": "{task}: reading the task",
   "{task} : fuseau horaire introuvable, heures lues en UTC.": "{task}: time zone not found, times read as UTC.",
+  "{task} : fuseau horaire absent de la page, déduit du décollage : {zone}.": "{task}: time zone missing from the page, taken from the launch position: {zone}.",
   "{task} : pilote {key} ignoré ({error}).": "{task}: pilot {key} skipped ({error}).",
   "Pénalité reprise de civlcomps.org": "Penalty taken from civlcomps.org",
   "Repris de civlcomps.org ({status})": "Taken from civlcomps.org ({status})",

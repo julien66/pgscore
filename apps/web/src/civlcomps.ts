@@ -7,6 +7,8 @@ import { cleanPilot, splitBrand, type PilotFields } from "./pilots.js";
 import { DEFAULT_SETTINGS, FormError, type CompetitionSettings, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
 import { decodeEntities, decodeFsName } from "./text.js";
+import { offsetMinutes } from "./time.js";
+import tzLookup from "@photostructure/tz-lookup";
 
 /**
  * Import d'une compétition publiée sur civlcomps.org, à partir de l'adresse de sa page de résultats
@@ -323,6 +325,20 @@ function zoneFromOffset(min: number | null): string | null {
   return `Etc/GMT${h > 0 ? "-" : "+"}${Math.abs(h)}`;
 }
 
+/** Fuseau IANA d'une position et son décalage (minutes) à midi UTC le jour donné. */
+export function zoneAt(tp: { lat: number; lon: number } | undefined, date: string | null): { id: string; offset: number } | null {
+  if (!tp || !Number.isFinite(tp.lat) || !Number.isFinite(tp.lon) || (tp.lat === 0 && tp.lon === 0)) return null;
+  let id: string;
+  try {
+    id = tzLookup(tp.lat, tp.lon);
+  } catch {
+    return null;
+  }
+  const at = date ? Date.parse(`${date}T12:00:00Z`) : NaN;
+  if (!Number.isFinite(at)) return null;
+  return { id, offset: offsetMinutes(at, id) };
+}
+
 /** Manche du moteur à partir de la page FS. */
 export function taskFromPage(p: CivlTaskPage, type: "race" | "time-trial", offset: number, n: number): StoredTask {
   const tps = p.turnpoints;
@@ -407,7 +423,7 @@ export function fitToStats(turnpoints: TaskTurnpoint[], stats: Record<string, st
   });
 }
 
-export function settingsFromFormula(f: Record<string, string>, offset: number | null): CompetitionSettings {
+export function settingsFromFormula(f: Record<string, string>, offset: number | null, zone?: string): CompetitionSettings {
   const pwc = /^PWC/i.test(f.id ?? "");
   const n = (k: string, fallback: number) => (f[k] !== undefined && f[k] !== "" && Number.isFinite(Number(f[k])) ? Number(f[k]) : fallback);
   return {
@@ -418,7 +434,7 @@ export function settingsFromFormula(f: Record<string, string>, offset: number | 
     ftvFactor: n("ftv_factor", 0),
     gapProfile: pwc ? "PWCA" : "S7F2026",
     airspacePenaltyRule: pwc ? "pwca-soft" : "s7a",
-    timeZone: zoneFromOffset(offset) ?? DEFAULT_SETTINGS.timeZone,
+    timeZone: zone ?? zoneFromOffset(offset) ?? DEFAULT_SETTINGS.timeZone,
   };
 }
 
@@ -509,9 +525,13 @@ export async function civlToArchive(
     }
     progress(t("{task} : lecture de la manche", { task: link.label }));
     const page = parseTaskPage(dec.decode(await fetcher(overall.url)));
-    const offset = page.utcOffset ?? 0;
-    if (page.utcOffset === null) warnings.push(t("{task} : fuseau horaire introuvable, heures lues en UTC.", { task: link.label }));
-    settings ??= settingsFromFormula(page.formula, page.utcOffset);
+    // Les statistiques vides (FS ancien, manche sans pilote) ne donnent pas le décalage : on le déduit
+    // de la position du décollage, au jour de la manche.
+    const zone = page.utcOffset === null ? zoneAt(page.turnpoints[0], link.date) : null;
+    const offset = page.utcOffset ?? zone?.offset ?? 0;
+    if (zone) warnings.push(t("{task} : fuseau horaire absent de la page, déduit du décollage : {zone}.", { task: link.label, zone: zone.id }));
+    else if (page.utcOffset === null) warnings.push(t("{task} : fuseau horaire introuvable, heures lues en UTC.", { task: link.label }));
+    settings ??= settingsFromFormula(page.formula, page.utcOffset ?? zone?.offset ?? null, zone?.id);
     // civlcomps annonce parfois « Elapsed time » pour une course : si tous les pilotes partent à la même
     // heure, c'est une course à une porte.
     let type = link.type;

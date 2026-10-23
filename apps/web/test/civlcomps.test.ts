@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { civlResultsUrl, civlToArchive, eventDates, parseEventPage, parseTaskPage, pilotForTrack, startTimes, taskFromPage, type CivlTaskPage } from "../src/civlcomps.js";
+import { civlResultsUrl, civlToArchive, eventDates, parseEventPage, parseTaskPage, pilotForTrack, startTimes, taskFromPage, zoneAt, type CivlTaskPage } from "../src/civlcomps.js";
 
 const fx = (f: string) => readFileSync(new URL(`./fixtures/${f}`, import.meta.url), "utf8");
 
@@ -80,5 +80,19 @@ describe("import civlcomps.org", () => {
     expect(tk.decisions.find((d) => d.kind === "penalty")).toMatchObject({ pilot_key: "1", value: 1000 });
     expect(tk.tracks.map((x) => x.pilot_key)).toEqual(["37"]);
     expect(warnings.join(" ")).toMatch(/1 traces du ZIP/);
+  });
+
+  it("sans heures complètes dans les statistiques, déduit le fuseau du décollage (Siatista 2024)", async () => {
+    const event = fx("civlcomps-event.html");
+    // FS ancien : statistiques vides, aucun décalage lisible.
+    const task = fx("civlcomps-task.html").replace(/\+02:00/g, "");
+    expect(parseTaskPage(task).utcOffset).toBeNull();
+    const fetcher = async (url: string) => (url.includes("download-file") ? zipSync({}) : strToU8(url.endsWith("/results") ? event : task));
+    const { a, warnings } = await civlToArchive("https://civlcomps.org/event/french-open-trophees-des-cimes-2026/results", fetcher);
+    expect(a.competition.settings.timeZone).toBe("Europe/Paris");
+    expect(a.tasks[0]!.task.startGates).toEqual(["10:00:00"]);
+    expect(warnings.join(" ")).toMatch(/déduit du décollage : Europe\/Paris/);
+    expect(zoneAt({ lat: 40.31307, lon: 21.52995 }, "2024-08-18")).toEqual({ id: "Europe/Athens", offset: 180 });
+    expect(zoneAt({ lat: 40.31307, lon: 21.52995 }, null)).toBeNull();
   });
 });
