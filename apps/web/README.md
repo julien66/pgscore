@@ -98,6 +98,26 @@ liste du contrôle : balises validées, zone manquée avec la distance au bord d
 près (calculée sur l'ellipsoïde WGS84, comme le contrôle), infractions d'espace aérien. La colonne
 « Remarque » des résultats signale une zone manquée de moins de 500 m.
 
+## Service externe : retours des pilotes et incidents
+
+Un service externe (bot Telegram de la compétition) envoie des données sur les manches : satisfaction
+des pilotes, accidents et incidents. Il s'authentifie avec une clé d'envoi `pgsi_…`, créée dans
+l'onglet « Éditer » de la compétition (carte « Service externe ») et montrée une seule fois. Elle ne vaut
+que pour sa compétition et ne sert qu'à cet envoi : ni lecture, ni modification des résultats. La base
+n'en garde que l'empreinte.
+
+```sh
+curl -H "Authorization: Bearer pgsi_…" BASE_URL/api/ingest            # compétition et manches de la clé
+curl -H "Authorization: Bearer pgsi_…" -H "Content-Type: application/json" \
+     BASE_URL/api/ingest/tasks/3 -d '[{"type":"satisfaction","id":"tg-8812","score":4}]'
+```
+
+Le corps est un objet JSON, une liste d'objets ou `{"items": [...]}` (1 000 éléments, 1 Mo au plus).
+`type` et `id` sont facultatifs ; chaque élément est gardé tel quel (table `task_reports`), et un élément
+renvoyé avec le même `type` et le même `id` remplace le précédent. Pour l'instant, l'organisateur voit le
+JSON reçu dans l'onglet « Éditer » de la manche ; le traitement (moyenne de satisfaction, liste des
+incidents sur la page publique) viendra avec le format définitif du service.
+
 ## Limites et sécurité
 
 - Taille des envois, vérifiée sur les octets reçus : 200 Mo pour un envoi de traces, 1 Go pour l'import
@@ -117,6 +137,7 @@ près (calculée sur l'ellipsoïde WGS84, comme le contrôle), infractions d'esp
   routes, rangées par domaine dans `src/routes/` (`auth`, `home`, `api`, `competitions`, `tasks`).
 - `src/pages/` : pages en JSX (Hono), une par domaine, et `layout.tsx` (CSS, en-tête, icônes).
 - `src/repo.ts` : requêtes SQL reprises à plusieurs endroits ; `src/db.ts` : schéma et migrations.
+- `src/reports.ts` et `src/routes/ingest.tsx` : clés d'envoi et données reçues du service externe.
 - `src/runner.ts` et `src/score-worker.ts` : calcul d'une manche ; `src/standings.ts` : classements.
 - `src/text.ts` : CSV, entités XML/HTML ; `src/static/` : scripts du navigateur.
 - Le calcul lui-même est dans `packages/engine`.

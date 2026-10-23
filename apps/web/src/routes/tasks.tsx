@@ -22,6 +22,7 @@ import type { TaskScoring } from "@pgscore/engine";
 import type { App, Ctx, Env } from "./context.js";
 import { MAX_UPLOAD, one } from "./util.js";
 import { saveUpload } from "../upload.js";
+import { deleteReport, listReports } from "../reports.js";
 import { getTask, getTrack, latestDoneRun, latestRun, tracksOf } from "../repo.js";
 
 
@@ -115,6 +116,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
         tracks={tracks}
         history={trackHistory(db, t.id)}
         decisions={listDecisions(db, t.id)}
+        reports={canEdit(c, comp) ? listReports(db, t.id) : []}
         geometry={JSON.stringify(taskGeometry(controlTask(task, parseSettings(comp.params))))}
         run={run}
         done={
@@ -294,6 +296,13 @@ export function tasksRoutes(app: App, ctx: Ctx) {
     if (!x) return notFound(c);
     deleteDecision(db, x.t.id, Number(c.req.param("did")));
     return c.redirect(`/tasks/${x.t.id}/edit#decisions`);
+  });
+
+  app.post("/tasks/:id/reports/:rid/delete", (c) => {
+    const x = taskOf(c, c.req.param("id"));
+    if (!x) return notFound(c);
+    deleteReport(db, x.t.id, Number(c.req.param("rid")));
+    return c.redirect(`/tasks/${x.t.id}/edit#reports`);
   });
 
   app.post("/tasks/:id/tracks", async (c) => {

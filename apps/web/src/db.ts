@@ -213,6 +213,28 @@ export const MIGRATIONS: Migration[] = [
   `DELETE FROM runs
     WHERE id NOT IN (SELECT MAX(id) FROM runs GROUP BY task_id)
       AND id NOT IN (SELECT MAX(id) FROM runs WHERE status = 'done' GROUP BY task_id);`,
+  // Données d'un service externe sur les manches (satisfaction, incidents), envoyées avec une clé
+  // propre à la compétition (reports.ts). Chaque élément est gardé tel que reçu.
+  `CREATE TABLE ingest_keys (
+     id INTEGER PRIMARY KEY,
+     competition_id INTEGER NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+     name TEXT NOT NULL,
+     token_hash TEXT NOT NULL UNIQUE,
+     created_by INTEGER REFERENCES users(id),
+     created_at INTEGER NOT NULL,
+     last_used_at INTEGER
+   );
+   CREATE TABLE task_reports (
+     id INTEGER PRIMARY KEY,
+     task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+     type TEXT,
+     external_id TEXT,
+     payload TEXT NOT NULL,
+     key_id INTEGER REFERENCES ingest_keys(id) ON DELETE SET NULL,
+     received_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL
+   );
+   CREATE INDEX task_reports_task ON task_reports (task_id, type, external_id);`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {

@@ -145,6 +145,22 @@ export const ApiDocPage: FC<{ user: User | null; baseUrl: string }> = ({ user, b
           {t("Le même point d'import reconnaît le FSDB (fichier .fsdb seul, ou ZIP contenant le .fsdb et ses dossiers de traces). Sont reprises : la compétition, la formule, les pilotes, les catégories (en classements), les manches et les pénalités saisies. Les résultats calculés par FS ne sont pas repris : le calcul est relancé dans pgscore.")}
         </p>
 
+        <h2 id="ingest">{t("Service externe : retours des pilotes et incidents")}</h2>
+        <p class="small muted">
+          {t("Un service externe (bot Telegram de la compétition…) envoie des données sur une manche avec une clé d'envoi « pgsi_… », créée dans l'onglet « Éditer » de la compétition. Cette clé ne vaut que pour sa compétition et ne permet rien d'autre.")}
+        </p>
+        <pre class="code">{`curl -H "Authorization: Bearer pgsi_xxxxxxxx" ${baseUrl}/api/ingest   # ${t("compétition et manches de la clé")}
+
+curl -H "Authorization: Bearer pgsi_xxxxxxxx" -H "Content-Type: application/json" \\
+     ${baseUrl}/api/ingest/tasks/3 -d '[
+  { "type": "satisfaction", "id": "tg-8812", "pilot": "42", "score": 4, "comment": "Belle manche" },
+  { "type": "incident", "id": "inc-17", "severity": "accident", "pilot": "105",
+    "time": "2026-07-28T14:32:00Z", "lat": 46.27, "lon": 13.14, "description": "Atterrissage dans les arbres, pilote indemne" }
+]'`}</pre>
+        <p class="small muted">
+          {t("Le corps est un objet JSON, une liste d'objets ou { \"items\": [...] } (1 000 éléments et 1 Mo au plus). « type » et « id » sont facultatifs ; le reste de l'objet est gardé tel quel. Un élément renvoyé avec le même type et le même id remplace le précédent. Réponses : 201 avec, pour chaque élément, created ou updated ; 401 clé absente ou inconnue ; 404 manche introuvable ; 400 JSON illisible ; 413 envoi trop gros.")}
+        </p>
+
         <h2>{t("Autres actions")}</h2>
         <p class="small muted">
           {t("Avec la clé, un programme peut aussi utiliser les formulaires du site (envoi de traces, calcul, officialisation…) sur les compétitions qu'il a le droit de modifier.")}
