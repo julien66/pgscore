@@ -17,6 +17,18 @@ export interface CompetitionFormValues {
   settings: CompetitionSettings;
 }
 
+/** Un paramètre sur sa ligne : libellé et phrase d'explication à gauche, champ à droite. */
+const Param: FC<{ id: string; label: string; help: string; children: unknown }> = ({ id, label, help, children }) => (
+  <div class="param">
+    <div>
+      <label for={id}>{label}</label>
+      <p class="small muted">{help}</p>
+    </div>
+    {children}
+  </div>
+);
+
+/** Réglages de la compétition : généraux (avec le fuseau), formule de scoring, paramètres GAP. */
 export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
   const s = v.settings;
   return (
@@ -38,45 +50,6 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
           <label>{t("Fin")}</label>
           <input type="date" name="end_date" value={v.end_date} />
         </div>
-      </div>
-      <h2 class="mt"><Ic n="sliders" c="gray" />{t("Paramètres de la formule (S7F, chapitre 5)")}</h2>
-      <div class="grid">
-        <div>
-          <label>{t("Distance nominale (km)")}</label>
-          <input type="number" step="0.1" min="0" name="nominalDistance" value={String(s.nominalDistance / 1000)} />
-        </div>
-        <div>
-          <label>{t("Distance minimale (km)")}</label>
-          <input type="number" step="0.1" min="0" name="minimumDistance" value={String(s.minimumDistance / 1000)} />
-        </div>
-        <div>
-          <label>{t("Temps nominal (min)")}</label>
-          <input type="number" step="1" min="1" name="nominalTime" value={String(s.nominalTime / 60)} />
-        </div>
-        <div>
-          <label>{t("Facteur FTV (%)")}</label>
-          <input type="number" step="1" min="0" max="100" name="ftvFactor" value={String(Math.round(s.ftvFactor * 100))} />
-        </div>
-        <div>
-          <label>{t("Formule de points")}</label>
-          <select name="gapProfile">
-            {Object.entries(GAP_PROFILES).map(([k, l]) => (
-              <option value={k} selected={s.gapProfile === k}>
-                {t(l)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label>{t("Pénalité d'espace aérien")}</label>
-          <select name="airspacePenaltyRule">
-            {Object.entries(PENALTY_RULES).map(([k, l]) => (
-              <option value={k} selected={s.airspacePenaltyRule === k}>
-                {t(l)}
-              </option>
-            ))}
-          </select>
-        </div>
         <div>
           <label>{t("Fuseau horaire du site")}</label>
           <select name="timeZone">
@@ -91,15 +64,76 @@ export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
             ))}
           </select>
         </div>
-        <div style="align-self:end">
-          <label class="check">
-            <input type="checkbox" name="roundAirspaceLimits" checked={s.roundAirspaceLimits} /> {t("Arrondir au mètre les limites en pieds (SVL)")}
-          </label>
-        </div>
+      </div>
+      <h2 class="mt"><Ic n="trophy" c="gray" />{t("Formule de scoring")}</h2>
+      <div class="params">
+        <Param
+          id="gapProfile"
+          label={t("Formule de points")}
+          help={t("CIVL : GAP 2026 du S7F, comme FS. PWCA : variante de la PWCA, comme SVL ; les limites d'espace aérien données en pieds sont alors arrondies au mètre.")}
+        >
+          <select name="gapProfile" id="gapProfile">
+            {Object.entries(GAP_PROFILES).map(([k, l]) => (
+              <option value={k} selected={s.gapProfile === k}>
+                {t(l)}
+              </option>
+            ))}
+          </select>
+        </Param>
+      </div>
+      <h2 class="mt">
+        <Ic n="calc" c="gray" />
+        {t("Paramètres GAP")}
+        <span class="muted small">{t("S7F, chapitre 5")}</span>
+      </h2>
+      <div class="params">
+        <Param
+          id="nominalDistance"
+          label={t("Distance nominale (km)")}
+          help={t("Distance que les pilotes devraient parcourir en moyenne sur une manche normale : si elle n'est pas atteinte, la manche vaut moins de 1000 points.")}
+        >
+          <input type="number" step="0.1" min="0" name="nominalDistance" id="nominalDistance" value={String(s.nominalDistance / 1000)} />
+        </Param>
+        <Param
+          id="nominalTime"
+          label={t("Temps nominal (min)")}
+          help={t("Temps attendu du pilote le plus rapide jusqu'au goal : une manche gagnée plus vite vaut moins de 1000 points.")}
+        >
+          <input type="number" step="1" min="1" name="nominalTime" id="nominalTime" value={String(s.nominalTime / 60)} />
+        </Param>
+        <Param
+          id="minimumDistance"
+          label={t("Distance minimale (km)")}
+          help={t("Distance créditée à tout pilote qui a décollé, même s'il s'est posé avant.")}
+        >
+          <input type="number" step="0.1" min="0" name="minimumDistance" id="minimumDistance" value={String(s.minimumDistance / 1000)} />
+        </Param>
+        <Param
+          id="ftvFactor"
+          label={t("Facteur FTV (%)")}
+          help={t("Part des points que chaque pilote peut écarter au classement général (Fixed Total Validity) : 0 % pour garder toutes les manches.")}
+        >
+          <input type="number" step="1" min="0" max="100" name="ftvFactor" id="ftvFactor" value={String(Math.round(s.ftvFactor * 100))} />
+        </Param>
       </div>
     </>
   );
 };
+
+/** Barème de pénalité d'espace aérien, dans la rubrique espace aérien. */
+const PenaltyField: FC<{ rule: CompetitionSettings["airspacePenaltyRule"] }> = ({ rule }) => (
+  <div class="params">
+    <Param id="airspacePenaltyRule" label={t("Pénalité d'espace aérien")} help={t("Points retirés au pilote selon la profondeur de son entrée dans une zone.")}>
+      <select name="airspacePenaltyRule" id="airspacePenaltyRule">
+        {Object.entries(PENALTY_RULES).map(([k, l]) => (
+          <option value={k} selected={rule === k}>
+            {t(l)}
+          </option>
+        ))}
+      </select>
+    </Param>
+  </div>
+);
 
 export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValues; error?: string | null; civl?: boolean }> = ({ user, v, error, civl }) => (
   <Layout title={t("Nouvelle compétition")} user={user}>
@@ -154,6 +188,9 @@ export const NewCompetitionPage: FC<{ user: User | null; v: CompetitionFormValue
       <h2 class="mt"><Ic n="shield" c="red" />{t("Espace aérien")}</h2>
       <label>{t("Fichier OpenAir (facultatif, modifiable ensuite)")}</label>
       <input type="file" name="airspace" accept=".txt,.air,.openair" />
+      <div class="mt" data-if-file="airspace" hidden>
+        <PenaltyField rule={v.settings.airspacePenaltyRule} />
+      </div>
       <p class="mt">
         <button class="primary">
           <Bi n="plus" />
@@ -417,7 +454,6 @@ const CompetitionEdit: FC<{ c: CompetitionRow; v: CompetitionFormValues; pilots:
           </span>
         </h2>
       </summary>
-      {c.airspace_name ? null : <p class="muted">{t("Aucun fichier : les traces ne sont pas contrôlées pour l'espace aérien.")}</p>}
       <form method="post" action={`/competitions/${c.id}/airspace`} enctype="multipart/form-data" class="row">
         <input type="file" name="airspace" accept=".txt,.air,.openair" required />
         <button>
@@ -425,6 +461,19 @@ const CompetitionEdit: FC<{ c: CompetitionRow; v: CompetitionFormValues; pilots:
           {c.airspace_name ? t("Remplacer") : t("Envoyer")}
         </button>
       </form>
+      {c.airspace_name ? (
+        <form method="post" action={`/competitions/${c.id}/airspace/penalty`} class="mt">
+          <PenaltyField rule={v.settings.airspacePenaltyRule} />
+          <p class="mt">
+            <button class="primary">
+              <Bi n="save" />
+              {t("Enregistrer")}
+            </button>
+          </p>
+        </form>
+      ) : (
+        <p class="muted">{t("Aucun fichier : les traces ne sont pas contrôlées pour l'espace aérien.")}</p>
+      )}
       <p class="small muted">
         {t("Limites lues en AMSL ; niveaux de vol convertis à 1013,25 hPa puis abaissés de 100 m. Les limites AGL sont ignorées.")}
       </p>

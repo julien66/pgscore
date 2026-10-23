@@ -12,7 +12,7 @@ import {
   type LatLon,
   type Task,
 } from "@pgscore/engine";
-import { controlTask, type CompetitionSettings } from "./settings.js";
+import { controlTask, roundsAirspaceLimits, type CompetitionSettings } from "./settings.js";
 import { t } from "./i18n.js";
 
 /**
@@ -145,7 +145,7 @@ export function viewerData(
     };
   })();
   const all = airspaceText ? parseOpenAir(airspaceText) : [];
-  const round = (x: number | null) => (x !== null && settings.roundAirspaceLimits && Number.isFinite(x) ? Math.round(x) : x);
+  const round = (x: number | null) => (x !== null && roundsAirspaceLimits(settings) && Number.isFinite(x) ? Math.round(x) : x);
   const airspaces: ViewerData["airspaces"] = [];
   for (const a of all) {
     const lo = round(limitAmsl(a.lower));
@@ -172,7 +172,7 @@ export function viewerData(
     }
     const flightStart = c.inFlight.length ? fixes.indexOf(c.inFlight[0]!) : 0;
     const flightEnd = c.inFlight.length ? fixes.indexOf(c.inFlight.at(-1)!) : fixes.length - 1;
-    const inf = airspaceInfringements(all, c.inFlight, { roundLimitsToMetre: settings.roundAirspaceLimits });
+    const inf = airspaceInfringements(all, c.inFlight, { roundLimitsToMetre: roundsAirspaceLimits(settings) });
     return {
       ...meta,
       stopTime: c.stopped?.taskStopTime ?? null,

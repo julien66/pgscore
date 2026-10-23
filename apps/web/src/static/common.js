@@ -11,3 +11,18 @@
     if (b && !confirm(b.dataset.confirm)) ev.preventDefault();
   }, true);
 })();
+
+// Bloc affiché seulement quand un fichier est choisi dans le champ nommé (data-if-file="airspace").
+(function () {
+  "use strict";
+  const sync = () => {
+    for (const el of document.querySelectorAll("[data-if-file]")) {
+      const form = el.closest("form");
+      const input = form && form.querySelector(`input[type=file][name="${el.getAttribute("data-if-file")}"]`);
+      if (input instanceof HTMLInputElement) /** @type {HTMLElement} */ (el).hidden = !(input.files && input.files.length);
+    }
+  };
+  document.addEventListener("change", sync);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", sync);
+  else sync();
+})();

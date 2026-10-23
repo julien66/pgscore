@@ -2,7 +2,7 @@ import { Worker } from "node:worker_threads";
 import type { CompetitionRow, Db, RunDetail, RunStep, TaskRow } from "./db.js";
 import { engineDecisions, listDecisions } from "./decisions.js";
 import { listPilots } from "./pilots.js";
-import { controlTask, parseSettings, type StoredTask } from "./settings.js";
+import { controlTask, parseSettings, roundsAirspaceLimits, type StoredTask } from "./settings.js";
 import type { TrackStore } from "./track-store.js";
 import { t } from "./i18n.js";
 import { getCompetition, getTask, purgeRuns, queryAll } from "./repo.js";
@@ -99,7 +99,7 @@ async function execute(db: Db, tracks: TrackStore, taskId: number, runId: number
       options: {
         params: s,
         airspacePenaltyRule: s.airspacePenaltyRule,
-        roundAirspaceLimits: s.roundAirspaceLimits,
+        roundAirspaceLimits: roundsAirspaceLimits(s),
         gapProfile: s.gapProfile,
         ...(task.leadingTimeRatio !== undefined ? { leadingTimeRatio: task.leadingTimeRatio } : {}),
         ...(task.pilotsPresent !== undefined ? { pilotsPresent: task.pilotsPresent } : {}),

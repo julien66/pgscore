@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { openDb } from "../src/db.js";
 import { TrackStore } from "../src/track-store.js";
+import { roundsAirspaceLimits } from "../src/settings.js";
 
 const engineFixtures = new URL("../../../packages/engine/test/fixtures/", import.meta.url);
 const QR = readFileSync(new URL("pwca-gemona-2026-t3.qr.txt", engineFixtures), "utf8").trim();
@@ -36,7 +37,6 @@ const competitionFields = {
   ftvFactor: "0",
   airspacePenaltyRule: "pwca-soft",
   timeZone: "Europe/Rome",
-  roundAirspaceLimits: "on",
 };
 
 async function createCompetitionAndTask(req: ReturnType<typeof setup>["req"]) {
@@ -86,6 +86,30 @@ describe("interface web", () => {
     expect(geo.legs).toHaveLength(geo.route.length - 1);
     expect(geo.zones.length).toBe(geo.route.length);
     expect((await (await req(`${taskUrl}/run.json`)).json()).status).toBe("none");
+  });
+
+  it("règle la pénalité d'espace aérien dans sa rubrique, et l'arrondi des limites suit la formule", async () => {
+    const { db, req } = setup();
+    const { compUrl } = await createCompetitionAndTask(req);
+    const params = () => JSON.parse((db.prepare("SELECT params FROM competitions").get() as { params: string }).params);
+    const edit = await (await req(`${compUrl}/edit`)).text();
+    // Formule de scoring en premier, avant les paramètres GAP ; pénalité dans la rubrique espace aérien.
+    expect(edit.indexOf('name="gapProfile"')).toBeLessThan(edit.indexOf('name="nominalDistance"'));
+    expect(edit.indexOf('name="airspacePenaltyRule"')).toBeGreaterThan(edit.indexOf('id="airspace"'));
+    expect(edit).toContain(`action="${compUrl}/airspace/penalty"`);
+    expect(edit).not.toContain("roundAirspaceLimits");
+    // Le formulaire de la compétition, sans pénalité, garde celle d'avant.
+    const { airspacePenaltyRule: _p, ...rest } = competitionFields;
+    const r = await req(compUrl, { method: "POST", body: new URLSearchParams({ ...rest, gapProfile: "PWCA" }) });
+    expect(r.status).toBe(302);
+    expect(params().airspacePenaltyRule).toBe("pwca-soft");
+    expect(params().gapProfile).toBe("PWCA");
+    expect(roundsAirspaceLimits(params())).toBe(true);
+    expect(roundsAirspaceLimits({ gapProfile: "S7F2026" })).toBe(false);
+    const rp = await req(`${compUrl}/airspace/penalty`, { method: "POST", body: new URLSearchParams({ airspacePenaltyRule: "pwca-hard" }) });
+    expect(rp.status).toBe(302);
+    expect(params().airspacePenaltyRule).toBe("pwca-hard");
+    expect(params().nominalDistance).toBe(60000);
   });
 
   it("enregistre l'heure d'arrêt saisie en heure locale", async () => {
