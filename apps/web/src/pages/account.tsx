@@ -168,7 +168,7 @@ curl -H "Authorization: Bearer pgsi_xxxxxxxx" -H "Content-Type: application/json
     "severity": "accident", "description": "Atterrissage dans les arbres, pilote indemne" }
 ]'`}</pre>
         <p class="small muted">
-          {t("Le corps est un objet JSON, une liste d'objets ou { \"items\": [...] } (1 000 éléments et 1 Mo au plus). Champs lus : « event » (nom de l'événement), « date » (jour ou horodatage ISO), « type » et « id » ; le reste de l'objet est gardé tel quel. Un élément renvoyé avec le même type et le même id remplace le précédent. Réponse 201 avec, pour chaque élément, created ou updated et la compétition et la manche trouvées (null sinon : l'élément attend et sera rattaché plus tard). Erreurs : 401 clé absente ou inconnue ; 400 JSON illisible ; 413 envoi trop gros.")}
+          {t("Le corps est un objet JSON, une liste d'objets ou { \"items\": [...] } (10 000 éléments et 5 Mo au plus). Champs lus : « event » (nom de l'événement), « date » (jour ou horodatage ISO), « type » et « id » ; le reste de l'objet est gardé tel quel. Un élément renvoyé avec le même type et le même id remplace le précédent. Réponse 201 avec, pour chaque élément, created ou updated et la compétition et la manche trouvées (null sinon : l'élément attend et sera rattaché plus tard). Chaque appel est aussi gardé brut : un corps illisible ou d'une autre forme est accepté (202) et reste visible par les administrateurs. Clé dans Authorization: Bearer ou dans X-Api-Key. Erreurs : 401 clé absente ou inconnue ; 413 envoi trop gros.")}
         </p>
 
         <h2>{t("Autres actions")}</h2>

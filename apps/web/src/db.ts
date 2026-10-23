@@ -239,7 +239,18 @@ export const MIGRATIONS: Migration[] = [
      updated_at INTEGER NOT NULL
    );
    CREATE INDEX task_reports_task ON task_reports (task_id);
-   CREATE INDEX task_reports_external ON task_reports (type, external_id);`,
+   CREATE INDEX task_reports_external ON task_reports (type, external_id);
+   CREATE TABLE ingest_requests (
+     id INTEGER PRIMARY KEY,
+     key_id INTEGER REFERENCES ingest_keys(id) ON DELETE SET NULL,
+     received_at INTEGER NOT NULL,
+     path TEXT NOT NULL,
+     content_type TEXT,
+     size INTEGER NOT NULL,
+     body TEXT NOT NULL,
+     status INTEGER,
+     outcome TEXT
+   );`,
 ];
 
 export function openDb(path: string, tracks: TrackStore): Db {

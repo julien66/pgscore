@@ -13,12 +13,17 @@ import { queryAll, queryOne } from "./repo.js";
  * sert qu'à cet envoi. Chaque élément est gardé tel quel, en JSON : renvoyer un même type et un même
  * identifiant remplace l'élément. Un élément qu'on ne sait pas rattacher reste en attente : il est
  * rattaché de nouveau à la création d'une manche, ou à la main par un administrateur.
+ *
+ * Chaque appel authentifié est aussi gardé brut (corps tel que reçu), qu'on sache le lire ou non :
+ * le format du service n'est pas encore fixé, et ses premiers envois servent à l'établir.
  */
 
 /** Taille d'un envoi. */
-export const MAX_INGEST = 1024 * 1024;
+export const MAX_INGEST = 5 * 1024 * 1024;
 /** Éléments par envoi. */
-export const MAX_INGEST_ITEMS = 1000;
+export const MAX_INGEST_ITEMS = 10_000;
+/** Appels bruts gardés (les plus récents). */
+export const KEPT_REQUESTS = 200;
 const MAX_LABEL = 200;
 
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -278,4 +283,48 @@ export function pendingReports(db: Db, limit = 200): Array<ReportRow & { competi
 export function deleteReport(db: Db, id: number, taskId?: number): void {
   if (taskId === undefined) db.prepare("DELETE FROM task_reports WHERE id = ?").run(id);
   else db.prepare("DELETE FROM task_reports WHERE id = ? AND task_id = ?").run(id, taskId);
+}
+
+// --- Appels bruts ---------------------------------------------------------------------------------
+
+export interface IngestRequestRow {
+  id: number;
+  key_id: number | null;
+  key_name?: string | null;
+  received_at: number;
+  path: string;
+  content_type: string | null;
+  size: number;
+  body: string;
+  /** Code HTTP rendu, et ce qu'on a fait du corps. */
+  status: number | null;
+  outcome: string | null;
+}
+
+/** Garde un appel tel que reçu ; seuls les {KEPT_REQUESTS} derniers restent. */
+export function logRequest(db: Db, keyId: number, path: string, contentType: string | null, body: string): number {
+  const r = db
+    .prepare("INSERT INTO ingest_requests (key_id, received_at, path, content_type, size, body) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(keyId, Date.now(), path, contentType, Buffer.byteLength(body), body);
+  const id = Number(r.lastInsertRowid);
+  db.prepare("DELETE FROM ingest_requests WHERE id <= ?").run(id - KEPT_REQUESTS);
+  return id;
+}
+
+export function setRequestOutcome(db: Db, id: number, status: number, outcome: string): void {
+  db.prepare("UPDATE ingest_requests SET status = ?, outcome = ? WHERE id = ?").run(status, outcome, id);
+}
+
+/** Derniers appels, sans leur corps. */
+export function listRequests(db: Db, limit = 50): Array<Omit<IngestRequestRow, "body">> {
+  return queryAll<Omit<IngestRequestRow, "body">>(
+    db,
+    `SELECT r.id, r.key_id, k.name AS key_name, r.received_at, r.path, r.content_type, r.size, r.status, r.outcome
+       FROM ingest_requests r LEFT JOIN ingest_keys k ON k.id = r.key_id ORDER BY r.id DESC LIMIT ?`,
+    limit,
+  );
+}
+
+export function getRequest(db: Db, id: number): IngestRequestRow | undefined {
+  return queryOne<IngestRequestRow>(db, "SELECT * FROM ingest_requests WHERE id = ?", id);
 }

@@ -1,7 +1,7 @@
 import type { FC } from "hono/jsx";
 import type { User } from "../db.js";
 import { locale, t } from "../i18n.js";
-import type { IngestKeyRow, ReportRow } from "../reports.js";
+import type { IngestKeyRow, IngestRequestRow, ReportRow } from "../reports.js";
 import { Bi, ErrorBox, Ic, Layout } from "./layout.js";
 
 const when = (ms: number) => new Date(ms).toLocaleString(locale());
@@ -21,10 +21,11 @@ export const IngestAdminPage: FC<{
   keys: IngestKeyRow[];
   pending: Array<ReportRow & { competition_name: string | null }>;
   competitions: Array<{ id: number; name: string; start_date: string | null }>;
+  requests: Array<Omit<IngestRequestRow, "body">>;
   token: string | null;
   error: string | null;
   notice: string | null;
-}> = ({ user, baseUrl, keys, pending, competitions, token, error, notice }) => (
+}> = ({ user, baseUrl, keys, pending, competitions, requests, token, error, notice }) => (
   <Layout title={t("Service externe")} user={user}>
     <div class="crumbs">
       <a href="/">{t("Compétitions")}</a> › <a href="/account">{t("Mon compte")}</a>
@@ -81,6 +82,51 @@ export const IngestAdminPage: FC<{
           {t("Créer une clé")}
         </button>
       </form>
+    </div>
+
+    <div class="card" id="requests">
+      <h2><Ic n="download" c="blue" />{t("Derniers appels reçus ({n})", { n: requests.length })}</h2>
+      <p class="small muted">
+        {t("Chaque appel authentifié est gardé tel que reçu, même si son contenu n'a pas pu être lu : de quoi voir le format réel du service. Les 200 derniers sont gardés.")}
+      </p>
+      {requests.length ? (
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("Reçu")}</th>
+                <th>{t("Clé")}</th>
+                <th>{t("Adresse")}</th>
+                <th>{t("Taille")}</th>
+                <th>{t("Résultat")}</th>
+                <th>{t("Contenu")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((r) => (
+                <tr>
+                  <td class="small muted">{when(r.received_at)}</td>
+                  <td class="small">{r.key_name ?? "–"}</td>
+                  <td class="small">
+                    <code>{r.path}</code>
+                    {r.content_type ? <div class="muted">{r.content_type}</div> : null}
+                  </td>
+                  <td class="n small">{t("{n} octets", { n: r.size })}</td>
+                  <td class="small">
+                    {r.status ?? "–"} {r.outcome ?? ""}
+                  </td>
+                  <td class="small">
+                    <a href={`/admin/ingest/requests/${r.id}`} target="_blank" rel="noopener">{t("voir")}</a> ·{" "}
+                    <a href={`/admin/ingest/requests/${r.id}?download=1`}>{t("télécharger")}</a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p class="muted">{t("Aucun appel reçu pour l'instant.")}</p>
+      )}
     </div>
 
     <div class="card" id="pending">

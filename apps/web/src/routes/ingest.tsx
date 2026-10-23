@@ -8,14 +8,18 @@ import {
   createIngestKey,
   deleteIngestKey,
   deleteReport,
+  getRequest,
   ingestKey,
   IngestError,
   listIngestKeys,
+  listRequests,
+  logRequest,
   MAX_INGEST,
   pendingReports,
   readItems,
   rematchPending,
   saveReports,
+  setRequestOutcome,
 } from "../reports.js";
 import { IngestAdminPage } from "../pages/ingest.js";
 import type { App, Ctx, Env } from "./context.js";
@@ -30,9 +34,10 @@ export const isIngestPath = (path: string) => path === "/api/ingest" || path.sta
 export function ingestRoutes(app: App, ctx: Ctx) {
   const { db, cfg, me, isAdmin, notFound } = ctx;
 
+  /** Clé dans « Authorization: Bearer pgsi_… », ou dans l'en-tête « X-Api-Key ». */
   const auth = (c: Context<Env>) => {
-    const bearer = /^Bearer\s+(\S+)$/i.exec(c.req.header("authorization") ?? "")?.[1];
-    return bearer ? ingestKey(db, bearer) : null;
+    const k = /^Bearer\s+(\S+)$/i.exec(c.req.header("authorization") ?? "")?.[1] ?? c.req.header("x-api-key")?.trim();
+    return k ? ingestKey(db, k) : null;
   };
   const denied = (c: Context<Env>) => {
     c.header("www-authenticate", 'Bearer realm="pgscore"');
@@ -56,41 +61,59 @@ export function ingestRoutes(app: App, ctx: Ctx) {
     });
   });
 
-  app.post(
-    "/api/ingest",
-    bodyLimit({ maxSize: MAX_INGEST, onError: (c) => c.json({ error: t("Envoi trop gros ({n} Mo au plus).", { n: MAX_INGEST / 1024 / 1024 }) }, 413) }),
-    async (c) => {
-      const key = auth(c);
-      if (!key) return denied(c);
-      let body: unknown;
-      try {
-        body = JSON.parse(await c.req.text());
-      } catch {
-        return c.json({ error: t("JSON illisible.") }, 400);
-      }
-      try {
-        const items = saveReports(db, key.id, readItems(body));
-        const numbers = new Map(queryAll<{ id: number; number: number }>(db, "SELECT id, number FROM tasks").map((x) => [x.id, x.number]));
-        return c.json(
-          {
-            received: items.length,
-            items: items.map((x) => ({
-              id: x.id,
-              type: x.type,
-              external_id: x.external_id,
-              status: x.status,
-              competition: x.competition_id,
-              task: x.task_id === null ? null : (numbers.get(x.task_id) ?? null),
-            })),
-          },
-          201,
-        );
-      } catch (e) {
-        if (e instanceof IngestError) return c.json({ error: e.message }, 400);
-        throw e;
-      }
-    },
-  );
+  /**
+   * Envoi. Le corps est d'abord gardé brut, quel que soit son format ; puis on en tire les éléments. Un
+   * corps qu'on ne sait pas lire (pas du JSON, forme inattendue) est accepté quand même (202) : il
+   * reste dans les appels bruts, visibles sur /admin/ingest. Toute adresse sous /api/ingest est acceptée.
+   */
+  const receive = async (c: Context<Env>) => {
+    const key = auth(c);
+    if (!key) return denied(c);
+    const u = new URL(c.req.url);
+    const text = await c.req.text();
+    const rid = logRequest(db, key.id, u.pathname + u.search, c.req.header("content-type") ?? null, text);
+    const unread = (error: string) => {
+      setRequestOutcome(db, rid, 202, error);
+      return c.json({ stored: true, processed: false, request: rid, error }, 202);
+    };
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return unread(t("JSON illisible."));
+    }
+    try {
+      const items = saveReports(db, key.id, readItems(body));
+      const numbers = new Map(queryAll<{ id: number; number: number }>(db, "SELECT id, number FROM tasks").map((x) => [x.id, x.number]));
+      const found = items.filter((x) => x.task_id !== null).length;
+      setRequestOutcome(db, rid, 201, t("{n} éléments, {found} rattachés à une manche.", { n: items.length, found }));
+      return c.json(
+        {
+          stored: true,
+          processed: true,
+          request: rid,
+          received: items.length,
+          items: items.map((x) => ({
+            id: x.id,
+            type: x.type,
+            external_id: x.external_id,
+            status: x.status,
+            competition: x.competition_id,
+            task: x.task_id === null ? null : (numbers.get(x.task_id) ?? null),
+          })),
+        },
+        201,
+      );
+    } catch (e) {
+      if (e instanceof IngestError) return unread(e.message);
+      throw e;
+    }
+  };
+  const limit = bodyLimit({ maxSize: MAX_INGEST, onError: (c) => c.json({ error: t("Envoi trop gros ({n} Mo au plus).", { n: MAX_INGEST / 1024 / 1024 }) }, 413) });
+  app.post("/api/ingest", limit, receive);
+  app.post("/api/ingest/*", limit, receive);
+  app.put("/api/ingest", limit, receive);
+  app.put("/api/ingest/*", limit, receive);
 
   // --- Administration : clés du service et éléments sans manche -------------------------------------
   const page = (c: Context<Env>, extra: { token?: string; error?: string; notice?: string } = {}) =>
@@ -100,6 +123,7 @@ export function ingestRoutes(app: App, ctx: Ctx) {
         baseUrl={cfg.baseUrl}
         keys={listIngestKeys(db)}
         pending={pendingReports(db)}
+        requests={listRequests(db)}
         competitions={queryAll<{ id: number; name: string; start_date: string | null }>(db, "SELECT id, name, start_date FROM competitions ORDER BY COALESCE(start_date, '') DESC, id DESC")}
         token={extra.token ?? null}
         error={extra.error ?? null}
@@ -134,6 +158,16 @@ export function ingestRoutes(app: App, ctx: Ctx) {
       throw e;
     }
     return c.redirect("/admin/ingest");
+  });
+  // Corps d'un appel, tel que reçu.
+  app.get("/admin/ingest/requests/:qid", (c) => {
+    const r = getRequest(db, Number(c.req.param("qid")));
+    if (!r) return notFound(c);
+    const json = /json/i.test(r.content_type ?? "") || /^\s*[[{]/.test(r.body);
+    return c.body(r.body, 200, {
+      "content-type": json ? "application/json; charset=utf-8" : "text/plain; charset=utf-8",
+      "content-disposition": `${c.req.query("download") ? "attachment" : "inline"}; filename="appel-${r.id}.${json ? "json" : "txt"}"`,
+    });
   });
   app.post("/admin/ingest/reports/:rid/delete", (c) => {
     deleteReport(db, Number(c.req.param("rid")));

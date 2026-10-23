@@ -107,11 +107,14 @@ chaque élément donne le nom de l'événement et une date.
 - **Clé d'envoi** `pgsi_…`, créée par un administrateur (`ADMIN_EMAILS`) dans « Mon compte » › « Gérer
   le service externe » (`/admin/ingest`), montrée une seule fois, empreinte seule en base. Elle ne sert
   qu'à l'envoi : ni lecture des données reçues, ni modification des compétitions.
-- **Envoi** : `POST /api/ingest`, corps JSON (objet, liste ou `{"items": [...]}`, 1 000 éléments et
-  1 Mo au plus). Champs lus : `event` (ou `event_name`, `competition`), `date` (jour ou horodatage
+- **Envoi** : `POST /api/ingest`, corps JSON (objet, liste ou `{"items": [...]}`, 10 000 éléments et
+  5 Mo au plus). Champs lus : `event` (ou `event_name`, `competition`), `date` (jour ou horodatage
   ISO ; ou `day`, `time`, `datetime`, `timestamp`), `type` et `id`. Tout l'élément est gardé tel quel
   (table `task_reports`) ; un même `type` + `id` renvoyé remplace l'élément. `GET /api/ingest` liste
-  les compétitions connues avec leurs dates et manches.
+  les compétitions connues avec leurs dates et manches. Clé dans `Authorization: Bearer` ou `X-Api-Key`.
+- **Appels bruts** : chaque appel authentifié est gardé tel que reçu (table `ingest_requests`, 200
+  derniers), même illisible ou d'une autre forme (réponse 202) : l'administrateur le voit et le
+  télécharge sur `/admin/ingest`, de quoi caler le traitement sur le format réel du service.
 - **Rattachement** : compétitions dont les dates (ou une manche) couvrent le jour, puis la plus proche
   par le nom (mots communs, sans accents ni casse, sans ex æquo) ; puis la manche de ce jour s'il n'y en
   a qu'une. Sans date, il faut les trois quarts des mots. Un élément sans manche attend : il est

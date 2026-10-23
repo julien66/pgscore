@@ -29,7 +29,7 @@ function setup() {
       headers: { ...(key ? { authorization: `Bearer ${key}` } : {}), "content-type": "application/json" },
       ...(raw !== undefined ? { body: raw } : body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-  return { db, req, login, bot };
+  return { app, db, req, login, bot };
 }
 
 type Setup = ReturnType<typeof setup>;
@@ -148,14 +148,37 @@ describe("service externe", () => {
     expect((await s.req(`/admin/ingest/reports/${id4}`, { method: "POST", body: new URLSearchParams({ competition: String(compId), task: "9" }) })).status).toBe(400);
   });
 
-  it("rejette les envois mal formés", async () => {
+  it("garde brut chaque appel authentifié, même illisible, et le montre à l'administrateur", async () => {
     const s = setup();
     const key = await adminKey(s);
-    expect((await s.bot(key, undefined, "{pas du json")).status).toBe(400);
-    expect((await s.bot(key, [1, 2])).status).toBe(400);
-    expect((await s.bot(key, [])).status).toBe(400);
-    expect((await s.bot(key, { type: { x: 1 } })).status).toBe(400);
-    expect((await s.bot(key, { text: "x".repeat(1024 * 1024 + 10) })).status).toBe(413);
+    for (const [raw, body] of [["{pas du json", undefined], [undefined, [1, 2]], [undefined, []], [undefined, { type: { x: 1 } }]] as const) {
+      const r = await s.bot(key, body, raw);
+      expect(r.status).toBe(202);
+      expect(((await r.json()) as { stored: boolean; processed: boolean }).processed).toBe(false);
+    }
+    // Autre adresse sous /api/ingest, clé dans X-Api-Key : accepté et gardé.
+    const other = await s.app.request("http://localhost/api/ingest/feedback?source=bot", {
+      method: "POST",
+      headers: { "x-api-key": key, "content-type": "application/json" },
+      body: JSON.stringify({ rating: 5, chat: "PWC Gemona" }),
+    });
+    expect(other.status).toBe(201);
+    // Sans clé : refusé, rien de gardé.
+    expect((await s.bot(null, { x: 1 })).status).toBe(401);
+    expect((await s.bot(key, { text: "x".repeat(5 * 1024 * 1024 + 10) })).status).toBe(413);
+
+    const rows = s.db.prepare("SELECT id, path, status, body FROM ingest_requests ORDER BY id").all() as Array<{ id: number; path: string; status: number; body: string }>;
+    expect(rows.map((r) => r.status)).toEqual([202, 202, 202, 202, 201]);
+    expect(rows[0]!.body).toBe("{pas du json");
+    expect(rows[4]!.path).toBe("/api/ingest/feedback?source=bot");
+    const admin = await (await s.req("/admin/ingest")).text();
+    expect(admin).toContain("Derniers appels reçus (5)");
+    expect(admin).toContain("/api/ingest/feedback?source=bot");
+    const raw = await s.req(`/admin/ingest/requests/${rows[4]!.id}`);
+    expect(raw.headers.get("content-type")).toContain("application/json");
+    expect(JSON.parse(await raw.text())).toEqual({ rating: 5, chat: "PWC Gemona" });
+    // Réservé aux administrateurs.
+    await s.login("orga@example.org");
+    expect((await s.req(`/admin/ingest/requests/${rows[4]!.id}`)).status).toBe(404);
   });
 });
-
