@@ -8,6 +8,8 @@ import { km, localTime, utcHmsToLocal } from "../time.js";
 import { locale, N_, t } from "../i18n.js";
 import { Ic, Bi, Layout, ErrorBox, dateRange } from "./layout.js";
 import { goalAltitudeOf } from "./parts.js";
+import type { ReportRow } from "../reports.js";
+import { ReportJson } from "./ingest.js";
 import { RunCard, RunStatus, decisionLabel, TaskDetails, TaskResults } from "./results.js";
 
 export const NewTaskPage: FC<{ user: User | null; c: CompetitionRow; number: number; error?: string | null; date?: string }> = ({
@@ -71,6 +73,8 @@ export const TaskPage: FC<{
   tracks: TrackRow[];
   history: TrackHistoryRow[];
   decisions: DecisionRow[];
+  /** Données reçues du service externe (satisfaction, incidents), telles quelles. */
+  reports?: ReportRow[];
   /** Dessin de la manche (JSON de taskGeometry). */
   geometry: string;
   run: RunRow | null;
@@ -93,7 +97,7 @@ export const TaskPage: FC<{
   canEdit: boolean;
   /** Toutes les manches de la compétition, pour passer de l'une à l'autre. */
   siblings?: Array<{ id: number; number: number; date: string | null }>;
-}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, geometry, run, done, rankings, ranking, details, registry, running, error, notice, edit: editTab, canEdit, openTracks, siblings = [] }) => {
+}> = ({ user, c, t: tk, task, settings, distances, tracks, history, decisions, reports = [], geometry, run, done, rankings, ranking, details, registry, running, error, notice, edit: editTab, canEdit, openTracks, siblings = [] }) => {
   const edit = Boolean(editTab && canEdit);
   const tz = settings.timeZone;
   const loc = (hms?: string) => (hms ? utcHmsToLocal(hms, tk.date, tz) : "");
@@ -559,6 +563,54 @@ export const TaskPage: FC<{
             </button>
           </div>
         </form>
+      </details>
+
+      <details class="card fold" id="reports">
+        <summary>
+          <h2><Ic n="heart" c="pink" />{t("Retours des pilotes et incidents ({n})", { n: reports.length })}</h2>
+        </summary>
+        <p class="small muted">
+          {t("Données envoyées par le service externe (bots Telegram des compétitions), rattachées à cette manche par le nom de l'événement et la date. Elles sont gardées telles que reçues ; un élément renvoyé avec le même identifiant remplace le précédent.")}
+        </p>
+        {reports.length ? (
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("Type")}</th>
+                  <th>{t("Identifiant")}</th>
+                  <th>{t("Reçu")}</th>
+                  <th>{t("Contenu")}</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {reports.map((r) => (
+                  <tr>
+                    <td>{r.type ?? "–"}</td>
+                    <td class="small">{r.external_id ?? "–"}</td>
+                    <td class="small muted">
+                      {when(r.received_at)}
+                      {r.updated_at > r.received_at ? ` · ${t("modifié {when}", { when: when(r.updated_at) })}` : ""}
+                    </td>
+                    <td>
+                      <ReportJson payload={r.payload} />
+                    </td>
+                    <td>
+                      <form method="post" action={`/tasks/${tk.id}/reports/${r.id}/delete`}>
+                        <button class="link" data-confirm={t("Supprimer cet élément reçu ?")}>
+                          {t("Supprimer")}
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p class="muted">{t("Rien reçu pour cette manche.")}</p>
+        )}
       </details>
 
         </>

@@ -98,6 +98,37 @@ liste du contrôle : balises validées, zone manquée avec la distance au bord d
 près (calculée sur l'ellipsoïde WGS84, comme le contrôle), infractions d'espace aérien. La colonne
 « Remarque » des résultats signale une zone manquée de moins de 500 m.
 
+## Service externe : retours des pilotes et incidents
+
+Un service externe global, lié aux bots Telegram des compétitions, envoie des données sur les manches :
+satisfaction des pilotes, accidents et incidents. Il ne connaît ni nos compétitions ni nos manches :
+chaque élément donne le nom de l'événement et une date.
+
+- **Clé d'envoi** `pgsi_…`, créée par un administrateur (`ADMIN_EMAILS`) dans « Mon compte » › « Gérer
+  le service externe » (`/admin/ingest`), montrée une seule fois, empreinte seule en base. Elle ne sert
+  qu'à l'envoi : ni lecture des données reçues, ni modification des compétitions.
+- **Envoi** : `POST /api/ingest`, corps JSON (objet, liste ou `{"items": [...]}`, 10 000 éléments et
+  5 Mo au plus). Champs lus : `event` (ou `event_name`, `competition`), `date` (jour ou horodatage
+  ISO ; ou `day`, `time`, `datetime`, `timestamp`), `type` et `id`. Tout l'élément est gardé tel quel
+  (table `task_reports`) ; un même `type` + `id` renvoyé remplace l'élément. `GET /api/ingest` liste
+  les compétitions connues avec leurs dates et manches. Clé dans `Authorization: Bearer` ou `X-Api-Key`.
+- **Appels bruts** : chaque appel authentifié est gardé tel que reçu (table `ingest_requests`, 200
+  derniers), même illisible ou d'une autre forme (réponse 202) : l'administrateur le voit et le
+  télécharge sur `/admin/ingest`, de quoi caler le traitement sur le format réel du service.
+- **Rattachement** : compétitions dont les dates (ou une manche) couvrent le jour, puis la plus proche
+  par le nom (mots communs, sans accents ni casse, sans ex æquo) ; puis la manche de ce jour s'il n'y en
+  a qu'une. Sans date, il faut les trois quarts des mots. Un élément sans manche attend : il est
+  rattaché de nouveau à chaque création de manche ou import, et l'administrateur peut le rattacher à
+  la main (ce choix est gardé quand l'élément revient).
+
+```sh
+curl -H "Authorization: Bearer pgsi_…" -H "Content-Type: application/json" BASE_URL/api/ingest \
+     -d '[{"type":"satisfaction","id":"tg-8812","event":"PWC Gemona 2026","date":"2026-07-28","score":4}]'
+```
+
+Pour l'instant, l'organisateur voit le JSON reçu dans l'onglet « Éditer » de la manche ; le traitement
+(satisfaction, liste des incidents sur la page publique) viendra avec le format définitif du service.
+
 ## Limites et sécurité
 
 - Taille des envois, vérifiée sur les octets reçus : 200 Mo pour un envoi de traces, 1 Go pour l'import
@@ -117,6 +148,7 @@ près (calculée sur l'ellipsoïde WGS84, comme le contrôle), infractions d'esp
   routes, rangées par domaine dans `src/routes/` (`auth`, `home`, `api`, `competitions`, `tasks`).
 - `src/pages/` : pages en JSX (Hono), une par domaine, et `layout.tsx` (CSS, en-tête, icônes).
 - `src/repo.ts` : requêtes SQL reprises à plusieurs endroits ; `src/db.ts` : schéma et migrations.
+- `src/reports.ts`, `src/routes/ingest.tsx` et `src/pages/ingest.tsx` : service externe (clés d'envoi, données reçues, rattachement aux manches).
 - `src/runner.ts` et `src/score-worker.ts` : calcul d'une manche ; `src/standings.ts` : classements.
 - `src/text.ts` : CSV, entités XML/HTML ; `src/static/` : scripts du navigateur.
 - Le calcul lui-même est dans `packages/engine`.

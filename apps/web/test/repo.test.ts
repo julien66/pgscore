@@ -42,7 +42,7 @@ describe("accès aux données", () => {
     expect(ids()).toEqual([2, 4, 5, 6]);
     // Même règle pour toutes les manches, à la migration.
     for (const [task, status] of [[2, "done"], [2, "error"], [2, "error"]] as const) run.run(task, status, status === "done" ? "{}" : null);
-    db.exec(MIGRATIONS[MIGRATIONS.length - 1] as string);
+    db.exec(MIGRATIONS.find((m) => typeof m === "string" && m.trimStart().startsWith("DELETE FROM runs")) as string);
     expect(ids()).toEqual([2, 4, 7, 9]);
   });
 

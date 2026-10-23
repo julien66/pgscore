@@ -13,6 +13,7 @@ import { homeRoutes } from "./routes/home.js";
 import { apiRoutes } from "./routes/api.js";
 import { competitionsRoutes } from "./routes/competitions.js";
 import { tasksRoutes } from "./routes/tasks.js";
+import { ingestRoutes, isIngestPath } from "./routes/ingest.js";
 import type { AppConfig, Ctx, Env } from "./routes/context.js";
 import { getCompetition, getTask } from "./repo.js";
 import { MAX_FORM, uploadLimit } from "./routes/util.js";
@@ -120,8 +121,13 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   // --- Consultation libre, modifications après connexion -------------------------------------
   // Les compétitions, manches et classements se consultent sans compte ; créer ou modifier demande d'être connecté.
   // Programmes : clé d'API dans l'en-tête « Authorization: Bearer pgs_… », à la place du cookie de session.
-  const needsLogin = (c: Context<Env>) => c.req.method !== "GET" || /\/(edit|new)$/.test(c.req.path) || c.req.path === "/account";
+  const needsLogin = (c: Context<Env>) => c.req.method !== "GET" || /\/(edit|new)$/.test(c.req.path) || c.req.path === "/account" || c.req.path.startsWith("/admin/");
   app.use("*", async (c, next) => {
+    // Service externe (bot Telegram) : sa clé d'envoi est vérifiée par ses propres routes (routes/ingest.tsx).
+    if (isIngestPath(c.req.path)) {
+      c.set("user", null);
+      return next();
+    }
     const bearer = /^Bearer\s+(\S+)$/i.exec(c.req.header("authorization") ?? "")?.[1];
     const user = bearer ? apiTokenUser(db, bearer) : (sessionUser(db, getCookie(c, SESSION_COOKIE)) ?? null);
     if (bearer && !user) return c.json({ error: t("Clé d'API inconnue ou supprimée.") }, 401);
@@ -177,6 +183,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   apiRoutes(app, ctx);
   competitionsRoutes(app, ctx);
   tasksRoutes(app, ctx);
+  ingestRoutes(app, ctx);
 
   app.notFound((c) => c.html(<NotFound />, 404));
   return app;

@@ -47,7 +47,7 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
 );
 
 /** Mon compte : clés d'API pour les programmes (import et export de compétitions). */
-export const AccountPage: FC<{ user: User; tokens: ApiTokenRow[]; baseUrl: string; token: string | null; error: string | null }> = ({ user, tokens, baseUrl, token, error }) => (
+export const AccountPage: FC<{ user: User; tokens: ApiTokenRow[]; baseUrl: string; token: string | null; error: string | null; admin?: boolean }> = ({ user, tokens, baseUrl, token, error, admin }) => (
   <Layout title={t("Mon compte")} user={user}>
     <div class="crumbs">
       <a href="/">{t("Compétitions")}</a>
@@ -104,6 +104,15 @@ export const AccountPage: FC<{ user: User; tokens: ApiTokenRow[]; baseUrl: strin
         </button>
       </form>
     </div>
+    {admin ? (
+      <div class="card">
+        <h2><Ic n="heart" c="pink" />{t("Service externe")}</h2>
+        <p class="small muted">
+          {t("Clés d'envoi du service externe (retours des pilotes, accidents et incidents), et éléments reçus qu'on n'a pas su rattacher à une manche.")}{" "}
+          <a href="/admin/ingest">{t("Gérer le service externe")}</a>
+        </p>
+      </div>
+    ) : null}
   </Layout>
 );
 
@@ -143,6 +152,23 @@ export const ApiDocPage: FC<{ user: User | null; baseUrl: string }> = ({ user, b
         <pre class="code">{`curl -o gemona.fsdb ${baseUrl}/api/competitions/12/fsdb\ncurl -o gemona.fsdb.zip ${baseUrl}/api/competitions/12/fsdb.zip   # ${t("avec les traces")}\ncurl -H "Authorization: Bearer ${K}" --data-binary @comp.fsdb \\\n     -H "Content-Type: application/xml" ${baseUrl}/api/competitions/import`}</pre>
         <p class="small muted">
           {t("Le même point d'import reconnaît le FSDB (fichier .fsdb seul, ou ZIP contenant le .fsdb et ses dossiers de traces). Sont reprises : la compétition, la formule, les pilotes, les catégories (en classements), les manches et les pénalités saisies. Les résultats calculés par FS ne sont pas repris : le calcul est relancé dans pgscore.")}
+        </p>
+
+        <h2 id="ingest">{t("Service externe : retours des pilotes et incidents")}</h2>
+        <p class="small muted">
+          {t("Un service externe (bots Telegram des compétitions) envoie des données sur les manches avec une clé d'envoi « pgsi_… », créée par un administrateur. Il ne connaît pas nos compétitions : chaque élément donne le nom de l'événement et une date, et pgscore le rattache à la compétition au nom proche dont les dates couvrent ce jour, puis à la manche de ce jour.")}
+        </p>
+        <pre class="code">{`curl -H "Authorization: Bearer pgsi_xxxxxxxx" ${baseUrl}/api/ingest   # ${t("compétitions connues, avec leurs dates et manches")}
+
+curl -H "Authorization: Bearer pgsi_xxxxxxxx" -H "Content-Type: application/json" \\
+     ${baseUrl}/api/ingest -d '[
+  { "type": "satisfaction", "id": "tg-8812", "event": "PWC Gemona 2026", "date": "2026-07-28",
+    "pilot": "42", "score": 4, "comment": "Belle manche" },
+  { "type": "incident", "id": "inc-17", "event": "PWC Gemona 2026", "date": "2026-07-28T14:32:00Z",
+    "severity": "accident", "description": "Atterrissage dans les arbres, pilote indemne" }
+]'`}</pre>
+        <p class="small muted">
+          {t("Le corps est un objet JSON, une liste d'objets ou { \"items\": [...] } (10 000 éléments et 5 Mo au plus). Champs lus : « event » (nom de l'événement), « date » (jour ou horodatage ISO), « type » et « id » ; le reste de l'objet est gardé tel quel. Un élément renvoyé avec le même type et le même id remplace le précédent. Réponse 201 avec, pour chaque élément, created ou updated et la compétition et la manche trouvées (null sinon : l'élément attend et sera rattaché plus tard). Chaque appel est aussi gardé brut : un corps illisible ou d'une autre forme est accepté (202) et reste visible par les administrateurs. Clé dans Authorization: Bearer ou dans X-Api-Key. Erreurs : 401 clé absente ou inconnue ; 413 envoi trop gros.")}
         </p>
 
         <h2>{t("Autres actions")}</h2>
