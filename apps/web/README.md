@@ -100,6 +100,8 @@ près (calculée sur l'ellipsoïde WGS84, comme le contrôle), infractions d'esp
 
 ## Service externe : retours des pilotes et incidents
 
+Documentation complète pour le service : [docs/api-service-externe.md](../../docs/api-service-externe.md).
+
 Un service externe global, lié aux bots Telegram des compétitions, envoie des données sur les manches :
 satisfaction des pilotes, accidents et incidents. Il ne connaît ni nos compétitions ni nos manches :
 chaque élément donne le nom de l'événement et une date.

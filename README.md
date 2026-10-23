@@ -56,6 +56,7 @@ Interface, début :
 - [x] Classements extraits du général : féminin d'office, autres par règle (classe de voile, PTV…) avec ajouts et retraits à la main
 - [ ] Classement des nations
 - [x] Décisions de l'organisateur : bonus, pénalités, goal accordé, ABS, DNF, décollé sans trace
+- [x] Service externe (bots Telegram) : retours des pilotes et incidents reçus par API, rattachés aux manches ([documentation](docs/api-service-externe.md))
 - [ ] Plusieurs organisateurs par compétition, résultats publics
 
 ## Licence
