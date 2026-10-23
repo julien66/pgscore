@@ -26,3 +26,15 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", sync);
   else sync();
 })();
+
+// Case qui suit la formule choisie (data-follow-pwca) : cochée avec PWCA, tant qu'on n'y a pas touché.
+(function () {
+  "use strict";
+  document.addEventListener("change", (ev) => {
+    const el = /** @type {HTMLElement} */ (ev.target);
+    if (el instanceof HTMLInputElement && el.dataset.followPwca) delete el.dataset.followPwca;
+    if (!(el instanceof HTMLSelectElement) || el.name !== "gapProfile" || !el.form) return;
+    for (const box of el.form.querySelectorAll("input[type=checkbox][data-follow-pwca]"))
+      /** @type {HTMLInputElement} */ (box).checked = el.value === "PWCA";
+  });
+})();

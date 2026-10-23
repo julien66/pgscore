@@ -96,8 +96,9 @@ describe("interface web", () => {
     // Formule de scoring en premier, avant les paramètres GAP ; pénalité dans la rubrique espace aérien.
     expect(edit.indexOf('name="gapProfile"')).toBeLessThan(edit.indexOf('name="nominalDistance"'));
     expect(edit.indexOf('name="airspacePenaltyRule"')).toBeGreaterThan(edit.indexOf('id="airspace"'));
-    expect(edit).toContain(`action="${compUrl}/airspace/penalty"`);
-    expect(edit).not.toContain("roundAirspaceLimits");
+    expect(edit).toContain(`action="${compUrl}/airspace/settings"`);
+    // Arrondi des limites : en fin de rubrique espace aérien.
+    expect(edit.indexOf('name="roundAirspaceLimits"')).toBeGreaterThan(edit.indexOf('name="airspacePenaltyRule"'));
     // Le formulaire de la compétition, sans pénalité, garde celle d'avant.
     const { airspacePenaltyRule: _p, ...rest } = competitionFields;
     const r = await req(compUrl, { method: "POST", body: new URLSearchParams({ ...rest, gapProfile: "PWCA" }) });
@@ -106,9 +107,13 @@ describe("interface web", () => {
     expect(params().gapProfile).toBe("PWCA");
     expect(roundsAirspaceLimits(params())).toBe(true);
     expect(roundsAirspaceLimits({ gapProfile: "S7F2026" })).toBe(false);
-    const rp = await req(`${compUrl}/airspace/penalty`, { method: "POST", body: new URLSearchParams({ airspacePenaltyRule: "pwca-hard" }) });
+    // Case décochée : plus d'arrondi, même avec PWCA ; le réglage tient quand on réenregistre la compétition.
+    const rp = await req(`${compUrl}/airspace/settings`, { method: "POST", body: new URLSearchParams({ airspacePenaltyRule: "pwca-hard", airspaceRoundingField: "1" }) });
     expect(rp.status).toBe(302);
     expect(params().airspacePenaltyRule).toBe("pwca-hard");
+    expect(roundsAirspaceLimits(params())).toBe(false);
+    await req(compUrl, { method: "POST", body: new URLSearchParams({ ...rest, gapProfile: "PWCA" }) });
+    expect(params().airspaceRounding).toBe(false);
     expect(params().nominalDistance).toBe(60000);
   });
 

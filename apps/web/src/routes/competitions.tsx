@@ -5,7 +5,7 @@ import { decodeText } from "../files.js";
 import { isRunning, startRuns } from "../runner.js";
 import { linkTracks } from "../tracks.js";
 import { touchScoring } from "../decisions.js";
-import { DEFAULT_SETTINGS, FormError, parseSettings, penaltyRuleFromForm, settingsFromForm } from "../settings.js";
+import { DEFAULT_SETTINGS, FormError, airspaceRoundingFromForm, parseSettings, penaltyRuleFromForm, settingsFromForm } from "../settings.js";
 import { t } from "../i18n.js";
 import { competitionStandings, extractStandings, standingsCsv, type StandingsView } from "../standings.js";
 import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRankings, rankingMembers, setOverride, updateRanking } from "../rankings.js";
@@ -385,14 +385,20 @@ export function competitionsRoutes(app: App, ctx: Ctx) {
     }
   });
 
-  // Barème de pénalité d'espace aérien, réglé dans la rubrique espace aérien.
-  app.post("/competitions/:id/airspace/penalty", async (c) => {
+  // Barème de pénalité et arrondi des limites, réglés dans la rubrique espace aérien.
+  app.post("/competitions/:id/airspace/settings", async (c) => {
     const comp = competition(c, c.req.param("id"));
     if (!comp) return notFound(c);
     const f = await c.req.parseBody();
     try {
       const s = parseSettings(comp.params);
-      const settings = { ...s, airspacePenaltyRule: penaltyRuleFromForm(f, s.airspacePenaltyRule) };
+      const { airspaceRounding: _old, ...rest } = s;
+      const airspaceRounding = airspaceRoundingFromForm(f, s.gapProfile, s.airspaceRounding);
+      const settings = {
+        ...rest,
+        airspacePenaltyRule: penaltyRuleFromForm(f, s.airspacePenaltyRule),
+        ...(airspaceRounding !== undefined ? { airspaceRounding } : {}),
+      };
       db.prepare("UPDATE competitions SET params = ? WHERE id = ?").run(JSON.stringify(settings), comp.id);
       return c.redirect(`/competitions/${comp.id}/edit?ok=1#airspace`);
     } catch (e) {
