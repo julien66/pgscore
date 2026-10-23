@@ -22,7 +22,7 @@ import type { TaskScoring } from "@pgscore/engine";
 import type { App, Ctx, Env } from "./context.js";
 import { MAX_UPLOAD, one } from "./util.js";
 import { saveUpload } from "../upload.js";
-import { deleteReport, listReports } from "../reports.js";
+import { deleteReport, listReports, rematchPending } from "../reports.js";
 import { getTask, getTrack, latestDoneRun, latestRun, tracksOf } from "../repo.js";
 
 
@@ -82,6 +82,8 @@ export function tasksRoutes(app: App, ctx: Ctx) {
       const r = db
         .prepare("INSERT INTO tasks (competition_id, number, date, source, source_text, task, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
         .run(comp.id, number, date, source, text, JSON.stringify(task), Date.now());
+      // Retours et incidents reçus avant la création de la manche : rattachés maintenant.
+      rematchPending(db);
       return c.redirect(`/tasks/${r.lastInsertRowid}?created=1`);
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
@@ -301,7 +303,7 @@ export function tasksRoutes(app: App, ctx: Ctx) {
   app.post("/tasks/:id/reports/:rid/delete", (c) => {
     const x = taskOf(c, c.req.param("id"));
     if (!x) return notFound(c);
-    deleteReport(db, x.t.id, Number(c.req.param("rid")));
+    deleteReport(db, Number(c.req.param("rid")), x.t.id);
     return c.redirect(`/tasks/${x.t.id}/edit#reports`);
   });
 

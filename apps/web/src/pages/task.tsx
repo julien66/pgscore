@@ -9,6 +9,7 @@ import { locale, N_, t } from "../i18n.js";
 import { Ic, Bi, Layout, ErrorBox, dateRange } from "./layout.js";
 import { goalAltitudeOf } from "./parts.js";
 import type { ReportRow } from "../reports.js";
+import { ReportJson } from "./ingest.js";
 import { RunCard, RunStatus, decisionLabel, TaskDetails, TaskResults } from "./results.js";
 
 export const NewTaskPage: FC<{ user: User | null; c: CompetitionRow; number: number; error?: string | null; date?: string }> = ({
@@ -569,8 +570,7 @@ export const TaskPage: FC<{
           <h2><Ic n="heart" c="pink" />{t("Retours des pilotes et incidents ({n})", { n: reports.length })}</h2>
         </summary>
         <p class="small muted">
-          {t("Données envoyées par le service externe de la compétition (bot Telegram…), avec une clé d'envoi créée dans l'onglet « Éditer » de la compétition. Elles sont gardées telles que reçues ; un élément renvoyé avec le même identifiant remplace le précédent.")}{" "}
-          <a href={`/competitions/${c.id}/edit#ingest`}>{t("Clés d'envoi")}</a>
+          {t("Données envoyées par le service externe (bots Telegram des compétitions), rattachées à cette manche par le nom de l'événement et la date. Elles sont gardées telles que reçues ; un élément renvoyé avec le même identifiant remplace le précédent.")}
         </p>
         {reports.length ? (
           <div class="scroll">
@@ -594,10 +594,7 @@ export const TaskPage: FC<{
                       {r.updated_at > r.received_at ? ` · ${t("modifié {when}", { when: when(r.updated_at) })}` : ""}
                     </td>
                     <td>
-                      <details>
-                        <summary class="small">{t("JSON reçu")}</summary>
-                        <pre class="code">{JSON.stringify(JSON.parse(r.payload), null, 2)}</pre>
-                      </details>
+                      <ReportJson payload={r.payload} />
                     </td>
                     <td>
                       <form method="post" action={`/tasks/${tk.id}/reports/${r.id}/delete`}>

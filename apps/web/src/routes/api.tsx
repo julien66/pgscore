@@ -10,6 +10,7 @@ import type { App, Ctx, Env } from "./context.js";
 import { queryAll } from "../repo.js";
 import { MAX_IMPORT } from "./util.js";
 import { saveUpload, TooLarge } from "../upload.js";
+import { rematchPending } from "../reports.js";
 
 /** API : liste, export et import de compétitions, import civlcomps, suppression. */
 export function apiRoutes(app: App, ctx: Ctx) {
@@ -66,6 +67,12 @@ export function apiRoutes(app: App, ctx: Ctx) {
   });
   /** Import d'une archive pgscore ou d'un fichier FSDB, reconnu à son contenu (fichier sur disque). */
   const importAny = (userId: number, src: string) => {
+    const r = importFile(userId, src);
+    // Retours et incidents du service externe reçus avant l'import : rattachés aux nouvelles manches.
+    rematchPending(db);
+    return r;
+  };
+  const importFile = (userId: number, src: string) => {
     if (!looksLikeFsdb(src)) return importCompetition(db, tracks, userId, src);
     const { a, files, warnings } = fsdbToArchive(src, tracks);
     const r = writeArchive(db, tracks, userId, a, files);
@@ -103,6 +110,7 @@ export function apiRoutes(app: App, ctx: Ctx) {
     const userId = user.id;
     const { a, files, warnings } = await civlToArchive(url, undefined, tracks);
     const r = writeArchive(db, tracks, userId, a, files);
+    rematchPending(db);
     return { ...r, warnings: [...warnings, ...(r.warnings ?? [])] };
   };
   app.post("/api/competitions/import-civl", async (c) => {

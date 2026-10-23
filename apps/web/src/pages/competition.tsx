@@ -3,8 +3,7 @@ import { type Task } from "@pgscore/engine";
 import type { CompetitionRow, PilotRow, TaskRow, User } from "../db.js";
 import { GAP_PROFILES, PENALTY_RULES, type CompetitionSettings } from "../settings.js";
 import { km, timeZoneGroups } from "../time.js";
-import { locale, t } from "../i18n.js";
-import type { IngestKeyRow } from "../reports.js";
+import { t } from "../i18n.js";
 import { PILOT_COLUMNS } from "../pilots.js";
 import { Ic, Bi, Layout, ErrorBox, dateRange } from "./layout.js";
 import { CsvLink, fr } from "./parts.js";
@@ -184,9 +183,7 @@ export const CompetitionPage: FC<{
   canDelete?: boolean;
   /** Calculs en cours ou en attente (après un import) : dernier calcul de chaque manche. */
   runs?: CompRun[] | null;
-  /** Clés d'envoi du service externe (onglet « Éditer »), et celle qui vient d'être créée. */
-  ingest?: { keys: IngestKeyRow[]; token: string | null; baseUrl: string };
-}> = ({ user, c, v, tasks, board, pilots, trackPilots, airspaceCount, error, notice, edit, canEdit, canDelete, runs, ingest }) => (
+}> = ({ user, c, v, tasks, board, pilots, trackPilots, airspaceCount, error, notice, edit, canEdit, canDelete, runs }) => (
   <Layout title={edit ? `${t("Éditer")} · ${c.name}` : c.name} user={user}>
     <div class="crumbs">
       <a href="/">{t("Compétitions")}</a>
@@ -210,7 +207,6 @@ export const CompetitionPage: FC<{
     {edit && canEdit ? (
       <>
         <CompetitionEdit c={c} v={v} pilots={pilots} trackPilots={trackPilots ?? []} airspaceCount={airspaceCount} open={Boolean(error)} />
-        {ingest ? <IngestKeys c={c} {...ingest} /> : null}
         {canDelete ? (
           <div class="card danger" id="delete">
             <h2><Ic n="trash" c="red" />{t("Supprimer la compétition")}</h2>
@@ -236,65 +232,6 @@ export const CompetitionPage: FC<{
       <CompetitionMain c={c} tasks={tasks} board={board} />
     )}
   </Layout>
-);
-
-/** Clés d'envoi du service externe (bot Telegram) : retours des pilotes et incidents, par manche. */
-const IngestKeys: FC<{ c: CompetitionRow; keys: IngestKeyRow[]; token: string | null; baseUrl: string }> = ({ c, keys, token, baseUrl }) => (
-  <details class="card fold" id="ingest" open={Boolean(token)}>
-    <summary>
-      <h2>
-        <Ic n="key" c="purple" />
-        {t("Service externe")}{" "}
-        <span class="muted small">{keys.length === 1 ? t("{n} clé d'envoi", { n: 1 }) : t("{n} clés d'envoi", { n: keys.length })}</span>
-      </h2>
-    </summary>
-    <p class="small muted">
-      {t("Une clé d'envoi permet à un service externe (bot Telegram de la compétition…) d'envoyer des données sur les manches : satisfaction des pilotes, accidents et incidents. Elle ne sert qu'à cela et ne vaut que pour cette compétition. Gardez-la secrète ; supprimez-la si elle a pu fuiter.")}{" "}
-      <a href="/api#ingest">{t("Documentation de l'API")}</a>
-    </p>
-    {token ? (
-      <div class="note">
-        <p>{t("Nouvelle clé, affichée une seule fois : copiez-la maintenant.")}</p>
-        <pre class="code">{token}</pre>
-        <pre class="code">{`curl -H "Authorization: Bearer ${token}" ${baseUrl}/api/ingest`}</pre>
-      </div>
-    ) : null}
-    {keys.length ? (
-      <table>
-        <thead>
-          <tr>
-            <th>{t("Nom")}</th>
-            <th>{t("Créée le")}</th>
-            <th>{t("Dernière utilisation")}</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {keys.map((k) => (
-            <tr>
-              <td>{k.name}</td>
-              <td>{new Date(k.created_at).toLocaleString(locale())}</td>
-              <td>{k.last_used_at ? new Date(k.last_used_at).toLocaleString(locale()) : t("jamais")}</td>
-              <td class="n">
-                <form method="post" action={`/competitions/${c.id}/ingest-keys/${k.id}/delete`}>
-                  <button class="link" data-confirm={t("Supprimer cette clé ? Le service qui l'utilise ne pourra plus rien envoyer.")}>
-                    <Bi n="trash" /> {t("Supprimer")}
-                  </button>
-                </form>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    ) : null}
-    <form method="post" action={`/competitions/${c.id}/ingest-keys`} class="row mt">
-      <input type="text" name="name" placeholder={t("Nom de la clé (ex. bot Telegram)")} style="max-width:320px" required />
-      <button class="primary">
-        <Bi n="plus" />
-        {t("Créer une clé")}
-      </button>
-    </form>
-  </details>
 );
 
 export interface CompRun {

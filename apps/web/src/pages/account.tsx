@@ -47,7 +47,7 @@ export const LoginPage: FC<{ providers: Array<{ href: string; label: string }>; 
 );
 
 /** Mon compte : clés d'API pour les programmes (import et export de compétitions). */
-export const AccountPage: FC<{ user: User; tokens: ApiTokenRow[]; baseUrl: string; token: string | null; error: string | null }> = ({ user, tokens, baseUrl, token, error }) => (
+export const AccountPage: FC<{ user: User; tokens: ApiTokenRow[]; baseUrl: string; token: string | null; error: string | null; admin?: boolean }> = ({ user, tokens, baseUrl, token, error, admin }) => (
   <Layout title={t("Mon compte")} user={user}>
     <div class="crumbs">
       <a href="/">{t("Compétitions")}</a>
@@ -104,6 +104,15 @@ export const AccountPage: FC<{ user: User; tokens: ApiTokenRow[]; baseUrl: strin
         </button>
       </form>
     </div>
+    {admin ? (
+      <div class="card">
+        <h2><Ic n="heart" c="pink" />{t("Service externe")}</h2>
+        <p class="small muted">
+          {t("Clés d'envoi du service externe (retours des pilotes, accidents et incidents), et éléments reçus qu'on n'a pas su rattacher à une manche.")}{" "}
+          <a href="/admin/ingest">{t("Gérer le service externe")}</a>
+        </p>
+      </div>
+    ) : null}
   </Layout>
 );
 
@@ -147,18 +156,19 @@ export const ApiDocPage: FC<{ user: User | null; baseUrl: string }> = ({ user, b
 
         <h2 id="ingest">{t("Service externe : retours des pilotes et incidents")}</h2>
         <p class="small muted">
-          {t("Un service externe (bot Telegram de la compétition…) envoie des données sur une manche avec une clé d'envoi « pgsi_… », créée dans l'onglet « Éditer » de la compétition. Cette clé ne vaut que pour sa compétition et ne permet rien d'autre.")}
+          {t("Un service externe (bots Telegram des compétitions) envoie des données sur les manches avec une clé d'envoi « pgsi_… », créée par un administrateur. Il ne connaît pas nos compétitions : chaque élément donne le nom de l'événement et une date, et pgscore le rattache à la compétition au nom proche dont les dates couvrent ce jour, puis à la manche de ce jour.")}
         </p>
-        <pre class="code">{`curl -H "Authorization: Bearer pgsi_xxxxxxxx" ${baseUrl}/api/ingest   # ${t("compétition et manches de la clé")}
+        <pre class="code">{`curl -H "Authorization: Bearer pgsi_xxxxxxxx" ${baseUrl}/api/ingest   # ${t("compétitions connues, avec leurs dates et manches")}
 
 curl -H "Authorization: Bearer pgsi_xxxxxxxx" -H "Content-Type: application/json" \\
-     ${baseUrl}/api/ingest/tasks/3 -d '[
-  { "type": "satisfaction", "id": "tg-8812", "pilot": "42", "score": 4, "comment": "Belle manche" },
-  { "type": "incident", "id": "inc-17", "severity": "accident", "pilot": "105",
-    "time": "2026-07-28T14:32:00Z", "lat": 46.27, "lon": 13.14, "description": "Atterrissage dans les arbres, pilote indemne" }
+     ${baseUrl}/api/ingest -d '[
+  { "type": "satisfaction", "id": "tg-8812", "event": "PWC Gemona 2026", "date": "2026-07-28",
+    "pilot": "42", "score": 4, "comment": "Belle manche" },
+  { "type": "incident", "id": "inc-17", "event": "PWC Gemona 2026", "date": "2026-07-28T14:32:00Z",
+    "severity": "accident", "description": "Atterrissage dans les arbres, pilote indemne" }
 ]'`}</pre>
         <p class="small muted">
-          {t("Le corps est un objet JSON, une liste d'objets ou { \"items\": [...] } (1 000 éléments et 1 Mo au plus). « type » et « id » sont facultatifs ; le reste de l'objet est gardé tel quel. Un élément renvoyé avec le même type et le même id remplace le précédent. Réponses : 201 avec, pour chaque élément, created ou updated ; 401 clé absente ou inconnue ; 404 manche introuvable ; 400 JSON illisible ; 413 envoi trop gros.")}
+          {t("Le corps est un objet JSON, une liste d'objets ou { \"items\": [...] } (1 000 éléments et 1 Mo au plus). Champs lus : « event » (nom de l'événement), « date » (jour ou horodatage ISO), « type » et « id » ; le reste de l'objet est gardé tel quel. Un élément renvoyé avec le même type et le même id remplace le précédent. Réponse 201 avec, pour chaque élément, created ou updated et la compétition et la manche trouvées (null sinon : l'élément attend et sera rattaché plus tard). Erreurs : 401 clé absente ou inconnue ; 400 JSON illisible ; 413 envoi trop gros.")}
         </p>
 
         <h2>{t("Autres actions")}</h2>

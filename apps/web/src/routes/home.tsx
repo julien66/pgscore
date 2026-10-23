@@ -11,7 +11,7 @@ import { queryAll } from "../repo.js";
 
 /** Accueil, compte (clés d'API), pages À propos, Différences et documentation de l'API. */
 export function homeRoutes(app: App, ctx: Ctx) {
-  const { db, cfg, me } = ctx;
+  const { db, cfg, me, isAdmin } = ctx;
   app.get("/", (c) => {
     // Dernier calcul terminé de chaque compétition : l'accueil montre d'abord les plus récemment calculées.
     const rows = queryAll<CompetitionRow & { owner_name: string | null; owner_email: string | null; scored_at: number | null }>(
@@ -35,7 +35,7 @@ export function homeRoutes(app: App, ctx: Ctx) {
 
   // --- Clés d'API (page « Mon compte ») ------------------------------------------------------
   const accountPage = (c: Context<Env>, extra: { token?: string; error?: string } = {}) =>
-    c.html(<AccountPage user={me(c)} tokens={listApiTokens(db, me(c).id)} baseUrl={cfg.baseUrl} token={extra.token ?? null} error={extra.error ?? null} />, extra.error ? 400 : 200);
+    c.html(<AccountPage user={me(c)} tokens={listApiTokens(db, me(c).id)} baseUrl={cfg.baseUrl} token={extra.token ?? null} error={extra.error ?? null} admin={isAdmin(me(c))} />, extra.error ? 400 : 200);
   app.get("/account", (c) => accountPage(c));
   app.post("/account/tokens", async (c) => {
     const f = await c.req.parseBody();

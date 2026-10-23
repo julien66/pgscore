@@ -121,7 +121,7 @@ export function createApp(db: Db, tracks: TrackStore, cfg: AppConfig) {
   // --- Consultation libre, modifications après connexion -------------------------------------
   // Les compétitions, manches et classements se consultent sans compte ; créer ou modifier demande d'être connecté.
   // Programmes : clé d'API dans l'en-tête « Authorization: Bearer pgs_… », à la place du cookie de session.
-  const needsLogin = (c: Context<Env>) => c.req.method !== "GET" || /\/(edit|new)$/.test(c.req.path) || c.req.path === "/account";
+  const needsLogin = (c: Context<Env>) => c.req.method !== "GET" || /\/(edit|new)$/.test(c.req.path) || c.req.path === "/account" || c.req.path.startsWith("/admin/");
   app.use("*", async (c, next) => {
     // Service externe (bot Telegram) : sa clé d'envoi est vérifiée par ses propres routes (routes/ingest.tsx).
     if (isIngestPath(c.req.path)) {

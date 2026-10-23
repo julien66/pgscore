@@ -15,11 +15,10 @@ import { boardUrl } from "../pages/standings.js";
 import type { App, Ctx, Env } from "./context.js";
 import { one } from "./util.js";
 import { tasksOf } from "../repo.js";
-import { createIngestKey, deleteIngestKey, listIngestKeys } from "../reports.js";
 
 /** Compétitions : création, réglages, pilotes inscrits, classements et classements extraits. */
 export function competitionsRoutes(app: App, ctx: Ctx) {
-  const { db, tracks, cfg, me, competition, isAdmin, canEdit, notFound } = ctx;
+  const { db, tracks, me, competition, isAdmin, canEdit, notFound } = ctx;
   // --- Compétitions ------------------------------------------------------------------------
   const formValues = (f: Record<string, unknown>, fallback = DEFAULT_SETTINGS): CompetitionFormValues => {
     let settings = fallback;
@@ -95,7 +94,7 @@ export function competitionsRoutes(app: App, ctx: Ctx) {
   const competitionPage = (
     c: Context<Env>,
     comp: CompetitionRow,
-    extra: { error?: string; notice?: string; v?: CompetitionFormValues; edit?: boolean; board?: BoardQuery; ingestToken?: string } = {},
+    extra: { error?: string; notice?: string; v?: CompetitionFormValues; edit?: boolean; board?: BoardQuery } = {},
   ) => {
     const bq = extra.board ?? {};
     const x = standingsOf(comp, bq.rid, bq.view);
@@ -138,7 +137,6 @@ export function competitionsRoutes(app: App, ctx: Ctx) {
         edit={extra.edit ?? false}
         canEdit={canEdit(c, comp)}
         canDelete={Boolean(c.get("user") && isAdmin(c.get("user")!))}
-        {...(extra.edit && canEdit(c, comp) ? { ingest: { keys: listIngestKeys(db, comp.id), token: extra.ingestToken ?? null, baseUrl: cfg.baseUrl } } : {})}
       />,
       extra.error || bq.error ? 400 : 200,
     );
@@ -400,21 +398,5 @@ export function competitionsRoutes(app: App, ctx: Ctx) {
       if (!(e instanceof FormError)) throw e;
       return competitionPage(c, comp, { edit: true, error: e.message });
     }
-  });
-
-  // Clés d'envoi du service externe (bot Telegram) : retours des pilotes et incidents, par manche.
-  app.post("/competitions/:id/ingest-keys", async (c) => {
-    const comp = competition(c, c.req.param("id"));
-    if (!comp) return notFound(c);
-    const f = await c.req.parseBody();
-    const name = String(f.name ?? "").trim();
-    if (!name) return competitionPage(c, comp, { edit: true, error: t("Donnez un nom à la clé (par exemple le programme qui l'utilise).") });
-    return competitionPage(c, comp, { edit: true, ingestToken: createIngestKey(db, comp.id, me(c).id, name.slice(0, 80)) });
-  });
-  app.post("/competitions/:id/ingest-keys/:kid/delete", (c) => {
-    const comp = competition(c, c.req.param("id"));
-    if (!comp) return notFound(c);
-    deleteIngestKey(db, comp.id, Number(c.req.param("kid")));
-    return c.redirect(`/competitions/${comp.id}/edit#ingest`);
   });
 }
