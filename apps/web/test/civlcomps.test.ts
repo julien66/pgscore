@@ -64,6 +64,14 @@ describe("import civlcomps.org", () => {
     expect(pilotForTrack("T03/LiveTrack Adrien Raisson..20260616-082855.60845.60.igc", pilots)).toBe("60");
     expect(pilotForTrack("T03/LiveTrack Andreas H#U00e4ger..20260616.igc", pilots)).toBe("58008");
     expect(pilotForTrack("Inconnu.igc", pilots)).toBeNull();
+    // Traqueur d'un pilote absent des résultats, avec le numéro d'un autre (Siatista 2024, manche 1).
+    const siatista = new Map([
+      ["4", "Kotsiras Ilias"],
+      ["43", "Theodoros Anagnos"],
+    ]);
+    expect(pilotForTrack("LiveTrack Andrea Carloni.887870.20240818-114217.76497.4.igc", siatista)).toBeNull();
+    expect(pilotForTrack("LiveTrack Theodoros Anagnos.176938.20240818-095119.65094.43.igc", siatista)).toBe("43");
+    expect(pilotForTrack("LiveTrack Ilias Kotsiras.1.20240818-095119.2.4.igc", siatista)).toBe("4");
   });
 
   it("construit l'archive : manche en UTC, pénalités, traces", async () => {

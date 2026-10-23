@@ -666,6 +666,7 @@ const dict: Record<string, string> = {
   "Trace illisible : {detail}": "Unreadable track: {detail}",
   "Aucun point GPS valide dans la trace.": "No valid GPS fix in the track.",
   "Pas de vol détecté dans la trace.": "No flight detected in the track.",
+  "Trace collée à celle de {names} : trajet en véhicule, pas un vol": "Track stuck to {names}: vehicle ride, not a flight",
   "aucun point marqué": "no points scored",
   "manche arrêtée de validité inférieure à 0,05": "stopped task with validity below 0.05",
   "Féminin": "Women",
