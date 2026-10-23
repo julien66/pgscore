@@ -15,8 +15,11 @@ export interface CompetitionSettings extends CompetitionParameters {
   /** Formule de points : GAP 2026 de la CIVL (comme FS) ou variante PWCA (comme SVL). */
   gapProfile: GapProfile;
   airspacePenaltyRule: AirspacePenaltyRule;
-  /** Arrondi au mètre des limites converties depuis les pieds (comme SVL, logiciel de la PWCA). */
-  roundAirspaceLimits: boolean;
+  /**
+   * Arrondi au mètre des limites d'espace aérien converties depuis les pieds (comme SVL). Non réglé :
+   * suit la formule (arrondi avec PWCA, pas avec CIVL).
+   */
+  airspaceRounding?: boolean;
   /** Fuseau horaire du site, pour afficher et saisir les heures locales. */
   timeZone: string;
 }
@@ -25,7 +28,6 @@ export const DEFAULT_SETTINGS: CompetitionSettings = {
   ...DEFAULT_COMPETITION_PARAMETERS,
   gapProfile: "S7F2026",
   airspacePenaltyRule: "s7a",
-  roundAirspaceLimits: false,
   timeZone: "Europe/Paris",
 };
 
@@ -58,9 +60,22 @@ export const GOAL_LINE_ORIENTATIONS: Record<NonNullable<Task["goalLineOrientatio
   previousCentre: N_("Perpendiculaire au centre de la balise précédente (S7F 2024)"),
 };
 
+/**
+ * Limites d'espace aérien converties depuis les pieds arrondies au mètre : choix de la rubrique espace
+ * aérien, sinon selon la formule : arrondi avec PWCA, comme SVL (logiciel de la PWCA) ; sans arrondi
+ * avec CIVL, comme FS.
+ */
+export const roundsAirspaceLimits = (s: Pick<CompetitionSettings, "gapProfile" | "airspaceRounding">): boolean =>
+  s.airspaceRounding ?? s.gapProfile === "PWCA";
+
 export function parseSettings(json: string): CompetitionSettings {
   // leadingProfile : ancien choix du calcul de leading, retiré (un seul calcul, celui de FS et SVL).
-  const { leadingProfile: _old, ...stored } = JSON.parse(json) as Partial<CompetitionSettings> & { leadingProfile?: unknown };
+  // roundAirspaceLimits : ancienne case, décochée par défaut quelle que soit la formule ; remplacée par
+  // airspaceRounding, qui suit la formule tant qu'il n'est pas réglé.
+  const { leadingProfile: _old, roundAirspaceLimits: _round, ...stored } = JSON.parse(json) as Partial<CompetitionSettings> & {
+    leadingProfile?: unknown;
+    roundAirspaceLimits?: unknown;
+  };
   return { ...DEFAULT_SETTINGS, ...stored };
 }
 
@@ -81,12 +96,32 @@ function isTimeZone(tz: string): boolean {
   }
 }
 
-/** Réglages lus depuis le formulaire (distances en km, temps en minutes, FTV en %). */
-export function settingsFromForm(form: Record<string, unknown>): CompetitionSettings {
+/**
+ * Arrondi des limites lu depuis la rubrique espace aérien (case présente) ; à défaut, celui d'avant.
+ * Gardé seulement s'il s'écarte de celui de la formule : sinon il continue de suivre la formule.
+ */
+export function airspaceRoundingFromForm(form: Record<string, unknown>, gapProfile: GapProfile, previous: boolean | undefined): boolean | undefined {
+  if (form.airspaceRoundingField !== "1") return previous;
+  const round = form.roundAirspaceLimits === "on";
+  return round === roundsAirspaceLimits({ gapProfile }) ? undefined : round;
+}
+
+/** Barème de pénalité d'espace aérien lu depuis le formulaire ; à défaut, celui d'avant. */
+export function penaltyRuleFromForm(form: Record<string, unknown>, previous: AirspacePenaltyRule = DEFAULT_SETTINGS.airspacePenaltyRule): AirspacePenaltyRule {
+  if (form.airspacePenaltyRule === undefined || form.airspacePenaltyRule === "") return previous;
+  const rule = String(form.airspacePenaltyRule) as AirspacePenaltyRule;
+  if (!(rule in PENALTY_RULES)) throw new FormError(t("Barème d'espace aérien inconnu."));
+  return rule;
+}
+
+/**
+ * Réglages lus depuis le formulaire (distances en km, temps en minutes, FTV en %). La pénalité et
+ * l'arrondi d'espace aérien se règlent dans leur rubrique : absents du formulaire, on garde ceux d'avant.
+ */
+export function settingsFromForm(form: Record<string, unknown>, previous: CompetitionSettings = DEFAULT_SETTINGS): CompetitionSettings {
   const gapProfile = String(form.gapProfile ?? DEFAULT_SETTINGS.gapProfile) as GapProfile;
   if (!(gapProfile in GAP_PROFILES)) throw new FormError(t("Formule de points inconnue."));
-  const airspacePenaltyRule = String(form.airspacePenaltyRule) as AirspacePenaltyRule;
-  if (!(airspacePenaltyRule in PENALTY_RULES)) throw new FormError(t("Barème d'espace aérien inconnu."));
+  const airspacePenaltyRule = penaltyRuleFromForm(form, previous.airspacePenaltyRule);
   const timeZone = String(form.timeZone ?? "").trim() || DEFAULT_SETTINGS.timeZone;
   if (!isTimeZone(timeZone)) throw new FormError(t("Fuseau horaire inconnu : {timeZone}", { timeZone }));
   let params;
@@ -100,11 +135,12 @@ export function settingsFromForm(form: Record<string, unknown>): CompetitionSett
   } catch (e) {
     throw new FormError((e as Error).message);
   }
+  const airspaceRounding = airspaceRoundingFromForm(form, gapProfile, previous.airspaceRounding);
   return {
     ...params,
     gapProfile,
     airspacePenaltyRule,
-    roundAirspaceLimits: form.roundAirspaceLimits === "on",
+    ...(airspaceRounding !== undefined ? { airspaceRounding } : {}),
     timeZone,
   };
 }

@@ -5,7 +5,7 @@ import { decodeText } from "../files.js";
 import { isRunning, startRuns } from "../runner.js";
 import { linkTracks } from "../tracks.js";
 import { touchScoring } from "../decisions.js";
-import { DEFAULT_SETTINGS, FormError, parseSettings, settingsFromForm } from "../settings.js";
+import { DEFAULT_SETTINGS, FormError, airspaceRoundingFromForm, parseSettings, penaltyRuleFromForm, settingsFromForm } from "../settings.js";
 import { t } from "../i18n.js";
 import { competitionStandings, extractStandings, standingsCsv, type StandingsView } from "../standings.js";
 import { addDefaultRankings, createRanking, deleteRanking, getRanking, listRankings, rankingMembers, setOverride, updateRanking } from "../rankings.js";
@@ -23,7 +23,7 @@ export function competitionsRoutes(app: App, ctx: Ctx) {
   const formValues = (f: Record<string, unknown>, fallback = DEFAULT_SETTINGS): CompetitionFormValues => {
     let settings = fallback;
     try {
-      settings = settingsFromForm(f);
+      settings = settingsFromForm(f, fallback);
     } catch {
       /* on réaffiche les valeurs précédentes */
     }
@@ -207,7 +207,7 @@ export function competitionsRoutes(app: App, ctx: Ctx) {
     try {
       const name = String(f.name ?? "").trim();
       if (!name) throw new FormError("Le nom est obligatoire.");
-      const s = settingsFromForm(f);
+      const s = settingsFromForm(f, parseSettings(comp.params));
       db.prepare("UPDATE competitions SET name = ?, location = ?, start_date = ?, end_date = ?, params = ? WHERE id = ?").run(
         name,
         String(f.location ?? "").trim() || null,
@@ -382,6 +382,28 @@ export function competitionsRoutes(app: App, ctx: Ctx) {
     } catch (e) {
       if (!(e instanceof FormError)) throw e;
       return standingsPage(c, comp, String(r.row.id), { error: e.message });
+    }
+  });
+
+  // Barème de pénalité et arrondi des limites, réglés dans la rubrique espace aérien.
+  app.post("/competitions/:id/airspace/settings", async (c) => {
+    const comp = competition(c, c.req.param("id"));
+    if (!comp) return notFound(c);
+    const f = await c.req.parseBody();
+    try {
+      const s = parseSettings(comp.params);
+      const { airspaceRounding: _old, ...rest } = s;
+      const airspaceRounding = airspaceRoundingFromForm(f, s.gapProfile, s.airspaceRounding);
+      const settings = {
+        ...rest,
+        airspacePenaltyRule: penaltyRuleFromForm(f, s.airspacePenaltyRule),
+        ...(airspaceRounding !== undefined ? { airspaceRounding } : {}),
+      };
+      db.prepare("UPDATE competitions SET params = ? WHERE id = ?").run(JSON.stringify(settings), comp.id);
+      return c.redirect(`/competitions/${comp.id}/edit?ok=1#airspace`);
+    } catch (e) {
+      if (!(e instanceof FormError)) throw e;
+      return competitionPage(c, comp, { edit: true, error: e.message });
     }
   });
 
