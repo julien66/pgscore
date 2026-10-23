@@ -140,6 +140,8 @@ function remark(p: PilotResult, tz: string): string {
 }
 
 function controlRemark(p: PilotResult, tz: string): string {
+  if (p.sharedRide?.length)
+    return t("Trace collée à celle de {names} : trajet en véhicule, pas un vol", { names: p.sharedRide.slice(0, 3).join(", ") + (p.sharedRide.length > 3 ? ` (+${p.sharedRide.length - 3})` : "") });
   if (p.status === "GOAL" || p.status === "ABS" || p.status === "DNF" || p.error) return engineError(p.error);
   const a = (p.approaches ?? []).find((x) => !x.reached);
   // Au-delà de 500 m, c'est un posé normal, pas une zone frôlée.

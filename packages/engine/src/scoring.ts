@@ -10,6 +10,7 @@ import {
 } from "./openair.js";
 import { GAP_RULES, goalAltitudeFactor, scoreGap, type GapProfile, type GapPoints, type GapTaskScore } from "./gap.js";
 import { scoredDistance, type CompetitionParameters } from "./params.js";
+import { rideSamples, sharedRides, type RideSamples } from "./ride.js";
 import { taskTimeFromGate, type Task } from "./task.js";
 
 /**
@@ -113,6 +114,11 @@ export interface PilotResult {
   airspacePenalty: { points?: number; fraction?: number } | null;
   /** Passage au plus près des zones non validées (pour expliquer un départ ou une balise manqués). */
   approaches: ZoneApproach[];
+  /**
+   * Trace restée collée à celle d'autres pilotes pendant tout le « vol » : trajet en véhicule (navette),
+   * pas un vol. Noms des pilotes qui ont fait le même trajet ; le pilote est classé DNF.
+   */
+  sharedRide?: string[];
   /** Décisions de l'organisateur appliquées à ce pilote. */
   decisions?: Array<{ kind: DecisionKind; value?: number; reason: string }>;
   /** Points GAP (au dixième), null avant le classement. */
@@ -142,6 +148,8 @@ export interface ControlledPilot {
   /** Contrôle du vol, sans les fixes (inFlight vide) : rejouer controlFlight pour les avoir. */
   control: FlightControl | null;
   leading: LeadingTrack | null;
+  /** Positions du vol échantillonnées, pour repérer les traces d'un même véhicule (ride.ts). */
+  ride?: RideSamples | null;
 }
 
 function emptyResult(id: string, name: string): PilotResult {
@@ -224,12 +232,35 @@ export function controlPilot(task: Task, input: TrackInput, options: ScoringOpti
   if (leading?.quality?.warnings.length) r.leadingWarnings = leading.quality.warnings;
   // Les fixes du vol ne servent plus au classement : on les lâche pour ne pas garder toutes les traces
   // en mémoire pendant le calcul d'une manche (des centaines de Mo pour une centaine de pilotes).
-  return { result: r, control: { ...c, inFlight: [] }, leading };
+  return { result: r, control: { ...c, inFlight: [] }, leading, ride: c.flight ? rideSamples(c.inFlight) : null };
+}
+
+/**
+ * Traces qui ont fait le même trajet qu'une autre (navette) : pas un vol, le pilote est classé DNF
+ * (présent, n'a pas volé), sans distance ni leading.
+ */
+function markSharedRides(pilots: ControlledPilot[]): void {
+  const rides = sharedRides(
+    pilots.map((p) => (p.result.error ? null : (p.ride ?? null))),
+    pilots.map((p) => p.result.id),
+  );
+  rides.forEach((others, i) => {
+    if (!others.length) return;
+    const p = pilots[i]!;
+    const r = p.result;
+    r.sharedRide = others.map((j) => pilots[j]!.result.name);
+    r.status = "DNF";
+    r.distance = r.flownDistance = 0;
+    r.startTime = r.essTime = r.goalTime = r.speedSectionTime = null;
+    r.stop = null;
+    p.leading = null;
+  });
 }
 
 /** Termine le calcul : leading (qui dépend de tous les pilotes) et classement. */
 export function finishScoring(task: Task, controlled: ControlledPilot[], options: ScoringOptions): TaskScoring {
   const distances = taskDistances(task);
+  markSharedRides(controlled);
   const pilots = applyDecisions(controlled, options.decisions ?? [], distances.task, options.params.minimumDistance);
   const ssKm = leadingSpeedSectionKm(task, options.gapProfile);
   const absent = (r: PilotResult) => r.status === "ABS" || r.status === "DNF";

@@ -611,12 +611,6 @@ export async function civlToArchive(
     for (const r of page.pilots) {
       const kind = /^ABS$/i.test(r.rank) ? "abs" : /^DNF$/i.test(r.rank) ? "dnf" : null;
       if (kind) decisions.push({ pilot_key: r.key, pilot_name: r.name, kind, value: null, reason: t("Repris de civlcomps.org ({status})", { status: r.rank.toUpperCase() }), created_at: Date.now() });
-      // Classé à 0 km sans départ ni points : FS n'a pas retenu de vol (un pilote qui a volé a au moins la
-      // distance minimale). Le ZIP de civlcomps peut pourtant avoir une trace pour lui, celle d'un traqueur
-      // resté allumé dans la navette (Siatista 2024, manche 1 : 12 pilotes, descente en voiture après la
-      // porte) : sans cette décision, elle compterait comme un vol à la distance minimale.
-      else if (r.distance === 0 && !r.start && (r.total ?? 0) === 0)
-        decisions.push({ pilot_key: r.key, pilot_name: r.name, kind: "dnf", value: null, reason: t("Repris de civlcomps.org (0 km, aucun vol retenu par FS)"), created_at: Date.now() });
     }
 
     const tracks: ArchiveTask["tracks"] = [];

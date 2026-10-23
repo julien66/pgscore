@@ -14,8 +14,11 @@ const task: Task = {
 };
 const options = { params: { minimumDistance: 5000, nominalDistance: 30000, nominalTime: 3600 } };
 
-/** Trace IGC synthétique : plein nord à 10 m/s depuis le centre du départ, sur `km` kilomètres. */
-function igc(km: number): string {
+/**
+ * Trace IGC synthétique : plein nord à 10 m/s depuis le centre du départ, sur `km` kilomètres, décalée de
+ * `east` mètres vers l'est (deux pilotes sur la même trace seraient pris pour une navette, ride.ts).
+ */
+function igc(km: number, east = 0): string {
   const ll = (v: number, deg: number) => {
     const a = Math.abs(v);
     const d = Math.floor(a);
@@ -23,7 +26,7 @@ function igc(km: number): string {
   };
   const lines = ["AXXX synthétique", "HFDTE061026"];
   for (let s = 0; s <= km * 100; s += 5) {
-    const p = direct(sss, 0, 10 * s);
+    const p = direct(direct(sss, 90, east), 0, 10 * s);
     const t = 10 * 3600 + 5 * 60 + s;
     const hms = [Math.floor(t / 3600), Math.floor(t / 60) % 60, t % 60].map((x) => String(x).padStart(2, "0")).join("");
     lines.push(`B${hms}${ll(p.lat, 2)}N${ll(p.lon, 3)}EA0150001500`);
@@ -33,7 +36,7 @@ function igc(km: number): string {
 
 describe("plusieurs traces pour un pilote", () => {
   it("retient la trace la plus favorable au pilote", () => {
-    const other = controlPilot(task, { id: "b", igc: igc(20) }, options);
+    const other = controlPilot(task, { id: "b", igc: igc(20, 500) }, options);
     const short = controlPilot(task, { id: "a", igc: igc(10) }, options);
     const long = controlPilot(task, { id: "a", igc: igc(25) }, options);
     for (const order of [[short, long], [long, short]]) {
