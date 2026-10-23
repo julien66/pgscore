@@ -18,7 +18,7 @@ services:
       sizeGB: 5
     envVars:
       - key: NODE_VERSION
-        value: 22.22.0
+        value: 22.23.4
       # Le plan Starter a 512 Mo : on borne le tas du serveur (256 Mo) et celui du calcul (160 Mo, dans
       # runner.ts) pour que Node libère la mémoire avant d'y arriver. Envois et imports passent par le disque.
       - key: NODE_OPTIONS
