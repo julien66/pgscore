@@ -165,6 +165,8 @@ export interface CivlPilotRow {
   rank: string;
   /** Heure de départ (SS) du pilote, telle qu'affichée. */
   start: string | null;
+  /** Distance publiée, en km (null si la colonne manque ou est vide). */
+  distance: number | null;
   /** Somme des colonnes de points (distance, leading, temps…) et total publié, s'ils sont lisibles. */
   pointsSum: number | null;
   total: number | null;
@@ -278,6 +280,7 @@ export function parseTaskPage(html: string): CivlTaskPage {
     const iName = c("Name");
     // Colonne sans titre après le nom : le genre (M/F).
     const iGender = res.headers[iName + 1] === "" ? iName + 1 : -1;
+    const iDist = res.headers.findIndex((h) => /^Distance\b/i.test(h));
     for (const r of res.rows) {
       const key = r[c("Id")] ?? "";
       if (!key || !r[iName]) continue;
@@ -291,6 +294,7 @@ export function parseTaskPage(html: string): CivlTaskPage {
         sponsor: c("Sponsor") >= 0 ? (r[c("Sponsor")] ?? "") : "",
         rank: r[0] ?? "",
         start: c("SS") >= 0 ? hm(r[c("SS")]) : null,
+        distance: iDist >= 0 && r[iDist] !== "" && Number.isFinite(Number(r[iDist])) ? Number(r[iDist]) : null,
         ...pointsOf(res.headers, r),
       });
     }
@@ -455,12 +459,18 @@ export function pilotForTrack(path: string, pilots: Map<string, string>): string
   const stem = file.replace(/\.igc$/i, "");
   const front = /^(\d+)[_\s.-]/.exec(stem)?.[1];
   if (front && pilots.has(front)) return front;
+  const words = (s: string) => norm(s).split(" ").filter(Boolean);
+  // Nom écrit en clair dans un fichier LiveTrack (« LiveTrack Prénom Nom.<id>… » ou « LiveTrack Prénom Nom..<date>… »).
+  const live = /^LiveTrack\s+/i.test(stem) ? words(stem.replace(/^LiveTrack\s+/i, "").replace(/\..*$/, "")) : [];
   const back = /\.(\d+)$/.exec(stem)?.[1];
-  if (back && pilots.has(back)) return back;
-  const words = norm(stem.replace(/^LiveTrack\s+/i, "").replace(/\.\..*$/, "")).split(" ").filter(Boolean).sort().join(" ");
-  if (words)
-    for (const [key, name] of pilots) {
-      if (norm(name).split(" ").filter(Boolean).sort().join(" ") === words) return key;
+  // Le numéro de la fin est celui du pilote, sauf si le nom du fichier en désigne un autre : le ZIP de civlcomps
+  // garde les traqueurs de pilotes absents des résultats (Siatista 2024, manche 1 : « LiveTrack Andrea
+  // Carloni….4.igc » alors que le 4 est Kotsiras Ilias).
+  if (back && pilots.has(back) && (!live.length || words(pilots.get(back)!).some((w) => live.includes(w)))) return back;
+  const name = (live.length ? live : words(stem.replace(/\.\..*$/, ""))).sort().join(" ");
+  if (name)
+    for (const [key, n] of pilots) {
+      if (words(n).sort().join(" ") === name) return key;
     }
   return null;
 }
@@ -601,6 +611,12 @@ export async function civlToArchive(
     for (const r of page.pilots) {
       const kind = /^ABS$/i.test(r.rank) ? "abs" : /^DNF$/i.test(r.rank) ? "dnf" : null;
       if (kind) decisions.push({ pilot_key: r.key, pilot_name: r.name, kind, value: null, reason: t("Repris de civlcomps.org ({status})", { status: r.rank.toUpperCase() }), created_at: Date.now() });
+      // Classé à 0 km sans départ ni points : FS n'a pas retenu de vol (un pilote qui a volé a au moins la
+      // distance minimale). Le ZIP de civlcomps peut pourtant avoir une trace pour lui, celle d'un traqueur
+      // resté allumé dans la navette (Siatista 2024, manche 1 : 12 pilotes, descente en voiture après la
+      // porte) : sans cette décision, elle compterait comme un vol à la distance minimale.
+      else if (r.distance === 0 && !r.start && (r.total ?? 0) === 0)
+        decisions.push({ pilot_key: r.key, pilot_name: r.name, kind: "dnf", value: null, reason: t("Repris de civlcomps.org (0 km, aucun vol retenu par FS)"), created_at: Date.now() });
     }
 
     const tracks: ArchiveTask["tracks"] = [];

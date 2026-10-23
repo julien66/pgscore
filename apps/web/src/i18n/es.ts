@@ -718,6 +718,7 @@ const dict: Record<string, string> = {
   "{task} : pilote {key} ignoré ({error}).": "{task}: piloto {key} omitido ({error}).",
   "Pénalité reprise de civlcomps.org": "Penalización tomada de civlcomps.org",
   "Repris de civlcomps.org ({status})": "Tomado de civlcomps.org ({status})",
+  "Repris de civlcomps.org (0 km, aucun vol retenu par FS)": "Tomado de civlcomps.org (0 km, ningún vuelo puntuado por FS)",
   "{task} : téléchargement des traces": "{task}: descarga de los tracks",
   "{task} : ZIP des traces illisible ({error}).": "{task}: ZIP de tracks ilegible ({error}).",
   "{task} : pas de traces publiées.": "{task}: sin tracks publicados.",

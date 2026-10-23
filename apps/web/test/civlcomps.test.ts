@@ -64,6 +64,40 @@ describe("import civlcomps.org", () => {
     expect(pilotForTrack("T03/LiveTrack Adrien Raisson..20260616-082855.60845.60.igc", pilots)).toBe("60");
     expect(pilotForTrack("T03/LiveTrack Andreas H#U00e4ger..20260616.igc", pilots)).toBe("58008");
     expect(pilotForTrack("Inconnu.igc", pilots)).toBeNull();
+    // Traqueur d'un pilote absent des résultats, avec le numéro d'un autre (Siatista 2024, manche 1).
+    const siatista = new Map([
+      ["4", "Kotsiras Ilias"],
+      ["43", "Theodoros Anagnos"],
+    ]);
+    expect(pilotForTrack("LiveTrack Andrea Carloni.887870.20240818-114217.76497.4.igc", siatista)).toBeNull();
+    expect(pilotForTrack("LiveTrack Theodoros Anagnos.176938.20240818-095119.65094.43.igc", siatista)).toBe("43");
+    expect(pilotForTrack("LiveTrack Ilias Kotsiras.1.20240818-095119.2.4.igc", siatista)).toBe("4");
+  });
+
+  it("un pilote classé à 0 km sans départ n'a pas volé pour FS (Siatista 2024)", async () => {
+    const event = fx("civlcomps-event.html");
+    // Michel Cervellin passe à 0 km, sans départ ni points ; sa trace reste dans le ZIP.
+    const row = /(<tr\b(?:(?!<\/tr>)[\s\S])*?Michel Cervellin[\s\S]*?<\/tr>)/.exec(fx("civlcomps-task.html"))![1]!;
+    const cells = [...row.matchAll(/<td\b[^>]*>[\s\S]*?<\/td>/g)].map((m) => m[0]);
+    const page = parseTaskPage(fx("civlcomps-task.html"));
+    const res = page.pilots[0]!;
+    expect(res).toMatchObject({ key: "37", start: "12:00:00", distance: 63.68 });
+    const blank = (cell: string) => cell.replace(/(<span[^>]*>)[\s\S]*?(<\/span>)/, "$1$2");
+    const zero = (cell: string) => cell.replace(/(<span[^>]*>)[\s\S]*?(<\/span>)/, "$10.0$2");
+    const headers = [...fx("civlcomps-task.html").matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/g)].map((m) => m[1]!.replace(/<[^>]*>/g, "").trim());
+    const first = headers.indexOf("#");
+    const h = headers.slice(first, first + cells.length);
+    const edited = cells.map((c, i) => (["SS", "ES", "Time [h:m:s]", "Speed [km/h]"].includes(h[i]!) ? blank(c) : /^Distance|Points$|^Total$/.test(h[i]!) ? zero(c) : c));
+    let newRow = row;
+    cells.forEach((c, i) => (newRow = newRow.replace(c, edited[i]!)));
+    const task = fx("civlcomps-task.html").replace(row, newRow);
+    expect(parseTaskPage(task).pilots[0]).toMatchObject({ key: "37", start: null, distance: 0, total: 0 });
+    const zip = zipSync({ "T03/LiveTrack Michel Cervellin..20260616.1.37.igc": strToU8("AXXX\n") });
+    const fetcher = async (url: string) => (url.includes("download-file") ? zip : strToU8(url.endsWith("/results") ? event : task));
+    const { a } = await civlToArchive("https://civlcomps.org/event/french-open-trophees-des-cimes-2026/results", fetcher);
+    expect(a.tasks[0]!.decisions.filter((d) => d.pilot_key === "37")).toMatchObject([{ kind: "dnf" }]);
+    // L'absent (ABS) reste absent, sans seconde décision.
+    expect(a.tasks[0]!.decisions.filter((d) => d.pilot_key === "1420").map((d) => d.kind)).toEqual(["abs"]);
   });
 
   it("construit l'archive : manche en UTC, pénalités, traces", async () => {
