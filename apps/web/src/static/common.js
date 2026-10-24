@@ -38,3 +38,19 @@
       /** @type {HTMLInputElement} */ (box).checked = el.value === "PWCA";
   });
 })();
+
+// Champ affiché seulement pour un choix d'une liste du même formulaire (data-if-select="taskEnd=custom").
+(function () {
+  "use strict";
+  const sync = () => {
+    for (const el of document.querySelectorAll("[data-if-select]")) {
+      const [name, value] = el.getAttribute("data-if-select").split("=");
+      const form = el.closest("form");
+      const select = form && form.querySelector(`select[name="${name}"]`);
+      if (select instanceof HTMLSelectElement) /** @type {HTMLElement} */ (el).hidden = select.value !== value;
+    }
+  };
+  document.addEventListener("change", sync);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", sync);
+  else sync();
+})();

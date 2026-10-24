@@ -250,7 +250,18 @@ export function tasksRoutes(app: App, ctx: Ctx) {
       delete task.leadingEnd;
       delete task.leadingFormula;
       Object.assign(task, taskScoringFromForm(f));
-      if (end) task.taskEndTime = localHmsToUtc(end, date, tz);
+      // Fin de manche pour le leading : l'heure est relevée à l'enregistrement (deadline, stop ou saisie).
+      const endMode = String(f.taskEnd ?? (end ? "custom" : "auto"));
+      if (endMode === "deadline") {
+        if (!task.deadline) throw new Error(t("Fin de manche pour le leading : la manche n'a pas de deadline."));
+        task.taskEndTime = task.deadline;
+      } else if (endMode === "stop") {
+        if (!task.stopAnnouncement) throw new Error(t("Fin de manche pour le leading : la manche n'a pas d'heure de stop."));
+        task.taskEndTime = task.stopAnnouncement;
+      } else if (endMode === "custom") {
+        if (!end) throw new Error(t("Fin de manche pour le leading : indiquez l'heure."));
+        task.taskEndTime = localHmsToUtc(end, date, tz);
+      } else if (endMode !== "auto") throw new Error(t("Fin de manche pour le leading inconnue."));
     } catch (e) {
       return taskPage(c, x.t, x.comp, { error: (e as Error).message });
     }

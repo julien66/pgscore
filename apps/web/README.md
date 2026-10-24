@@ -79,8 +79,9 @@ de SVL (sans le facteur de distance restante du texte S7F), vérifiée à 0,1 po
 
 Réglages de la manche utiles aux points : Leading Time Ratio (26 % par défaut en S7F), nombre de
 pilotes présents pour la validité de décollage (par défaut, ceux qui ont volé), fin des vols pour le
-leading (dernière arrivée à l'ESS par défaut, ou dernier pilote en vol), et heure de fin de manche si
-l'organisation en fixe une plus tardive. Dans « Règles anciennes », l'orientation d'un goal en ligne :
+leading (dernière arrivée à l'ESS par défaut, ou dernier pilote en vol), et fin de manche pour le
+leading si l'organisation en fixe une plus tardive (deadline, heure de stop ou autre heure, relevée à
+l'enregistrement). Dans les paramètres avancés, l'orientation d'un goal en ligne :
 perpendiculaire à la route optimisée (S7F 2026, PWCA, par défaut) ou au centre de la balise précédente
 (S7F 2024).
 
