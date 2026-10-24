@@ -258,15 +258,6 @@ export const TaskPage: FC<{
                 <input type="text" name="taskEndTime" placeholder="HH:MM" style="width:90px" value={taskEnd === "custom" ? loc(task.taskEndTime) : ""} data-if-select="taskEnd=custom" hidden={taskEnd !== "custom"} />
               </div>
             </Param>
-          </div>
-          <h2 class="mt"><Ic n="settings" c="gray" />{t("Paramètres avancés")}</h2>
-          <div class="params">
-            <Param id="cylinderTolerance" label={t("Tolérance des cylindres (%)")} help={t("Marge accordée au bord des cylindres (S7F 9.1.1). Vide : celle de la formule, 0 % + 5 m (S7F 2026) ou 0,1 % (PWCA).")}>
-              <input type="number" step="any" min="0" max="1" name="cylinderTolerance" id="cylinderTolerance" placeholder={settings.gapProfile === "PWCA" ? t("vide : 0,1 % (PWCA)") : t("vide : 0 % + 5 m (S7F 2026)")} value={task.cylinderTolerance !== undefined ? String(+(task.cylinderTolerance * 100).toFixed(4)) : ""} />
-            </Param>
-            <Param id="pilotsPresent" label={t("Pilotes présents (sauf ABS)")} help={t("Pilotes présents au décollage, pour la validité de la manche. Vide : ceux qui ont volé et ceux déclarés DNF.")}>
-              <input type="number" step="1" min="0" name="pilotsPresent" id="pilotsPresent" placeholder={t("pilotes qui ont volé")} value={task.pilotsPresent ?? ""} />
-            </Param>
             <Param id="leadingFormula" label={t("Formule du leading des pilotes posés")} help={t("Façon de compter la partie de vol manquante des pilotes posés avant l'ESS. GAP2025 sert à retrouver d'anciens calculs de FS.")}>
               <select name="leadingFormula" id="leadingFormula">
                 {Object.entries(LEADING_FORMULAS).map(([k, l]) => (
@@ -275,6 +266,15 @@ export const TaskPage: FC<{
                   </option>
                 ))}
               </select>
+            </Param>
+          </div>
+          <h2 class="mt"><Ic n="settings" c="gray" />{t("Paramètres avancés")}</h2>
+          <div class="params">
+            <Param id="cylinderTolerance" label={t("Tolérance des cylindres (%)")} help={t("Marge accordée au bord des cylindres (S7F 9.1.1). Vide : celle de la formule, 0 % + 5 m (S7F 2026) ou 0,1 % (PWCA).")}>
+              <input type="number" step="any" min="0" max="1" name="cylinderTolerance" id="cylinderTolerance" placeholder={settings.gapProfile === "PWCA" ? t("vide : 0,1 % (PWCA)") : t("vide : 0 % + 5 m (S7F 2026)")} value={task.cylinderTolerance !== undefined ? String(+(task.cylinderTolerance * 100).toFixed(4)) : ""} />
+            </Param>
+            <Param id="pilotsPresent" label={t("Pilotes présents (sauf ABS)")} help={t("Pilotes présents au décollage, pour la validité de la manche. Vide : ceux qui ont volé et ceux déclarés DNF.")}>
+              <input type="number" step="1" min="0" name="pilotsPresent" id="pilotsPresent" placeholder={t("pilotes qui ont volé")} value={task.pilotsPresent ?? ""} />
             </Param>
             <Param id="goalLineOrientation" label={t("Orientation du goal en ligne")} help={t("Règles anciennes : le S7F 2024 orientait la ligne de goal vers le centre de la balise précédente.")}>
               <select name="goalLineOrientation" id="goalLineOrientation">
