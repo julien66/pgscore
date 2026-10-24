@@ -4,6 +4,18 @@ import type { PilotRow } from "../db.js";
 import { locale, t } from "../i18n.js";
 import { Bi } from "./layout.js";
 
+/** Un paramètre sur sa ligne : libellé et phrase d'explication à gauche, champ à droite. */
+export const Param: FC<{ id: string; label: string; help: string; formula?: string; children: unknown }> = ({ id, label, help, formula, children }) => (
+  <div class="param">
+    <div>
+      <label for={id}>{label}</label>
+      <p class="small muted">{help}</p>
+      {formula ? <p class="formula">{formula}</p> : null}
+    </div>
+    {children}
+  </div>
+);
+
 /** Colonnes d'identité des classements (genre, nation, matériel, sponsor), affichées si le registre les renseigne. */
 export const identity = (registry: PilotRow[], keys: string[]) => {
   const reg = new Map(registry.map((p) => [p.pilot_key, p]));

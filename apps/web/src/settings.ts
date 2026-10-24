@@ -54,7 +54,24 @@ export const LEADING_FORMULAS: Record<LeadingFormula, string> = {
   GAP2025: N_("GAP2025 : distance restante × poids (FS GAP2025)"),
 };
 
-/** Orientation d'un goal en ligne, réglée par manche (rubrique « Règles anciennes »). */
+/** Fin de manche pour le leading : automatique, deadline, heure de stop ou heure saisie. */
+export const TASK_ENDS = {
+  auto: N_("Automatique (fin des vols)"),
+  deadline: N_("Deadline (fin de manche)"),
+  stop: N_("Heure de stop"),
+  custom: N_("Autre heure"),
+} as const;
+export type TaskEndMode = keyof typeof TASK_ENDS;
+
+/** Choix affiché pour la fin de manche enregistrée (une heure, en UTC). */
+export function taskEndMode(task: Pick<StoredTask, "taskEndTime" | "deadline" | "stopAnnouncement">): TaskEndMode {
+  if (!task.taskEndTime) return "auto";
+  if (task.taskEndTime === task.deadline) return "deadline";
+  if (task.taskEndTime === task.stopAnnouncement) return "stop";
+  return "custom";
+}
+
+/** Orientation d'un goal en ligne, réglée par manche (paramètres avancés de la manche). */
 export const GOAL_LINE_ORIENTATIONS: Record<NonNullable<Task["goalLineOrientation"]>, string> = {
   route: N_("Perpendiculaire à la route optimisée (S7F 2026, PWCA)"),
   previousCentre: N_("Perpendiculaire au centre de la balise précédente (S7F 2024)"),

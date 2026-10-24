@@ -6,7 +6,7 @@ import { km, timeZoneGroups } from "../time.js";
 import { t } from "../i18n.js";
 import { PILOT_COLUMNS } from "../pilots.js";
 import { Ic, Bi, Layout, ErrorBox, dateRange } from "./layout.js";
-import { CsvLink, fr } from "./parts.js";
+import { CsvLink, Param, fr } from "./parts.js";
 import { type Board, StandingsBoard } from "./standings.js";
 
 export interface CompetitionFormValues {
@@ -16,18 +16,6 @@ export interface CompetitionFormValues {
   end_date: string;
   settings: CompetitionSettings;
 }
-
-/** Un paramètre sur sa ligne : libellé et phrase d'explication à gauche, champ à droite. */
-const Param: FC<{ id: string; label: string; help: string; formula?: string; children: unknown }> = ({ id, label, help, formula, children }) => (
-  <div class="param">
-    <div>
-      <label for={id}>{label}</label>
-      <p class="small muted">{help}</p>
-      {formula ? <p class="formula">{formula}</p> : null}
-    </div>
-    {children}
-  </div>
-);
 
 /** Réglages de la compétition : généraux (avec le fuseau), formule de scoring, paramètres GAP. */
 export const CompetitionFields: FC<{ v: CompetitionFormValues }> = ({ v }) => {
