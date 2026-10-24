@@ -166,114 +166,125 @@ export const TaskPage: FC<{
             <span class="muted small">{task.stopAnnouncement ? t("arrêtée à {time}", { time: loc(task.stopAnnouncement) }) : tk.date ? dateRange(tk.date, null) : ""}</span>
           </h2>
         </summary>
-        <form method="post" action={`/tasks/${tk.id}`} class="grid">
-          <div>
-            <label>{t("Date")}</label>
-            <input type="date" name="date" value={tk.date ?? ""} />
-          </div>
-          <div>
-            <label>{t("Type de manche")}</label>
-            <select name="type">
-              <option value="race" selected={task.type === "race"}>
-                {t("Race to goal")}
-              </option>
-              <option value="time-trial" selected={task.type === "time-trial"}>
-                {t("Time trial")}
-              </option>
-            </select>
-          </div>
-          <div>
-            <label>{t("Type de goal")}</label>
-            <select name="goalKind">
-              <option value="cylinder" selected={task.turnpoints.at(-1)?.zone.kind === "cylinder"}>
-                {t("Cylindre")}
-              </option>
-              <option value="goal-line" selected={task.turnpoints.at(-1)?.zone.kind === "goal-line"}>
-                {t("Ligne (demi-cercle derrière)")}
-              </option>
-            </select>
-          </div>
-          <div>
-            <label>{t("Portes de départ (heures locales)")}</label>
-            <input type="text" name="startGates" placeholder="15:00, 15:15" value={task.startGates.map((g) => loc(g).replace(/:00$/, "")).join(", ")} />
-          </div>
-          <div>
-            <label>{t("Deadline (heure locale)")}</label>
-            <input type="text" name="deadline" placeholder="HH:MM" value={loc(task.deadline).replace(/:00$/, "")} />
-          </div>
-          <div>
-            <label>{t("Tolérance des cylindres (%)")}</label>
-            <input type="number" step="any" min="0" max="1" name="cylinderTolerance" placeholder={settings.gapProfile === "PWCA" ? t("vide : 0,1 % (PWCA)") : t("vide : 0 % + 5 m (S7F 2026)")} value={task.cylinderTolerance !== undefined ? String(+(task.cylinderTolerance * 100).toFixed(4)) : ""} />
-          </div>
-          <div>
-            <label>{t("Elevated goal : hauteur au-dessus du goal (m)")}</label>
-            <input type="number" step="1" min="0" max="1000" name="elevatedGoal" placeholder={t("vide : goal ordinaire (S7F : 300)")} value={task.elevatedGoal ? String(task.elevatedGoal) : ""} />
-          </div>
-          <div>
-            <label>{t("Manche arrêtée : heure d'annonce (locale)")}</label>
-            <input type="text" name="stop" placeholder="HH:MM" value={loc(task.stopAnnouncement)} />
-          </div>
-          <div>
-            <label>{t("Manche arrêtée : finesse du bonus d'altitude")}</label>
-            <input type="number" step="any" min="0" name="bonusGlideRatio" placeholder="2,5 (S7F)" value={task.bonusGlideRatio !== undefined ? String(task.bonusGlideRatio) : ""} />
-          </div>
-          <div>
-            <label>{t("Leading Time Ratio (%)")}</label>
-            <input
-              type="number"
-              step="any"
-              min="0"
-              max="26"
-              name="leadingTimeRatio"
-              placeholder={settings.gapProfile === "PWCA" ? "26,3158 (PWCA)" : "26 (S7F)"}
-              value={task.leadingTimeRatio !== undefined ? String(+(task.leadingTimeRatio * 100).toFixed(4)) : ""}
-            />
-          </div>
-          <div>
-            <label>{t("Pilotes présents (sauf ABS)")}</label>
-            <input type="number" step="1" min="0" name="pilotsPresent" placeholder={t("pilotes qui ont volé")} value={task.pilotsPresent ?? ""} />
-          </div>
-          <div>
-            <label>{t("Fin des vols pour le leading")}</label>
-            <select name="leadingEnd">
-              {Object.entries(LEADING_ENDS).map(([k, l]) => (
-                <option value={k} selected={(task.leadingEnd ?? "lastEss") === k}>
-                  {t(l)}
+        <form method="post" action={`/tasks/${tk.id}`}>
+          <div class="grid">
+            <div>
+              <label>{t("Type de manche")}</label>
+              <select name="type">
+                <option value="race" selected={task.type === "race"}>
+                  {t("Race to goal")}
                 </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label>{t("Formule du leading des pilotes posés")}</label>
-            <select name="leadingFormula">
-              {Object.entries(LEADING_FORMULAS).map(([k, l]) => (
-                <option value={k} selected={(task.leadingFormula ?? "GAP2026") === k}>
-                  {t(l)}
+                <option value="time-trial" selected={task.type === "time-trial"}>
+                  {t("Time trial")}
                 </option>
-              ))}
-            </select>
+              </select>
+            </div>
+            <div>
+              <label>{t("Date")}</label>
+              <input type="date" name="date" value={tk.date ?? ""} />
+            </div>
+            <div>
+              <label>{t("Heure de start (locale)")}</label>
+              <input type="text" name="startGates" placeholder="15:00, 15:15" value={task.startGates.map((g) => loc(g).replace(/:00$/, "")).join(", ")} />
+            </div>
+            <div>
+              <label>{t("Heure de fin de manche (locale)")}</label>
+              <input type="text" name="deadline" placeholder="HH:MM" value={loc(task.deadline).replace(/:00$/, "")} />
+            </div>
           </div>
-          <div>
-            <label>{t("Fin de manche pour le leading (locale)")}</label>
-            <input type="text" name="taskEndTime" placeholder={t("fin des vols")} value={loc(task.taskEndTime)} />
-          </div>
-          <h3 style="grid-column:1/-1;margin:.5em 0 0">{t("Règles anciennes")}</h3>
-          <div>
-            <label>{t("Orientation du goal en ligne")}</label>
-            <select name="goalLineOrientation">
-              {Object.entries(GOAL_LINE_ORIENTATIONS).map(([k, l]) => (
-                <option value={k} selected={(task.goalLineOrientation ?? "route") === k}>
-                  {t(l)}
+          <h2 class="mt"><Ic n="flag" c="green" />{t("Goal")}</h2>
+          <div class="grid">
+            <div>
+              <label>{t("Type de goal")}</label>
+              <select name="goalKind">
+                <option value="cylinder" selected={task.turnpoints.at(-1)?.zone.kind === "cylinder"}>
+                  {t("Cylindre")}
                 </option>
-              ))}
-            </select>
+                <option value="goal-line" selected={task.turnpoints.at(-1)?.zone.kind === "goal-line"}>
+                  {t("Ligne (demi-cercle derrière)")}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label>{t("Elevated goal : hauteur au-dessus du goal (m)")}</label>
+              <input type="number" step="1" min="0" max="1000" name="elevatedGoal" placeholder={t("vide : goal ordinaire (S7F : 300)")} value={task.elevatedGoal ? String(task.elevatedGoal) : ""} />
+            </div>
           </div>
-          <div style="align-self:end">
-            <button>
+          <h2 class="mt"><Ic n="stop" c="red" />{t("Arrêt de manche")}</h2>
+          <div class="grid">
+            <div>
+              <label>{t("Heure de stop (locale)")}</label>
+              <input type="text" name="stop" placeholder="HH:MM" value={loc(task.stopAnnouncement)} />
+            </div>
+            <div>
+              <label>{t("Finesse du bonus d'altitude")}</label>
+              <input type="number" step="any" min="0" name="bonusGlideRatio" placeholder="2,5 (S7F)" value={task.bonusGlideRatio !== undefined ? String(task.bonusGlideRatio) : ""} />
+            </div>
+          </div>
+          <h2 class="mt"><Ic n="settings" c="gray" />{t("Paramètres avancés")}</h2>
+          <div class="grid">
+            <div>
+              <label>{t("Tolérance des cylindres (%)")}</label>
+              <input type="number" step="any" min="0" max="1" name="cylinderTolerance" placeholder={settings.gapProfile === "PWCA" ? t("vide : 0,1 % (PWCA)") : t("vide : 0 % + 5 m (S7F 2026)")} value={task.cylinderTolerance !== undefined ? String(+(task.cylinderTolerance * 100).toFixed(4)) : ""} />
+            </div>
+            <div>
+              <label>{t("Leading Time Ratio (%)")}</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                max="26"
+                name="leadingTimeRatio"
+                placeholder={settings.gapProfile === "PWCA" ? "26,3158 (PWCA)" : "26 (S7F)"}
+                value={task.leadingTimeRatio !== undefined ? String(+(task.leadingTimeRatio * 100).toFixed(4)) : ""}
+              />
+            </div>
+            <div>
+              <label>{t("Pilotes présents (sauf ABS)")}</label>
+              <input type="number" step="1" min="0" name="pilotsPresent" placeholder={t("pilotes qui ont volé")} value={task.pilotsPresent ?? ""} />
+            </div>
+            <div>
+              <label>{t("Fin des vols pour le leading")}</label>
+              <select name="leadingEnd">
+                {Object.entries(LEADING_ENDS).map(([k, l]) => (
+                  <option value={k} selected={(task.leadingEnd ?? "lastEss") === k}>
+                    {t(l)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label>{t("Formule du leading des pilotes posés")}</label>
+              <select name="leadingFormula">
+                {Object.entries(LEADING_FORMULAS).map(([k, l]) => (
+                  <option value={k} selected={(task.leadingFormula ?? "GAP2026") === k}>
+                    {t(l)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label>{t("Fin de manche pour le leading (locale)")}</label>
+              <input type="text" name="taskEndTime" placeholder={t("fin des vols")} value={loc(task.taskEndTime)} />
+            </div>
+            <h3 style="grid-column:1/-1;margin:.5em 0 0">{t("Règles anciennes")}</h3>
+            <div>
+              <label>{t("Orientation du goal en ligne")}</label>
+              <select name="goalLineOrientation">
+                {Object.entries(GOAL_LINE_ORIENTATIONS).map(([k, l]) => (
+                  <option value={k} selected={(task.goalLineOrientation ?? "route") === k}>
+                    {t(l)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p class="mt">
+            <button class="primary">
               <Bi n="save" />
               {t("Enregistrer")}
             </button>
-          </div>
+          </p>
         </form>
         <details class="mt">
           <summary>{t("Remplacer la définition de la manche (QR code corrigé)")}</summary>
